@@ -1,0 +1,2 @@
+# Boot immediately (Ctrl-C on serial still works during the check)
+CONFIG_BOOTDELAY=0

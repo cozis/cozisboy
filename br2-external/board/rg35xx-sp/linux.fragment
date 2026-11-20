@@ -1,0 +1,16 @@
+# Identify our kernel
+CONFIG_LOCALVERSION="-ambernic"
+# USB-C in device mode: ethernet gadget (CDC ECM + RNDIS) built in, for SSH over cable
+CONFIG_USB_MUSB_HDRC=y
+CONFIG_USB_MUSB_SUNXI=y
+CONFIG_USB_MUSB_GADGET=y
+CONFIG_PHY_SUN4I_USB=y
+CONFIG_USB_GADGET=y
+CONFIG_USB_ETH=y
+CONFIG_USB_ETH_RNDIS=y
+# Keep crash logs across warm reboots (needs a reserved-memory node, added later)
+CONFIG_PSTORE=y
+CONFIG_PSTORE_RAM=y
+CONFIG_PSTORE_CONSOLE=y
+# Boot-time measurement
+CONFIG_PRINTK_TIME=y

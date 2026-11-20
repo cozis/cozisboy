@@ -1,0 +1,24 @@
+#!/bin/sh
+# Ethernet over the USB-C cable: device is 10.55.0.2, the PC gets 10.55.0.1 via DHCP.
+
+IFACE=usb0
+ADDR=10.55.0.2
+
+case "$1" in
+start)
+	printf "Starting USB network: "
+	ip link set "$IFACE" up 2>/dev/null || { echo "no $IFACE"; exit 0; }
+	ip addr add "$ADDR/24" dev "$IFACE"
+	mkdir -p /var/lib/misc
+	touch /var/lib/misc/udhcpd.leases
+	udhcpd -S /etc/udhcpd-usb0.conf
+	echo "OK"
+	;;
+stop)
+	killall udhcpd 2>/dev/null
+	ip addr flush dev "$IFACE" 2>/dev/null
+	;;
+restart)
+	"$0" stop; "$0" start
+	;;
+esac
