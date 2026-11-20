@@ -159,3 +159,35 @@ CONFIG_SND_SUN4I_CODEC=m
 # CONFIG_BRIDGE is not set
 # CONFIG_VLAN_8021Q is not set
 # CONFIG_MPTCP is not set
+# ---- Pass 3: generic drivers with no hardware here, size-optimised build ----
+# Smaller code loads faster than it runs slower on this boot path.
+# CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE is not set
+CONFIG_CC_OPTIMIZE_FOR_SIZE=y
+# No KASLR: no relocation tables to carry or process at boot
+# CONFIG_RANDOMIZE_BASE is not set
+# CONFIG_RELOCATABLE is not set
+# Virtual-machine / server platform pieces
+# CONFIG_VIRTIO_MENU is not set
+# CONFIG_VIRTIO is not set
+# CONFIG_VIRTIO_NET is not set
+# CONFIG_ARM_SCMI_PROTOCOL is not set
+# CONFIG_ARM_SCPI_PROTOCOL is not set
+# CONFIG_ARM_SMMU is not set
+# CONFIG_ARM_SMMU_V3 is not set
+# CONFIG_PHYLIB is not set
+# CONFIG_NET_DEVLINK is not set
+# No USB host on this build: no HID devices to drive
+# CONFIG_HID is not set
+# CONFIG_HID_DEBUG is not set
+# PMIC/regulator drivers for other boards (keep AXP20x, fixed, GPIO)
+# CONFIG_REGULATOR_S2MPS11 is not set
+# CONFIG_MFD_SEC_CORE is not set
+# CONFIG_REGULATOR_PCA9450 is not set
+# CONFIG_REGULATOR_PF8X00 is not set
+# CONFIG_REGULATOR_PFUZE100 is not set
+# CONFIG_REGULATOR_RK808 is not set
+# CONFIG_MFD_RK8XX_I2C is not set
+# CONFIG_REGULATOR_MAX77620 is not set
+# CONFIG_REGULATOR_FAN53555 is not set
+# CONFIG_REGULATOR_PWM is not set
+# CONFIG_REGULATOR_VCTRL is not set

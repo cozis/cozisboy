@@ -1,1 +1,1 @@
-
+source "$BR2_EXTERNAL_AMBERNIC_PATH/package/cozisboy-splash/Config.in"

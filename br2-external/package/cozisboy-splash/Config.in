@@ -1,0 +1,4 @@
+config BR2_PACKAGE_COZISBOY_SPLASH
+	bool "cozisboy-splash"
+	help
+	  cozisboy animated boot splash (fbdev), started first thing in init.
