@@ -1,7 +1,7 @@
 From d753eced810a34c03fe758aa79d46c43f16e13a8 Mon Sep 17 00:00:00 2001
 From: Ryan Walklin <ryan@testtoast.com>
 Date: Fri, 20 Nov 2026 19:11:49 +0100
-Subject: [PATCH 07/12] arm64: dts: allwinner: h616: add LCD and LVDS pins
+Subject: [PATCH 07/13] arm64: dts: allwinner: h616: add LCD and LVDS pins
 
 The Allwinner H616 (and its H618, H700 and T507 package variants with
 the same die) have 28 video output pins for RGB/SPI and LVDS display.

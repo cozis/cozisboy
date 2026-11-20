@@ -29,3 +29,133 @@ CONFIG_FRAMEBUFFER_CONSOLE=y
 # Watchdog built in: keeps the FEL-armed watchdog fed once Linux runs
 CONFIG_WATCHDOG=y
 CONFIG_SUNXI_WATCHDOG=y
+
+# ---- Boot-time trim: only Allwinner, nothing this handheld can't use ----
+# Other SoC families (their drivers depend on these and disappear with them)
+# CONFIG_ARCH_ACTIONS is not set
+# CONFIG_ARCH_AIROHA is not set
+# CONFIG_ARCH_ALPINE is not set
+# CONFIG_ARCH_APPLE is not set
+# CONFIG_ARCH_ARTPEC is not set
+# CONFIG_ARCH_ASPEED is not set
+# CONFIG_ARCH_AXIADO is not set
+# CONFIG_ARCH_BCM is not set
+# CONFIG_ARCH_BCM2835 is not set
+# CONFIG_ARCH_BCMBCA is not set
+# CONFIG_ARCH_BRCMSTB is not set
+# CONFIG_ARCH_BERLIN is not set
+# CONFIG_ARCH_BLAIZE is not set
+# CONFIG_ARCH_BST is not set
+# CONFIG_ARCH_CIX is not set
+# CONFIG_ARCH_EXYNOS is not set
+# CONFIG_ARCH_K3 is not set
+# CONFIG_ARCH_LG1K is not set
+# CONFIG_ARCH_HISI is not set
+# CONFIG_ARCH_KEEMBAY is not set
+# CONFIG_ARCH_MEDIATEK is not set
+# CONFIG_ARCH_MESON is not set
+# CONFIG_ARCH_MICROCHIP is not set
+# CONFIG_ARCH_SPARX5 is not set
+# CONFIG_ARCH_MVEBU is not set
+# CONFIG_ARCH_NXP is not set
+# CONFIG_ARCH_LAYERSCAPE is not set
+# CONFIG_ARCH_MXC is not set
+# CONFIG_ARCH_S32 is not set
+# CONFIG_ARCH_MA35 is not set
+# CONFIG_ARCH_NPCM is not set
+# CONFIG_ARCH_QCOM is not set
+# CONFIG_ARCH_REALTEK is not set
+# CONFIG_ARCH_RENESAS is not set
+# CONFIG_ARCH_ROCKCHIP is not set
+# CONFIG_ARCH_SEATTLE is not set
+# CONFIG_ARCH_INTEL_SOCFPGA is not set
+# CONFIG_ARCH_SOPHGO is not set
+# CONFIG_ARCH_STM32 is not set
+# CONFIG_ARCH_SYNQUACER is not set
+# CONFIG_ARCH_TEGRA is not set
+# CONFIG_ARCH_TESLA_FSD is not set
+# CONFIG_ARCH_SPRD is not set
+# CONFIG_ARCH_THUNDER is not set
+# CONFIG_ARCH_THUNDER2 is not set
+# CONFIG_ARCH_UNIPHIER is not set
+# CONFIG_ARCH_VEXPRESS is not set
+# CONFIG_ARCH_VISCONTI is not set
+# CONFIG_ARCH_XGENE is not set
+# CONFIG_ARCH_ZYNQMP is not set
+# Buses / platforms / features with no hardware here
+# CONFIG_PCI is not set
+# CONFIG_ACPI is not set
+# CONFIG_VIRTUALIZATION is not set
+# CONFIG_XEN is not set
+# CONFIG_HYPERV is not set
+# CONFIG_ATA is not set
+# CONFIG_SCSI is not set
+# CONFIG_MD is not set
+# CONFIG_NVME_CORE is not set
+# CONFIG_MTD is not set
+# CONFIG_INFINIBAND is not set
+# CONFIG_CAN is not set
+# CONFIG_NFC is not set
+# CONFIG_MEDIA_SUPPORT is not set
+# CONFIG_STAGING is not set
+# CONFIG_ETHERNET is not set
+# CONFIG_NET_VENDOR_ATHEROS is not set
+# CONFIG_USB_XHCI_HCD is not set
+# CONFIG_USB_EHCI_HCD is not set
+# CONFIG_USB_OHCI_HCD is not set
+# CONFIG_USB_DWC2 is not set
+# CONFIG_USB_DWC3 is not set
+# CONFIG_USB_CHIPIDEA is not set
+# CONFIG_USB_STORAGE is not set
+# CONFIG_SERIO is not set
+# CONFIG_INPUT_TOUCHSCREEN is not set
+# CONFIG_INPUT_MOUSE is not set
+# CONFIG_INPUT_JOYSTICK is not set
+# CONFIG_INPUT_TABLET is not set
+# CONFIG_NFS_FS is not set
+# CONFIG_NFSD is not set
+# CONFIG_CIFS is not set
+# CONFIG_BTRFS_FS is not set
+# CONFIG_XFS_FS is not set
+# CONFIG_9P_FS is not set
+# CONFIG_FTRACE is not set
+# CONFIG_DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT is not set
+CONFIG_DEBUG_INFO_NONE=y
+# Later / optional hardware as modules (not loaded during boot)
+CONFIG_DRM_PANFROST=m
+CONFIG_SUN8I_CE=m
+CONFIG_RTW88=m
+CONFIG_RTW88_8821CS=m
+CONFIG_SND=m
+CONFIG_SND_SOC=m
+CONFIG_SND_SUN4I_CODEC=m
+# Server/desktop/container features with no use on a handheld
+# CONFIG_BPF_SYSCALL is not set
+# CONFIG_BPF_JIT is not set
+# CONFIG_CGROUPS is not set
+# CONFIG_NAMESPACES is not set
+# CONFIG_AUDIT is not set
+# CONFIG_SECURITY is not set
+# CONFIG_PROFILING is not set
+# CONFIG_NUMA is not set
+# CONFIG_HUGETLBFS is not set
+# CONFIG_NETFILTER is not set
+# CONFIG_IPV6 is not set
+# CONFIG_QUOTA is not set
+# CONFIG_FANOTIFY is not set
+# CONFIG_AUTOFS_FS is not set
+# CONFIG_SQUASHFS is not set
+# CONFIG_EFI is not set
+# CONFIG_IKCONFIG is not set
+# CONFIG_KALLSYMS_ALL is not set
+# CONFIG_IO_URING is not set
+# CONFIG_RD_BZIP2 is not set
+# CONFIG_RD_LZMA is not set
+# CONFIG_RD_XZ is not set
+# CONFIG_RD_LZO is not set
+# CONFIG_RD_LZ4 is not set
+# CONFIG_RD_ZSTD is not set
+# CONFIG_NET_9P is not set
+# CONFIG_BRIDGE is not set
+# CONFIG_VLAN_8021Q is not set
+# CONFIG_MPTCP is not set

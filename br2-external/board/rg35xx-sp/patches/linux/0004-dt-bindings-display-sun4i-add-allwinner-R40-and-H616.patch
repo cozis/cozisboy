@@ -1,7 +1,7 @@
 From b64bda8618830e412ee84e54abf2a407abd6ccbc Mon Sep 17 00:00:00 2001
 From: Ryan Walklin <ryan@testtoast.com>
 Date: Fri, 20 Nov 2026 19:11:44 +0100
-Subject: [PATCH 04/12] dt-bindings: display: sun4i: add allwinner R40 and H616
+Subject: [PATCH 04/13] dt-bindings: display: sun4i: add allwinner R40 and H616
  tcon compatible strings
 
 Add compatible strings for the Allwinner R40 and H616 LCD timing

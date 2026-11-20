@@ -2,7 +2,8 @@
 # Update the running RG35XX SP over SSH from the Buildroot output, then reboot.
 #   tools/deploy.sh kernel   -> /boot/Image + device tree
 #   tools/deploy.sh rootfs   -> all of output/target except /boot
-#   tools/deploy.sh all      -> both (default)
+#   tools/deploy.sh uboot    -> bootloader (written to the card at 8 KiB)
+#   tools/deploy.sh all      -> kernel + rootfs (default; not the bootloader)
 # Add NOREBOOT=1 to skip the reboot.
 set -e
 TOP="$(cd "$(dirname "$0")/.." && pwd)"
@@ -11,7 +12,7 @@ HOST="${HOST:-root@10.55.0.2}"
 DTB=allwinner/sun50i-h700-anbernic-rg35xx-sp.dtb
 WHAT="${1:-all}"
 
-case "$WHAT" in kernel|rootfs|all) ;; *) echo "usage: $0 [kernel|rootfs|all]" >&2; exit 2;; esac
+case "$WHAT" in kernel|rootfs|uboot|all) ;; *) echo "usage: $0 [kernel|rootfs|uboot|all]" >&2; exit 2;; esac
 
 if [ "$WHAT" = rootfs ] || [ "$WHAT" = all ]; then
 	echo ">>> rootfs"
@@ -22,9 +23,15 @@ fi
 if [ "$WHAT" = kernel ] || [ "$WHAT" = all ]; then
 	echo ">>> kernel + dtb"
 	# dropbear has no sftp-server, so stream with cat instead of scp
-	ssh "$HOST" 'cat > /boot/Image.new' < "$OUT/images/Image"
+	ssh "$HOST" 'cat > /boot/Image.lz4.new' < "$OUT/images/Image.lz4"
 	ssh "$HOST" "cat > /boot/$DTB.new" < "$OUT/images/$DTB"
-	ssh "$HOST" "mv /boot/Image.new /boot/Image && mv /boot/$DTB.new /boot/$DTB"
+	ssh "$HOST" "mv /boot/Image.lz4.new /boot/Image.lz4 && mv /boot/$DTB.new /boot/$DTB"
+fi
+if [ "$WHAT" = uboot ]; then
+	echo ">>> u-boot (SPL + TF-A + U-Boot at 8 KiB on mmcblk0)"
+	U="$OUT/images/u-boot-sunxi-with-spl.bin"
+	[ "$(stat -c%s "$U")" -lt $((1000 * 1024)) ] || { echo "u-boot too big for the 1000 KiB slot" >&2; exit 1; }
+	ssh "$HOST" 'cat > /tmp/u-boot.bin && dd if=/tmp/u-boot.bin of=/dev/mmcblk0 bs=1024 seek=8 conv=fsync && rm /tmp/u-boot.bin' < "$U"
 fi
 ssh "$HOST" sync
 if [ -z "$NOREBOOT" ]; then

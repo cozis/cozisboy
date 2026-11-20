@@ -8,6 +8,12 @@ install -d "$TARGET_DIR/boot/extlinux"
 sed "s/%PARTUUID%/$PARTUUID/g" "$BOARD_DIR/extlinux.conf" > "$TARGET_DIR/boot/extlinux/extlinux.conf"
 sed "s/%PARTUUID%/$PARTUUID/g" "$BOARD_DIR/genimage.cfg" > "$BINARIES_DIR/genimage.cfg"
 
+# Kernel as LZ4 *frame* format (U-Boot's decompressor rejects the kernel's
+# own Image.lz4, which uses the legacy format). Independent blocks (default).
+"$HOST_DIR/bin/lz4" -q -9 -f "$BINARIES_DIR/Image" "$BINARIES_DIR/Image.lz4"
+install -m 644 "$BINARIES_DIR/Image.lz4" "$TARGET_DIR/boot/Image.lz4"
+rm -f "$TARGET_DIR/boot/Image"
+
 # SSH key login only
 chmod 700 "$TARGET_DIR/root" "$TARGET_DIR/root/.ssh"
 chmod 600 "$TARGET_DIR/root/.ssh/authorized_keys"

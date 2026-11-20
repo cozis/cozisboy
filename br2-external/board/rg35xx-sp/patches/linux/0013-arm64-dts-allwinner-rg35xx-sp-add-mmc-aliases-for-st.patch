@@ -1,0 +1,29 @@
+From d2acb498a96499458f691636590d0effce5a7ab0 Mon Sep 17 00:00:00 2001
+From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
+Date: Sat, 21 Nov 2026 00:10:01 +0100
+Subject: [PATCH 13/13] arm64: dts: allwinner: rg35xx-sp: add mmc aliases for
+ stable device names
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HAivEfkKvP8urtyVqdwu3J
+---
+ .../boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts   | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts b/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts
+index 807b0b2f5..af8aa6921 100644
+--- a/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts
++++ b/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts
+@@ -11,6 +11,12 @@ / {
+ 	model = "Anbernic RG35XX SP";
+ 	compatible = "anbernic,rg35xx-sp", "allwinner,sun50i-h700";
+ 
++	/* Stable block device names: TF1 is always mmcblk0 (root=/dev/mmcblk0p1). */
++	aliases {
++		mmc0 = &mmc0;
++		mmc1 = &mmc1;
++	};
++
+ 	backlight: backlight {
+ 		compatible = "gpio-backlight";
+ 		gpios = <&pio 3 28 GPIO_ACTIVE_HIGH>; /* PD28, PWM0 on stock */
