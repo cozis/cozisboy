@@ -1,13 +1,14 @@
 # Identify our kernel
 CONFIG_LOCALVERSION="-ambernic"
-# USB-C in device mode: ethernet gadget (CDC ECM + RNDIS) built in, for SSH over cable
+# USB-C in device mode: CDC-ECM ethernet gadget built in, for SSH over cable.
+# No RNDIS: its product ID (0525:a4a2) lets the PC's cdc_subset driver grab the port.
 CONFIG_USB_MUSB_HDRC=y
 CONFIG_USB_MUSB_SUNXI=y
 CONFIG_USB_MUSB_GADGET=y
 CONFIG_PHY_SUN4I_USB=y
 CONFIG_USB_GADGET=y
 CONFIG_USB_ETH=y
-CONFIG_USB_ETH_RNDIS=y
+# CONFIG_USB_ETH_RNDIS is not set
 # Keep crash logs across warm reboots (needs a reserved-memory node, added later)
 CONFIG_PSTORE=y
 CONFIG_PSTORE_RAM=y

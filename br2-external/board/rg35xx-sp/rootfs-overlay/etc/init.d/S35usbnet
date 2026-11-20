@@ -1,24 +1,13 @@
 #!/bin/sh
-# Ethernet over the USB-C cable: device is 10.55.0.2, the PC gets 10.55.0.1 via DHCP.
-
-IFACE=usb0
-ADDR=10.55.0.2
-
+# Ethernet over the USB-C cable (CDC-ECM gadget). Static addressing:
+# device 10.55.0.2, PC 10.55.0.1 (NetworkManager profile 'ambernic-usb',
+# matched by the fixed host MAC 02:a8:b0:00:00:01).
 case "$1" in
 start)
-	printf "Starting USB network: "
-	ip link set "$IFACE" up 2>/dev/null || { echo "no $IFACE"; exit 0; }
-	ip addr add "$ADDR/24" dev "$IFACE"
-	mkdir -p /var/lib/misc
-	touch /var/lib/misc/udhcpd.leases
-	udhcpd -S /etc/udhcpd-usb0.conf
-	echo "OK"
+	ip link set usb0 up 2>/dev/null || exit 0
+	ip addr add 10.55.0.2/24 dev usb0
 	;;
 stop)
-	killall udhcpd 2>/dev/null
-	ip addr flush dev "$IFACE" 2>/dev/null
-	;;
-restart)
-	"$0" stop; "$0" start
+	ip addr flush dev usb0 2>/dev/null
 	;;
 esac
