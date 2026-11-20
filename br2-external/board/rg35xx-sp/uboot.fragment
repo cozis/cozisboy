@@ -25,3 +25,7 @@ CONFIG_AXP_DCDC3_VOLT=1200
 
 # Do not let U-Boot feed the watchdog: a FEL-armed watchdog must be able to reset a stuck U-Boot
 # CONFIG_WATCHDOG_AUTOSTART is not set
+
+# Use the SP device tree (TF-A programs the PMIC from it)
+CONFIG_DEFAULT_DEVICE_TREE="allwinner/sun50i-h700-anbernic-rg35xx-sp"
+CONFIG_OF_LIST="allwinner/sun50i-h700-anbernic-rg35xx-sp"

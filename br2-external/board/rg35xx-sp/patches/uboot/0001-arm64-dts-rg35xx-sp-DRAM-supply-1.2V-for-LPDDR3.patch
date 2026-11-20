@@ -1,0 +1,17 @@
+From: Francesco <francesco.cozzuto@gmail.com>
+Subject: [PATCH] arm64: dts: rg35xx-sp: DRAM supply 1.2 V for LPDDR3
+
+---
+--- a/dts/upstream/src/arm64/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts	2026-11-20 22:52:09.598254175 +0100
++++ b/dts/upstream/src/arm64/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts	2026-11-20 22:52:09.600831937 +0100
+@@ -32,3 +32,10 @@
+ 		reg = <0x51>;
+ 	};
+ };
++
++/* The SP uses LPDDR3 at 1.2 V; the RG35XX-2024 base describes LPDDR4 at 1.1 V.
++ * TF-A and Linux both program DCDC3 from this node. */
++&reg_dcdc3 {
++	regulator-min-microvolt = <1200000>;
++	regulator-max-microvolt = <1200000>;
++};

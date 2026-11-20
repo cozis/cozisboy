@@ -1,7 +1,7 @@
 From fa605589878f43c22a2cb202375f4274d143ebb9 Mon Sep 17 00:00:00 2001
 From: Jernej Skrabec <jernej.skrabec at gmail.com>
 Date: Fri, 20 Nov 2026 19:11:46 +0100
-Subject: [PATCH 05/10] drm/sun4i: tcon: add support for R40
+Subject: [PATCH 05/11] drm/sun4i: tcon: add support for R40
 
 The Allwinner H616 and related SOCs have an LCD timing controller
 (TCON) which is compatible with the R40 SOC's controller and existing

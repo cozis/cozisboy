@@ -1,0 +1,25 @@
+From 32f3172acf5edccffcafe72c623195f69de0152b Mon Sep 17 00:00:00 2001
+From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
+Date: Fri, 20 Nov 2026 22:52:49 +0100
+Subject: [PATCH 11/11] arm64: dts: allwinner: rg35xx-sp: DRAM supply 1.2 V for
+ LPDDR3
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts   | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts b/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts
+index cabde4ef2..4b869a48c 100644
+--- a/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts
++++ b/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts
+@@ -94,3 +94,9 @@ tcon_lcd0_out_panel: endpoint {
+ 		remote-endpoint = <&panel_in_rgb>;
+ 	};
+ };
++
++/* The SP uses LPDDR3 at 1.2 V; the RG35XX-2024 base describes LPDDR4 at 1.1 V. */
++&reg_dcdc3 {
++	regulator-min-microvolt = <1200000>;
++	regulator-max-microvolt = <1200000>;
++};

@@ -1,7 +1,7 @@
 From 81c293d8bd4147c6942a6bb5942960a994665fa1 Mon Sep 17 00:00:00 2001
 From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
 Date: Fri, 20 Nov 2026 19:19:17 +0100
-Subject: [PATCH 09/10] drm/panel: add Anbernic RG35XX SP BOE panel driver
+Subject: [PATCH 09/11] drm/panel: add Anbernic RG35XX SP BOE panel driver
 
 Some RG35XX SP units ship a BOE 640x480 panel instead of the NV3052C one
 (stock firmware selects it with lcd_type=boe). Init sequence, reset/power
