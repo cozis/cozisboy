@@ -1,0 +1,448 @@
+From 81c293d8bd4147c6942a6bb5942960a994665fa1 Mon Sep 17 00:00:00 2001
+From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
+Date: Fri, 20 Nov 2026 19:19:17 +0100
+Subject: [PATCH 09/10] drm/panel: add Anbernic RG35XX SP BOE panel driver
+
+Some RG35XX SP units ship a BOE 640x480 panel instead of the NV3052C one
+(stock firmware selects it with lcd_type=boe). Init sequence, reset/power
+timings, sync polarity, clock phase and dithering were extracted from the
+stock vendor kernel.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/gpu/drm/panel/Kconfig                 |  10 +
+ drivers/gpu/drm/panel/Makefile                |   1 +
+ .../panel/panel-anbernic-rg35xx-sp-boe-seq.h  | 103 +++++++
+ .../drm/panel/panel-anbernic-rg35xx-sp-boe.c  | 280 ++++++++++++++++++
+ 4 files changed, 394 insertions(+)
+ create mode 100644 drivers/gpu/drm/panel/panel-anbernic-rg35xx-sp-boe-seq.h
+ create mode 100644 drivers/gpu/drm/panel/panel-anbernic-rg35xx-sp-boe.c
+
+diff --git a/drivers/gpu/drm/panel/Kconfig b/drivers/gpu/drm/panel/Kconfig
+index cbdf7b8f7..cc2f416dc 100644
+--- a/drivers/gpu/drm/panel/Kconfig
++++ b/drivers/gpu/drm/panel/Kconfig
+@@ -27,6 +27,16 @@ config DRM_PANEL_ANBERNIC_TD4310
+ 	  TD4310 panel controller such as the ones used on the Anbernic RG
+ 	  Vita Pro.
+ 
++config DRM_PANEL_ANBERNIC_RG35XX_SP_BOE
++	tristate "Anbernic RG35XX SP BOE RGB/SPI panel"
++	depends on OF && SPI
++	depends on BACKLIGHT_CLASS_DEVICE
++	select DRM_MIPI_DBI
++	help
++	  Say Y here to enable support for the BOE 640x480 panel fitted to
++	  some Anbernic RG35XX SP handhelds (configured over 3-wire SPI,
++	  pixels over parallel RGB).
++
+ config DRM_PANEL_ARM_VERSATILE
+ 	tristate "ARM Versatile panel driver"
+ 	depends on OF
+diff --git a/drivers/gpu/drm/panel/Makefile b/drivers/gpu/drm/panel/Makefile
+index 3b523cf37..5ecb8c516 100644
+--- a/drivers/gpu/drm/panel/Makefile
++++ b/drivers/gpu/drm/panel/Makefile
+@@ -1,6 +1,7 @@
+ # SPDX-License-Identifier: GPL-2.0
+ obj-$(CONFIG_DRM_PANEL_ABT_Y030XX067A) += panel-abt-y030xx067a.o
+ obj-$(CONFIG_DRM_PANEL_ANBERNIC_TD4310) += panel-anbernic-td4310.o
++obj-$(CONFIG_DRM_PANEL_ANBERNIC_RG35XX_SP_BOE) += panel-anbernic-rg35xx-sp-boe.o
+ obj-$(CONFIG_DRM_PANEL_ARM_VERSATILE) += panel-arm-versatile.o
+ obj-$(CONFIG_DRM_PANEL_ASUS_Z00T_TM5P5_NT35596) += panel-asus-z00t-tm5p5-n35596.o
+ obj-$(CONFIG_DRM_PANEL_AUO_A030JTN01) += panel-auo-a030jtn01.o
+diff --git a/drivers/gpu/drm/panel/panel-anbernic-rg35xx-sp-boe-seq.h b/drivers/gpu/drm/panel/panel-anbernic-rg35xx-sp-boe-seq.h
+new file mode 100644
+index 000000000..b0488a123
+--- /dev/null
++++ b/drivers/gpu/drm/panel/panel-anbernic-rg35xx-sp-boe-seq.h
+@@ -0,0 +1,103 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/* Generated from the stock RG35XX SP kernel (lcd_type=boe): <len>, <cmd>, <data...> */
++static const u8 boe_init_seq[] = {
++	3, 0xd7, 0x61, 0x74, 0x97,
++	1, 0xd0, 0x10,
++	1, 0x60, 0xff,
++	1, 0x61, 0xff,
++	1, 0x62, 0xff,
++	1, 0x63, 0xff,
++	1, 0x64, 0xff,
++	1, 0x65, 0xff,
++	1, 0x66, 0xff,
++	1, 0x67, 0xff,
++	1, 0x68, 0xff,
++	1, 0x69, 0xff,
++	1, 0x6a, 0xff,
++	1, 0x6b, 0xff,
++	1, 0x6c, 0xff,
++	1, 0x6d, 0xff,
++	1, 0x6e, 0xff,
++	1, 0x6f, 0xff,
++	1, 0x7e, 0x2a,
++	1, 0xa9, 0x03,
++	1, 0xa8, 0x06,
++	1, 0x81, 0xaa,
++	1, 0x84, 0xaa,
++	1, 0xf5, 0xbb,
++	1, 0xfd, 0x67,
++	1, 0x9d, 0xae,
++	1, 0x9f, 0x08,
++	1, 0xa5, 0x00,
++	2, 0xa6, 0xc0, 0x80,
++	1, 0x7a, 0x25,
++	1, 0x7b, 0x76,
++	1, 0x88, 0x32,
++	2, 0xb8, 0xb8, 0xdf,
++	1, 0xb6, 0x22,
++	1, 0xb7, 0x30,
++	4, 0x92, 0x2c, 0x28, 0x30, 0x28,
++	1, 0xb5, 0x80,
++	1, 0xad, 0x88,
++	1, 0xd0, 0x11,
++	1, 0x60, 0xff,
++	1, 0x61, 0xff,
++	1, 0x62, 0xff,
++	1, 0x63, 0xff,
++	1, 0x64, 0xff,
++	1, 0x65, 0xff,
++	1, 0x66, 0xff,
++	1, 0x67, 0xff,
++	1, 0x68, 0xff,
++	1, 0x69, 0xff,
++	1, 0x6a, 0xff,
++	1, 0x6b, 0xff,
++	1, 0x6c, 0xff,
++	1, 0x6d, 0xff,
++	1, 0xb8, 0xff,
++	1, 0xb9, 0xff,
++	1, 0xba, 0xff,
++	44, 0xb3, 0x3f, 0x38, 0x34, 0x34, 0x28, 0x29, 0x17, 0x09, 0x0b, 0x15, 0x31, 0x3f, 0x34, 0x34, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x39, 0x34, 0x34, 0x28, 0x29, 0x16, 0x08, 0x0a, 0x14, 0x30, 0x3f, 0x34, 0x34, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f,
++	1, 0xb7, 0x27,
++	2, 0xbc, 0x00, 0x10,
++	8, 0xa3, 0x10, 0x0d, 0x52, 0x52, 0x10, 0x0e, 0x52, 0x52,
++	8, 0xa6, 0x10, 0x10, 0x10, 0x0b, 0x10, 0x10, 0x10, 0x0b,
++	5, 0xa7, 0x11, 0x62, 0x62, 0x62, 0x62,
++	10, 0xa8, 0x00, 0x0f, 0x0f, 0xf6, 0x00, 0x00, 0x0f, 0x0f, 0xf6, 0x00,
++	10, 0xa9, 0x00, 0x08, 0x08, 0xf0, 0x00, 0x00, 0x08, 0x08, 0xf0, 0x00,
++	13, 0xa4, 0x07, 0x00, 0x04, 0x00, 0x07, 0x1e, 0x1e, 0x00, 0x04, 0x00, 0x07, 0x1e, 0x1e,
++	1, 0xc3, 0x1a,
++	2, 0xe5, 0x06, 0x0a,
++	1, 0xf8, 0x29,
++	1, 0xac, 0x60,
++	1, 0xad, 0xaa,
++	1, 0xf4, 0xff,
++	1, 0xf5, 0x00,
++	1, 0xf6, 0xff,
++	1, 0xf7, 0x00,
++	1, 0xd0, 0x12,
++	16, 0x80, 0x00, 0x2d, 0x00, 0x29, 0x00, 0x42, 0x00, 0x54, 0x00, 0x6f, 0x00, 0x88, 0x00, 0x91, 0x00, 0xa5,
++	16, 0x81, 0x00, 0xb6, 0x00, 0xeb, 0xeb, 0x11, 0x11, 0x49, 0x49, 0x75, 0x75, 0xb4, 0xb4, 0xe8, 0xe8, 0xea,
++	16, 0x82, 0x02, 0x2a, 0x02, 0x74, 0x02, 0xa2, 0x02, 0xe0, 0x03, 0x06, 0x03, 0x38, 0x03, 0x4c, 0x03, 0x53,
++	12, 0x83, 0x03, 0x6e, 0x03, 0x72, 0x03, 0x98, 0x03, 0xa1, 0x03, 0xc3, 0x03, 0xe4,
++	16, 0x84, 0x00, 0x2d, 0x00, 0x29, 0x00, 0x42, 0x00, 0x54, 0x00, 0x6f, 0x00, 0x88, 0x00, 0x91, 0x00, 0xa5,
++	16, 0x85, 0x00, 0xb6, 0x00, 0xeb, 0xeb, 0x11, 0x11, 0x49, 0x49, 0x75, 0x75, 0xb4, 0xb4, 0xe8, 0xe8, 0xea,
++	16, 0x86, 0x02, 0x2a, 0x02, 0x74, 0x02, 0xa2, 0x02, 0xe0, 0x03, 0x06, 0x03, 0x38, 0x03, 0x4c, 0x03, 0x53,
++	12, 0x87, 0x03, 0x6e, 0x03, 0x72, 0x03, 0x98, 0x03, 0xa1, 0x03, 0xc3, 0x03, 0xe4,
++	16, 0x88, 0x00, 0x2d, 0x00, 0x29, 0x00, 0x42, 0x00, 0x54, 0x00, 0x6f, 0x00, 0x88, 0x00, 0x91, 0x00, 0xa5,
++	16, 0x89, 0x00, 0xb6, 0x00, 0xeb, 0xeb, 0x11, 0x11, 0x49, 0x49, 0x75, 0x75, 0xb4, 0xb4, 0xe8, 0xe8, 0xea,
++	16, 0x8a, 0x02, 0x2a, 0x02, 0x74, 0x02, 0xa2, 0x02, 0xe0, 0x03, 0x06, 0x03, 0x38, 0x03, 0x4c, 0x03, 0x53,
++	12, 0x8b, 0x03, 0x6e, 0x03, 0x72, 0x03, 0x98, 0x03, 0xa1, 0x03, 0xc3, 0x03, 0xe4,
++	16, 0x90, 0x00, 0x2d, 0x00, 0x29, 0x00, 0x42, 0x00, 0x54, 0x00, 0x6f, 0x00, 0x88, 0x00, 0x91, 0x00, 0xa5,
++	16, 0x91, 0x00, 0xb6, 0x00, 0xeb, 0xeb, 0x11, 0x11, 0x49, 0x49, 0x75, 0x75, 0xb4, 0xb4, 0xe8, 0xe8, 0xea,
++	16, 0x92, 0x02, 0x2a, 0x02, 0x74, 0x02, 0xa2, 0x02, 0xe0, 0x03, 0x06, 0x03, 0x38, 0x03, 0x4c, 0x03, 0x53,
++	12, 0x93, 0x03, 0x6e, 0x03, 0x72, 0x03, 0x98, 0x03, 0xa1, 0x03, 0xc3, 0x03, 0xe4,
++	16, 0x94, 0x00, 0x2d, 0x00, 0x29, 0x00, 0x42, 0x00, 0x54, 0x00, 0x6f, 0x00, 0x88, 0x00, 0x91, 0x00, 0xa5,
++	16, 0x95, 0x00, 0xb6, 0x00, 0xeb, 0x01, 0x11, 0x01, 0x49, 0x01, 0x75, 0x01, 0xb4, 0x01, 0xe8, 0x01, 0xea,
++	16, 0x96, 0x02, 0x2a, 0x02, 0x74, 0x02, 0xa2, 0x02, 0xe0, 0x03, 0x06, 0x03, 0x38, 0x03, 0x4c, 0x03, 0x53,
++	12, 0x97, 0x03, 0x6e, 0x03, 0x72, 0x03, 0x98, 0x03, 0xa1, 0x03, 0xc3, 0x03, 0xe4,
++	16, 0x98, 0x00, 0x2d, 0x00, 0x29, 0x00, 0x42, 0x00, 0x54, 0x00, 0x6f, 0x00, 0x88, 0x00, 0x91, 0x00, 0xa5,
++	16, 0x99, 0x00, 0xb6, 0x00, 0xeb, 0x01, 0x11, 0x01, 0x49, 0x01, 0x75, 0x01, 0xb4, 0x01, 0xe8, 0x01, 0xea,
++	16, 0x9a, 0x02, 0x2a, 0x02, 0x74, 0x02, 0xa2, 0x02, 0xe0, 0x03, 0x06, 0x03, 0x38, 0x03, 0x4c, 0x03, 0x53,
++	12, 0x9b, 0x03, 0x6e, 0x03, 0x72, 0x03, 0x98, 0x03, 0xa1, 0x03, 0xc3, 0x03, 0xe4,
++};
+diff --git a/drivers/gpu/drm/panel/panel-anbernic-rg35xx-sp-boe.c b/drivers/gpu/drm/panel/panel-anbernic-rg35xx-sp-boe.c
+new file mode 100644
+index 000000000..9bfa89100
+--- /dev/null
++++ b/drivers/gpu/drm/panel/panel-anbernic-rg35xx-sp-boe.c
+@@ -0,0 +1,280 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Driver for the BOE 3.5" 640x480 RGB panel fitted to some Anbernic
++ * RG35XX SP units (stock firmware: "fog_fj035fhd05_v1", lcd_type=boe).
++ *
++ * The panel is configured over a write-only 3-wire SPI bus using 9-bit
++ * words (D/C bit first), then streams pixels over parallel RGB.
++ * The register sequence was extracted from the stock vendor kernel; the
++ * controller is not otherwise documented.
++ */
++
++#include <linux/delay.h>
++#include <linux/device.h>
++#include <linux/gpio/consumer.h>
++#include <linux/media-bus-format.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/regulator/consumer.h>
++#include <linux/spi/spi.h>
++
++#include <video/mipi_display.h>
++
++#include <drm/drm_mipi_dbi.h>
++#include <drm/drm_modes.h>
++#include <drm/drm_panel.h>
++
++/*
++ * Encoded as: <data length>, <command>, <data...>
++ * 99 commands extracted from the stock Anbernic kernel (lcd_type=boe path).
++ */
++#include "panel-anbernic-rg35xx-sp-boe-seq.h"
++
++struct boe_panel {
++	struct drm_panel panel;
++	struct device *dev;
++	struct mipi_dbi dbi;
++	struct regulator *supply;
++	struct gpio_desc *reset_gpio;
++};
++
++static inline struct boe_panel *to_boe_panel(struct drm_panel *panel)
++{
++	return container_of(panel, struct boe_panel, panel);
++}
++
++static int boe_panel_send_seq(struct boe_panel *ctx)
++{
++	unsigned int i = 0;
++	int err;
++
++	while (i < ARRAY_SIZE(boe_init_seq)) {
++		u8 len = boe_init_seq[i];
++		u8 cmd = boe_init_seq[i + 1];
++
++		if (i + 2 + len > ARRAY_SIZE(boe_init_seq))
++			return -EINVAL;
++
++		err = mipi_dbi_command_buf(&ctx->dbi, cmd,
++					   (u8 *)&boe_init_seq[i + 2], len);
++		if (err) {
++			dev_err(ctx->dev, "command 0x%02x failed: %d\n", cmd, err);
++			return err;
++		}
++		i += 2 + len;
++	}
++
++	return 0;
++}
++
++static int boe_panel_prepare(struct drm_panel *panel)
++{
++	struct boe_panel *ctx = to_boe_panel(panel);
++	int err;
++
++	err = regulator_enable(ctx->supply);
++	if (err) {
++		dev_err(ctx->dev, "failed to enable power supply: %d\n", err);
++		return err;
++	}
++	/* Stock: 30 ms after power-on before touching the panel. */
++	msleep(30);
++
++	/* Stock reset pulse: release 15 ms, assert 50 ms, release 100 ms. */
++	gpiod_set_value_cansleep(ctx->reset_gpio, 0);
++	msleep(15);
++	gpiod_set_value_cansleep(ctx->reset_gpio, 1);
++	msleep(50);
++	gpiod_set_value_cansleep(ctx->reset_gpio, 0);
++	msleep(100);
++
++	err = boe_panel_send_seq(ctx);
++	if (err)
++		goto err_power_off;
++
++	err = mipi_dbi_command(&ctx->dbi, MIPI_DCS_SET_ADDRESS_MODE, 0x00);
++	if (err)
++		goto err_power_off;
++
++	err = mipi_dbi_command(&ctx->dbi, MIPI_DCS_EXIT_SLEEP_MODE);
++	if (err)
++		goto err_power_off;
++	msleep(120);
++
++	return 0;
++
++err_power_off:
++	gpiod_set_value_cansleep(ctx->reset_gpio, 1);
++	regulator_disable(ctx->supply);
++	return err;
++}
++
++static int boe_panel_unprepare(struct drm_panel *panel)
++{
++	struct boe_panel *ctx = to_boe_panel(panel);
++	int err;
++
++	err = mipi_dbi_command(&ctx->dbi, MIPI_DCS_ENTER_SLEEP_MODE);
++	if (err)
++		dev_err(ctx->dev, "failed to enter sleep mode: %d\n", err);
++	msleep(5);
++
++	gpiod_set_value_cansleep(ctx->reset_gpio, 1);
++	regulator_disable(ctx->supply);
++
++	return 0;
++}
++
++static int boe_panel_enable(struct drm_panel *panel)
++{
++	struct boe_panel *ctx = to_boe_panel(panel);
++	int err;
++
++	err = mipi_dbi_command(&ctx->dbi, MIPI_DCS_SET_DISPLAY_ON);
++	if (err) {
++		dev_err(ctx->dev, "failed to turn display on: %d\n", err);
++		return err;
++	}
++	/* Stock waits 10 ms after display-on. */
++	msleep(10);
++
++	return 0;
++}
++
++static int boe_panel_disable(struct drm_panel *panel)
++{
++	struct boe_panel *ctx = to_boe_panel(panel);
++
++	return mipi_dbi_command(&ctx->dbi, MIPI_DCS_SET_DISPLAY_OFF);
++}
++
++/*
++ * Stock timings (Allwinner lcd0 node): dclk 24 MHz, ht 720, hbp 48 (incl.
++ * sync), hspw 8, vt 560, vbp 48 (incl. sync), vspw 4  ->  ~59.5 Hz.
++ * Stock hv_sync_polarity = 3 and hv_clk_phase = 2 map to PHSYNC|PVSYNC and
++ * DRM_BUS_FLAG_PIXDATA_DRIVE_NEGEDGE in the sun4i TCON driver.
++ */
++static const struct drm_display_mode boe_panel_mode = {
++	.clock		= 24000,
++	.hdisplay	= 640,
++	.hsync_start	= 640 + 32,
++	.hsync_end	= 640 + 32 + 8,
++	.htotal		= 720,
++	.vdisplay	= 480,
++	.vsync_start	= 480 + 32,
++	.vsync_end	= 480 + 32 + 4,
++	.vtotal		= 560,
++	.flags		= DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC,
++	.width_mm	= 70,
++	.height_mm	= 53,
++};
++
++static int boe_panel_get_modes(struct drm_panel *panel,
++			       struct drm_connector *connector)
++{
++	/* Stock enables TCON FRM dithering (lcd_frm = 1): an RGB666 panel. */
++	static const u32 bus_format = MEDIA_BUS_FMT_RGB666_1X18;
++	struct drm_display_mode *mode;
++
++	mode = drm_mode_duplicate(connector->dev, &boe_panel_mode);
++	if (!mode)
++		return -ENOMEM;
++
++	drm_mode_set_name(mode);
++	mode->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
++	drm_mode_probed_add(connector, mode);
++
++	connector->display_info.bpc = 6;
++	connector->display_info.width_mm = mode->width_mm;
++	connector->display_info.height_mm = mode->height_mm;
++	connector->display_info.bus_flags = DRM_BUS_FLAG_PIXDATA_DRIVE_NEGEDGE;
++	drm_display_info_set_bus_formats(&connector->display_info,
++					 &bus_format, 1);
++
++	return 1;
++}
++
++static const struct drm_panel_funcs boe_panel_funcs = {
++	.prepare	= boe_panel_prepare,
++	.unprepare	= boe_panel_unprepare,
++	.enable		= boe_panel_enable,
++	.disable	= boe_panel_disable,
++	.get_modes	= boe_panel_get_modes,
++};
++
++static int boe_panel_probe(struct spi_device *spi)
++{
++	struct device *dev = &spi->dev;
++	struct boe_panel *ctx;
++	int err;
++
++	ctx = devm_drm_panel_alloc(dev, struct boe_panel, panel,
++				   &boe_panel_funcs, DRM_MODE_CONNECTOR_DPI);
++	if (IS_ERR(ctx))
++		return PTR_ERR(ctx);
++
++	ctx->dev = dev;
++
++	ctx->supply = devm_regulator_get(dev, "power");
++	if (IS_ERR(ctx->supply))
++		return dev_err_probe(dev, PTR_ERR(ctx->supply),
++				     "failed to get power supply\n");
++
++	ctx->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
++	if (IS_ERR(ctx->reset_gpio))
++		return dev_err_probe(dev, PTR_ERR(ctx->reset_gpio),
++				     "failed to get reset GPIO\n");
++
++	/* No D/C GPIO: 9-bit words with the D/C bit first. */
++	err = mipi_dbi_spi_init(spi, &ctx->dbi, NULL);
++	if (err)
++		return dev_err_probe(dev, err, "MIPI DBI init failed\n");
++
++	/* The bus is write-only. */
++	ctx->dbi.read_commands = NULL;
++
++	spi_set_drvdata(spi, ctx);
++
++	err = drm_panel_of_backlight(&ctx->panel);
++	if (err)
++		return dev_err_probe(dev, err, "failed to attach backlight\n");
++
++	drm_panel_add(&ctx->panel);
++
++	return 0;
++}
++
++static void boe_panel_remove(struct spi_device *spi)
++{
++	struct boe_panel *ctx = spi_get_drvdata(spi);
++
++	drm_panel_remove(&ctx->panel);
++	drm_panel_disable(&ctx->panel);
++	drm_panel_unprepare(&ctx->panel);
++}
++
++static const struct of_device_id boe_panel_of_match[] = {
++	{ .compatible = "anbernic,rg35xx-sp-boe-panel" },
++	{ /* sentinel */ }
++};
++MODULE_DEVICE_TABLE(of, boe_panel_of_match);
++
++static const struct spi_device_id boe_panel_ids[] = {
++	{ "rg35xx-sp-boe-panel" },
++	{ /* sentinel */ }
++};
++MODULE_DEVICE_TABLE(spi, boe_panel_ids);
++
++static struct spi_driver boe_panel_driver = {
++	.driver = {
++		.name = "panel-anbernic-rg35xx-sp-boe",
++		.of_match_table = boe_panel_of_match,
++	},
++	.id_table = boe_panel_ids,
++	.probe = boe_panel_probe,
++	.remove = boe_panel_remove,
++};
++module_spi_driver(boe_panel_driver);
++
++MODULE_DESCRIPTION("BOE RGB panel driver for the Anbernic RG35XX SP");
++MODULE_LICENSE("GPL");

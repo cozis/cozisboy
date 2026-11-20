@@ -1,0 +1,43 @@
+From 43a6093b09c4f466e067f88ccc826387b776396f Mon Sep 17 00:00:00 2001
+From: Ryan Walklin <ryan@testtoast.com>
+Date: Fri, 20 Nov 2026 19:11:43 +0100
+Subject: [PATCH 03/10] dt-bindings: display: sun4i: Add compatible strings for
+ H616 TCON TOP
+
+Add compatible string for allwinner,sun50i-h616-tcon-top with a
+fallback string of allwinner,sun50i-h6-tcon-top.
+
+Signed-off-by: Chris Morgan <macromorgan at hotmail.com>
+Signed-off-by: Ryan Walklin <ryan@testtoast.com>
+
+--
+Changelog v1..v2:
+- Add H616 TCON TOP compatible.
+---
+ .../display/allwinner,sun8i-r40-tcon-top.yaml       | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/display/allwinner,sun8i-r40-tcon-top.yaml b/Documentation/devicetree/bindings/display/allwinner,sun8i-r40-tcon-top.yaml
+index 7d849c409..80f1e49f5 100644
+--- a/Documentation/devicetree/bindings/display/allwinner,sun8i-r40-tcon-top.yaml
++++ b/Documentation/devicetree/bindings/display/allwinner,sun8i-r40-tcon-top.yaml
+@@ -39,10 +39,15 @@ properties:
+     const: 1
+ 
+   compatible:
+-    enum:
+-      - allwinner,sun8i-r40-tcon-top
+-      - allwinner,sun20i-d1-tcon-top
+-      - allwinner,sun50i-h6-tcon-top
++    oneOf:
++      - enum:
++          - allwinner,sun8i-r40-tcon-top
++          - allwinner,sun20i-d1-tcon-top
++          - allwinner,sun50i-h6-tcon-top
++      - items:
++          - enum:
++              - allwinner,sun50i-h616-tcon-top
++          - const: allwinner,sun50i-h6-tcon-top
+ 
+   reg:
+     maxItems: 1

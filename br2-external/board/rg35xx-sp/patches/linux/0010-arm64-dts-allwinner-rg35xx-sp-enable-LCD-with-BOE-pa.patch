@@ -1,0 +1,91 @@
+From c2646f9aef581baaa1ce70c6143dddb79579e3d8 Mon Sep 17 00:00:00 2001
+From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
+Date: Fri, 20 Nov 2026 19:19:18 +0100
+Subject: [PATCH 10/10] arm64: dts: allwinner: rg35xx-sp: enable LCD with BOE
+ panel
+
+Panel on gpio SPI (PI8 CS, PI9 SCK, PI10 MOSI), reset PI14, 3.3V enable
+PI15, GPIO backlight on PD28, RGB pins on port D.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../sun50i-h700-anbernic-rg35xx-sp.dts        | 62 +++++++++++++++++++
+ 1 file changed, 62 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts b/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts
+index 0cf16dc90..cabde4ef2 100644
+--- a/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts
++++ b/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts
+@@ -11,6 +11,50 @@ / {
+ 	model = "Anbernic RG35XX SP";
+ 	compatible = "anbernic,rg35xx-sp", "allwinner,sun50i-h700";
+ 
++	backlight: backlight {
++		compatible = "gpio-backlight";
++		gpios = <&pio 3 28 GPIO_ACTIVE_HIGH>; /* PD28, PWM0 on stock */
++		default-on;
++	};
++
++	reg_lcd: regulator-lcd-vdd {
++		compatible = "regulator-fixed";
++		regulator-name = "vdd-lcd";
++		regulator-min-microvolt = <3300000>;
++		regulator-max-microvolt = <3300000>;
++		gpio = <&pio 8 15 GPIO_ACTIVE_HIGH>; /* PI15 */
++		enable-active-high;
++	};
++
++	/* Write-only 3-wire SPI to the panel controller, 9-bit words. */
++	spi_lcd: spi {
++		compatible = "spi-gpio";
++		#address-cells = <1>;
++		#size-cells = <0>;
++		sck-gpios = <&pio 8 9 GPIO_ACTIVE_HIGH>;	/* PI9 */
++		mosi-gpios = <&pio 8 10 GPIO_ACTIVE_HIGH>;	/* PI10 */
++		cs-gpios = <&pio 8 8 GPIO_ACTIVE_HIGH>;		/* PI8 */
++		num-chipselects = <1>;
++
++		panel: panel@0 {
++			compatible = "anbernic,rg35xx-sp-boe-panel";
++			reg = <0>;
++			spi-max-frequency = <3125000>;
++			spi-3wire;
++			reset-gpios = <&pio 8 14 GPIO_ACTIVE_LOW>;	/* PI14 */
++			power-supply = <&reg_lcd>;
++			backlight = <&backlight>;
++			pinctrl-0 = <&lcd0_rgb888_pins>;
++			pinctrl-names = "default";
++
++			port {
++				panel_in_rgb: endpoint {
++					remote-endpoint = <&tcon_lcd0_out_panel>;
++				};
++			};
++		};
++	};
++
+ 	gpio-keys-lid {
+ 		compatible = "gpio-keys";
+ 
+@@ -32,3 +76,21 @@ rtc_ext: rtc@51 {
+ 		reg = <0x51>;
+ 	};
+ };
++
++&de {
++	status = "okay";
++};
++
++&pio {
++	vcc-pd-supply = <&reg_cldo3>;
++};
++
++&tcon_lcd0 {
++	status = "okay";
++};
++
++&tcon_lcd0_out {
++	tcon_lcd0_out_panel: endpoint {
++		remote-endpoint = <&panel_in_rgb>;
++	};
++};

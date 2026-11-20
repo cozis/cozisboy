@@ -1,0 +1,33 @@
+From 0c15736afdb7036e7daadc99a0fe53fe80d0d9cb Mon Sep 17 00:00:00 2001
+From: Ryan Walklin <ryan@testtoast.com>
+Date: Fri, 20 Nov 2026 19:11:47 +0100
+Subject: [PATCH 06/10] drm: sun4i: add compatible for h616 display engine
+
+As discussed on list in the previous version of this patch [1], H616 DE
+compatible could be added using the H6 as a fallback, however all other
+SoCs have individual compatibles, so add the H616 here for consistency.
+
+Add a compatible for the H616 display engine.
+
+Signed-off-by: Ryan Walklin <ryan@testtoast.com>
+
+[1] https://lore.kernel.org/linux-sunxi/20250224180025.4eb33c3f@donnerap.manchester.arm.com
+--
+Changelog v1..v2:
+- Add a compatible for the H616 display engine
+---
+ drivers/gpu/drm/sun4i/sun4i_drv.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/sun4i/sun4i_drv.c b/drivers/gpu/drm/sun4i/sun4i_drv.c
+index e9baca360..d76f39031 100644
+--- a/drivers/gpu/drm/sun4i/sun4i_drv.c
++++ b/drivers/gpu/drm/sun4i/sun4i_drv.c
+@@ -440,6 +440,7 @@ static const struct of_device_id sun4i_drv_of_table[] = {
+ 	{ .compatible = "allwinner,sun20i-d1-display-engine" },
+ 	{ .compatible = "allwinner,sun50i-a64-display-engine" },
+ 	{ .compatible = "allwinner,sun50i-h6-display-engine" },
++	{ .compatible = "allwinner,sun50i-h616-display-engine" },
+ 	{ }
+ };
+ MODULE_DEVICE_TABLE(of, sun4i_drv_of_table);

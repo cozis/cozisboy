@@ -1,0 +1,35 @@
+From 6e3dff3c52b9bd1d54d7aac28eaf11be74247a1e Mon Sep 17 00:00:00 2001
+From: Ryan Walklin <ryan@testtoast.com>
+Date: Fri, 20 Nov 2026 19:11:42 +0100
+Subject: [PATCH 02/10] dt-bindings: display: sun4i: Add compatible strings for
+ H616 DE
+
+Add compatible strings for allwinner,sun50i-h616-display-engine. The
+device is functionally identical to the
+allwinner,sun50i-h6-display-engine. This is added as a new device rather
+than a fallback as all other DEs are modelled this way, and the device
+is essentially "virtual", with the relevant functional differences
+represented in the mixer and TCON components.
+
+Signed-off-by: Chris Morgan <macromorgan at hotmail.com>
+Signed-off-by: Ryan Walklin <ryan@testtoast.com>
+
+--
+Changelog v1..v2:
+- DE compatible added for H616
+---
+ .../bindings/display/allwinner,sun4i-a10-display-engine.yaml     | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/display/allwinner,sun4i-a10-display-engine.yaml b/Documentation/devicetree/bindings/display/allwinner,sun4i-a10-display-engine.yaml
+index e6088f379..117426862 100644
+--- a/Documentation/devicetree/bindings/display/allwinner,sun4i-a10-display-engine.yaml
++++ b/Documentation/devicetree/bindings/display/allwinner,sun4i-a10-display-engine.yaml
+@@ -65,6 +65,7 @@ properties:
+       - allwinner,sun20i-d1-display-engine
+       - allwinner,sun50i-a64-display-engine
+       - allwinner,sun50i-h6-display-engine
++      - allwinner,sun50i-h616-display-engine
+ 
+   allwinner,pipelines:
+     $ref: /schemas/types.yaml#/definitions/phandle-array
