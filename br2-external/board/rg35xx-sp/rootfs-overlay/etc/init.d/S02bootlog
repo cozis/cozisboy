@@ -1,0 +1,22 @@
+#!/bin/sh
+# Dev aid: snapshot kernel state to the SD card so it can be read on the PC
+# when there is no console/network. Output: /root/bootlog/<seconds>s/
+[ "$1" = start ] || exit 0
+snap() {
+	d=/root/bootlog/${1}s
+	mkdir -p "$d"
+	dmesg > "$d/dmesg.txt" 2>&1
+	cat /sys/kernel/debug/devices_deferred > "$d/deferred.txt" 2>&1
+	ls -l /sys/class/udc /sys/class/net /sys/class/drm /sys/class/backlight /sys/class/leds > "$d/classes.txt" 2>&1
+	cat /proc/interrupts > "$d/interrupts.txt" 2>&1
+	cat /sys/kernel/debug/dri/*/state > "$d/drm-state.txt" 2>&1
+	cat /sys/kernel/debug/regulator/regulator_summary > "$d/regulators.txt" 2>&1
+	cat /sys/kernel/debug/gpio > "$d/gpio.txt" 2>&1
+	cat /sys/kernel/debug/pinctrl/*/pinmux-pins > "$d/pinmux.txt" 2>&1
+	ip addr > "$d/ip.txt" 2>&1
+	ps > "$d/ps.txt" 2>&1
+	sync
+}
+mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null
+rm -rf /root/bootlog
+( snap 5; sleep 10; snap 15; sleep 15; snap 30 ) &
