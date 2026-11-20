@@ -22,3 +22,6 @@ CONFIG_DRAM_SUNXI_PHY_ADDR_MAP_1=y
 # LPDDR3 runs at 1.2 V (the RG35XX-2024 defconfig sets 1.1 V for LPDDR4).
 # At 1.1 V DRAM training passes but code running from DRAM crashes.
 CONFIG_AXP_DCDC3_VOLT=1200
+
+# Do not let U-Boot feed the watchdog: a FEL-armed watchdog must be able to reset a stuck U-Boot
+# CONFIG_WATCHDOG_AUTOSTART is not set

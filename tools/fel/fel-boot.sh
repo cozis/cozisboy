@@ -16,12 +16,30 @@ gzip -9 -c "$OUT/images/Image" > "$WORK/Image.gz"
 rm -rf "$WORK/initramfs"; mkdir -p "$WORK/initramfs"
 rsync -a --exclude=/boot --exclude=/lib/modules "$OUT/target/" "$WORK/initramfs/"
 install -m 755 "$TOP/src/buildroot/fs/cpio/init" "$WORK/initramfs/init"
+# Dev only: reboot after AUTOREBOOT seconds so the kernel log (ramoops) can be
+# read back over FEL. With no card inserted the reset lands in FEL mode.
+AUTOREBOOT="${AUTOREBOOT:-25}"
+if [ "$AUTOREBOOT" != 0 ]; then
+	cat > "$WORK/initramfs/etc/init.d/S01autoreboot" <<EOS
+#!/bin/sh
+[ "\$1" = start ] || exit 0
+( sleep $AUTOREBOOT; echo "autoreboot: rebooting for log capture"; echo b > /proc/sysrq-trigger ) &
+EOS
+	chmod 755 "$WORK/initramfs/etc/init.d/S01autoreboot"
+fi
 (cd "$WORK/initramfs" && find . -print0 | cpio --null -o -H newc -R 0:0 --quiet | gzip -9) > "$WORK/initramfs.cpio.gz"
 
 # DTB with the green LED as heartbeat (visible "Linux is alive" signal)
 cp "$DTB" "$WORK/board.dtb"
 fdtput -t s "$WORK/board.dtb" /leds/led-0 linux,default-trigger heartbeat
 fdtput -d "$WORK/board.dtb" /leds/led-0 default-state 2>/dev/null || true
+# ramoops: kernel console log kept in RAM across a warm reset (read with fel-log.sh)
+fdtput -p -c "$WORK/board.dtb" /reserved-memory/ramoops@7c000000
+fdtput -t s "$WORK/board.dtb" /reserved-memory/ramoops@7c000000 compatible ramoops
+fdtput -t x "$WORK/board.dtb" /reserved-memory/ramoops@7c000000 reg 0 0x7c000000 0 0x100000
+fdtput -t x "$WORK/board.dtb" /reserved-memory/ramoops@7c000000 console-size 0x80000
+fdtput -t x "$WORK/board.dtb" /reserved-memory/ramoops@7c000000 record-size 0x20000
+fdtput -t x "$WORK/board.dtb" /reserved-memory/ramoops@7c000000 pmsg-size 0x10000
 
 # Boot script with the initramfs size baked in
 SIZE=$(printf '0x%x' "$(stat -c%s "$WORK/initramfs.cpio.gz")")
