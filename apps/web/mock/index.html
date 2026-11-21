@@ -520,6 +520,13 @@ footer a { cursor: pointer; text-decoration: underline; }
 .shell .hd .bat i::after { content: ""; position: absolute; right: -5px; top: 2px; width: 2px; height: 3px; background: #9a9aa4; }
 .shell .hd .bat i b { position: absolute; left: 1px; top: 1px; bottom: 1px; background: var(--green); }
 
+
+/* console views: the page itself is flat, whatever mock style is selected */
+html:has(.wrap.full), html:has(.wrap.full) body { background: #0b0b0d !important; background-image: none !important; }
+.wrap.full { padding-top: 24px; padding-bottom: 24px; display: flow-root; }
+.wrap.full .shell { margin: 0 auto; height: calc(100vh - 48px); }
+@media (max-width: 800px) { .wrap.full { padding: 0; } .wrap.full .shell { height: 100vh; } }
+
 /* style switcher (mock only) */
 #switch { position: fixed; left: 14px; bottom: 14px; z-index: 50; display: flex; gap: 6px; align-items: center;
 	background: #000; color: #fff; padding: 6px 8px; border-radius: 10px; font: 600 12px system-ui; box-shadow: 0 4px 16px rgba(0,0,0,.4); }
