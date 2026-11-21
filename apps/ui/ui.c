@@ -1235,6 +1235,14 @@ void draw_tile(canvas *c, int app, int x, int y, int size, int scale, int dim)
 
 #define RT_Y ((UI_ROW - 6 - 7 * UI_TS) / 2) // text offset inside a row
 
+// Rows and info lines are drawn in the current column (default: full width).
+static int KX = UI_MX, KW = W - 2 * UI_MX;
+void ui_column(int x, int w)
+{
+	KX = w > 0 ? x : UI_MX;
+	KW = w > 0 ? w : W - 2 * UI_MX;
+}
+
 int ui_page_header(canvas *c, int app, const char *title, const char *sub)
 {
 	draw_tile(c, app, UI_MX, 12, 56, 2, 0);
@@ -1262,16 +1270,30 @@ int ui_section(canvas *c, int y, const char *title)
 uint32_t ui_row(canvas *c, int y, const char *label, int sel, uint32_t col)
 {
 	if (sel)
-		wbox(c, UI_MX, y, W - 2 * UI_MX, UI_ROW - 6, col, W_NORMAL);
+		wbox(c, KX, y, KW, UI_ROW - 6, col, W_NORMAL);
 	uint32_t ink = sel ? wink(col, W_NORMAL) : 0xdddddd;
-	text(c, UI_MX + 16, y + RT_Y, label, UI_TS, ink);
+	text(c, KX + 16, y + RT_Y, label, UI_TS, ink);
 	return ink;
+}
+
+// A row confirmed by holding A (it loses something): dim bar that fills up
+// while A is held, and "HOLD A" on the right.
+void ui_row_hold(canvas *c, int y, const char *label, int sel, uint32_t col, float progress)
+{
+	if (sel) {
+		rrect(c, KX, y, KW, UI_ROW - 6, 4, mix(col, BLACK, 0.55f));
+		int fw = (int)(KW * clampf(progress, 0, 1));
+		if (fw > 0)
+			rrect(c, KX, y, fw, UI_ROW - 6, 4, col);
+	}
+	text(c, KX + 16, y + RT_Y, label, UI_TS, sel ? WHITE : 0xdddddd);
+	text(c, KX + KW - 16 - text_width("HOLD A", 2), y + RT_Y + 4, "HOLD A", 2, sel ? WHITE : GREY);
 }
 
 // Right-aligned text value (+ an arrow when it opens something).
 void ui_row_value(canvas *c, int y, const char *value, int arrow, int sel, uint32_t col, uint32_t vcol)
 {
-	int xr = W - UI_MX - 16;
+	int xr = KX + KW - 16;
 	uint32_t ink = wink(col, W_NORMAL);
 	if (arrow) {
 		text(c, xr - text_width(">", UI_TS), y + RT_Y, ">", UI_TS, sel ? ink : GREY);
@@ -1283,7 +1305,7 @@ void ui_row_value(canvas *c, int y, const char *value, int arrow, int sel, uint3
 
 void ui_row_toggle(canvas *c, int y, int on, int sel)
 {
-	int xr = W - UI_MX - 12, mid = y + (UI_ROW - 6) / 2;
+	int xr = KX + KW - 12, mid = y + (UI_ROW - 6) / 2;
 	if (sel)
 		rrect(c, xr - 76, mid - 17, 78, 34, 6, BLACK);
 	rrect(c, xr - 74, mid - 15, 74, 30, 5, on ? PAL[3] : 0x444444);
@@ -1294,7 +1316,7 @@ void ui_row_toggle(canvas *c, int y, int on, int sel)
 
 void ui_row_slider(canvas *c, int y, int val, int max, int sel, uint32_t col)
 {
-	int bw = 14, gap = 4, xr = W - UI_MX - 16, mid = y + (UI_ROW - 6) / 2;
+	int bw = 14, gap = 4, xr = KX + KW - 16, mid = y + (UI_ROW - 6) / 2;
 	int sx = xr - max * (bw + gap) + gap;
 	for (int k = 0; k < max; k++)
 		fill(c, sx + k * (bw + gap), mid - 11, bw, 22,
@@ -1305,15 +1327,15 @@ void ui_row_choice(canvas *c, int y, const char *value, int sel, uint32_t col)
 {
 	char buf[48];
 	snprintf(buf, sizeof buf, sel ? "< %s >" : "%s", value);
-	int xr = W - UI_MX - 16;
+	int xr = KX + KW - 16;
 	text(c, xr - text_width(buf, UI_TS), y + RT_Y, buf, UI_TS, sel ? wink(col, W_NORMAL) : col);
 }
 
 // Not selectable: grey label, white value (smaller if it doesn't fit).
 void ui_info(canvas *c, int y, const char *label, const char *value)
 {
-	text(c, UI_MX + 16, y, label, UI_TS, 0x8a8a8a);
-	int xr = W - UI_MX - 16, room = xr - (UI_MX + 16 + text_width(label, UI_TS) + 18);
+	text(c, KX + 16, y, label, UI_TS, 0x8a8a8a);
+	int xr = KX + KW - 16, room = xr - (KX + 16 + text_width(label, UI_TS) + 18);
 	int vs = UI_TS;
 	while (vs > 1 && text_width(value, vs) > room)
 		vs--;

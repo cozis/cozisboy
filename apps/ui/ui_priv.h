@@ -82,9 +82,11 @@ void list_draw(canvas *c, const list_t *l, int x, int y, int w, int rh, uint32_t
 #define UI_TS 3    // text scale of rows and info
 int ui_page_header(canvas *c, int app, const char *title, const char *sub); // returns content top
 int ui_section(canvas *c, int y, const char *title);                       // returns y below it
+void ui_column(int x, int w); // rows/info drawn in this column (w <= 0: full width)
 uint32_t ui_row(canvas *c, int y, const char *label, int sel, uint32_t col);
 void ui_row_value(canvas *c, int y, const char *value, int arrow, int sel, uint32_t col, uint32_t vcol);
 void ui_row_toggle(canvas *c, int y, int on, int sel);
+void ui_row_hold(canvas *c, int y, const char *label, int sel, uint32_t col, float progress);
 void ui_row_slider(canvas *c, int y, int val, int max, int sel, uint32_t col);
 void ui_row_choice(canvas *c, int y, const char *value, int sel, uint32_t col);
 void ui_info(canvas *c, int y, const char *label, const char *value);

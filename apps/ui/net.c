@@ -286,34 +286,39 @@ static void osk_key(canvas *c, int x, int y, int w, int h, const char *label, in
 	}
 	int light = ((f >> 16 & 255) * 3 + (f >> 8 & 255) * 6 + (f & 255)) / 10 > 110;
 	uint32_t ink = osk_style == 0 ? wink(f, sel ? W_SEL : W_NORMAL) : light ? BLACK : 0xdddddd;
-	text(c, x + (w - text_width(label, 2)) / 2, y + (h - 14) / 2 - lift, label, 2, ink);
+	int ls = label[1] ? 2 : UI_TS; // letters big, key names smaller
+	text(c, x + (w - text_width(label, ls)) / 2, y + (h - 7 * ls) / 2 - lift, label, ls, ink);
 }
 
 static void osk_draw(canvas *c)
 {
-	uint32_t col = PAL[APP_WIFI];
-	darken(c, 0, 0, W, H, 0.6f);
-	fill(c, 0, 150, W, H - 150, 0x101010);
-	for (int i = 0; i < 8; i++)
-		fill(c, i * W / 8, 150, W / 8 + 1, 3, PAL[i]);
+	uint32_t col = K.purpose == OSK_ROOTPW ? PAL[APP_TERM] : PAL[APP_WIFI];
+	// a sheet like every popup: title, the field, the keys
+	const int py = 76, ph = H - 46 - py;
 	char title[64];
 	if (K.purpose == OSK_ROOTPW)
-		snprintf(title, sizeof title, "NEW ROOT PASSWORD (8+ CHARACTERS)");
+		snprintf(title, sizeof title, "NEW ROOT PASSWORD");
 	else
 		snprintf(title, sizeof title, "PASSWORD FOR %s", K.ssid);
-	text(c, 30, 164, title, 2, 0xcccccc);
+	int ry = ui_panel(c, UI_MX - 8, py, W - 2 * UI_MX + 16, ph, "", col);
+	int tts = 3;
+	while (tts > 1 && text_width(title, tts) > W - 2 * UI_MX - 16)
+		tts--;
+	text_arcade(c, UI_MX + 8, py + 14, title, tts, col);
 	// field
-	wframe(c, 30, 186, W - 60, 34, 0x555555);
-	fill(c, 30, 186, W - 60, 34, 0x1a1a1a);
+	const int fy = ry - 6, fh = 44;
+	rrect(c, UI_MX, fy, W - 2 * UI_MX, fh, 5, 0x0c0c0c);
 	char shown[64];
 	for (int i = 0; i <= K.len; i++)
 		shown[i] = i == K.len ? 0 : K.show ? K.buf[i] : '*';
-	int tw = text_width(shown, 2);
-	text(c, 42, 196, shown, 2, WHITE);
+	int tw = text_width(shown, UI_TS);
+	text(c, UI_MX + 14, fy + 12, shown, UI_TS, WHITE);
 	if (fmodf(K.t, 0.8f) < 0.5f)
-		fill(c, 44 + tw, 194, 3, 18, col);
+		fill(c, UI_MX + 17 + tw, fy + 10, 3, 24, col);
+	if (K.purpose == OSK_ROOTPW && K.len < 8)
+		text(c, W - UI_MX - 14 - text_width("8+ CHARACTERS", 2), fy + 15, "8+ CHARACTERS", 2, GREY);
 	// keys
-	const int kw = 50, kh = 32, sx = 54, sy = 38, x0 = (W - 10 * sx + 4) / 2, y0 = 234;
+	const int sx = 60, kw = 56, sy = 44, kh = 38, x0 = (W - 10 * sx + (sx - kw)) / 2, y0 = fy + fh + 12;
 	if (osk_style == 3) { // one plate with thin dividers
 		int pw = 10 * sx - (sx - kw), ph = 5 * sy - (sy - kh);
 		rrect(c, x0 - 4, y0 - 4, pw + 8, ph + 8, 6, 0x1c1c1c);

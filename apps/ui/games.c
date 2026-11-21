@@ -1818,14 +1818,16 @@ static void states_update(unsigned p, float dt)
 	}
 }
 
+static void ingame_header(canvas *c, const char *title, const char *status, uint32_t scol);
+
 static void states_draw(canvas *c)
 {
 	uint32_t col = PAL[APP_GAMES];
 	int v[NSLOTS], n = states_order(v), cards = n + 1, g = run[cur].game;
 	fill(c, 0, 0, W, H, 0x0e0e0e);
-	text_arcade(c, 28, 20, "SAVE STATES", 3, col);
-	text(c, 28, 52, lib[g].title, 2, GREY);
-	const int cols = 3, cw = 180, ch = 120, gx = 18, rowh = ch + 46, x0 = (W - (cols * cw + (cols - 1) * gx)) / 2, y0 = 86;
+	ingame_header(c, "SAVE STATES", inst_title(cur), GREY);
+	const int cols = 3, gx = 16, cw = (W - 2 * UI_MX - 2 * gx) / 3, ch = cw * 2 / 3, rowh = ch + 38,
+		  x0 = UI_MX, y0 = UI_TOP + 6;
 	int srow = SV.sel / cols;
 	if (srow - (int)SV.scroll > 1)
 		SV.scroll = (float)(srow - 1);
@@ -1858,37 +1860,25 @@ static void states_draw(canvas *c)
 		if (!sel)
 			darken(c, x, y, cw, ch, 0.35f);
 		const char *wt = when_text(sl->t);
-		text(c, x + (cw - text_width(wt, 2)) / 2, y + ch + 12, wt, 2, sel ? WHITE : GREY);
+		text(c, x + (cw - text_width(wt, 2)) / 2, y + ch + 10, wt, 2, sel ? WHITE : GREY);
 	}
 	if (!n)
-		text(c, x0, y0 + rowh + 20, "NO SAVES YET - PRESS A TO SAVE NOW", 2, 0x666666);
-	if (SV.popup) { // centred panel: the save's picture + options
+		text(c, x0 + 2, y0 + rowh + 10, "NO SAVES YET: PRESS A TO SAVE", UI_TS, 0x666666);
+	if (SV.popup) { // sheet: the save's picture + what to do with it (hold A)
 		slot_t *sl = &slots[g][v[SV.sel - 1]];
 		static const char *const opts[3] = {"LOAD", "OVERWRITE", "DELETE"};
-		const int pw = 540, ph = 236;
-		int px = (W - pw) / 2, py = (H - ph) / 2 - 10;
-		darken(c, 0, 0, W, H, 0.6f);
-		rrect(c, px - 3, py - 3, pw + 6, ph + 6, 8, BLACK);
-		rrect(c, px, py, pw, ph, 6, 0x181818);
-		int ix = px + 18, iy = py + 18;
-		fill(c, ix - 2, iy - 2, 244, 164, 0x8a8a8a);
-		blit_game(c, sl->thumb, TW, TH, ix, iy, 240, 160, 0);
-		const char *wt = when_text(sl->t);
-		text(c, ix, iy + 176, "SAVED", 2, GREY);
-		text(c, ix + 72, iy + 176, wt, 2, WHITE);
-		int ox = ix + 262, ow = px + pw - 18 - ox;
-		for (int k = 0; k < 3; k++) {
-			int yy = iy + 8 + k * 46;
-			uint32_t bc = k == SP_DELETE ? PAL[0] : col;
-			if (SV.psel == k) {
-				rrect(c, ox, yy, ow, 36, 4, mix(bc, BLACK, 0.55f));
-				int fw = (int)(ow * clampf(SV.hold / HOLD_TIME, 0, 1));
-				if (fw > 0) // fills while A is held
-					rrect(c, ox, yy, fw, 36, 4, bc);
-			}
-			text(c, ox + 16, yy + 11, opts[k], 2, SV.psel == k ? WHITE : 0xbbbbbb);
-		}
-		text(c, ox + 2, iy + 176, "HOLD A TO CONFIRM", 2, GREY);
+		char title[48];
+		snprintf(title, sizeof title, "SAVED %s", when_text(sl->t));
+		const int ph = 250, py = H - 48 - ph;
+		int ry = ui_panel(c, UI_MX - 8, py, W - 2 * UI_MX + 16, ph, title, col);
+		const int iw = 264, ih = 176;
+		fill(c, UI_MX - 2, ry - 2, iw + 4, ih + 4, 0x8a8a8a);
+		blit_game(c, sl->thumb, TW, TH, UI_MX, ry, iw, ih, 0);
+		ui_column(UI_MX + iw + 14, W - UI_MX - (UI_MX + iw + 14));
+		for (int k = 0; k < 3; k++)
+			ui_row_hold(c, ry + 6 + k * UI_ROW, opts[k], SV.psel == k, k == SP_DELETE ? PAL[0] : col,
+				    SV.hold / HOLD_TIME);
+		ui_column(0, 0);
 	}
 	int hx = 0;
 	const char *a_lbl = SV.popup ? "HOLD: CONFIRM" : SV.sel ? "OPTIONS" : "SAVE";
@@ -1971,15 +1961,15 @@ static int link_rows(lrow_t *r)
 {
 	int n = 0;
 	if (M2.page == 3) { // another copy: which save it starts from
-		r[n++] = (lrow_t){L_COPY_OWN, 0, "START WITH ITS OWN SAVE"};
-		r[n++] = (lrow_t){L_COPY_MINE, 0, "START FROM A COPY OF MY SAVE"};
+		r[n++] = (lrow_t){L_COPY_OWN, 0, "ITS OWN SAVE"};
+		r[n++] = (lrow_t){L_COPY_MINE, 0, "A COPY OF MY SAVE"};
 		return n;
 	}
 	for (int i = 0; i < nrun && n < 12; i++)
 		if (i != cur && is_emu(run[i].game) && (!run[i].eg || emu_linked(run[i].eg) == 1) &&
 		    emu_linked(run[cur].eg) < 4) {
 			r[n] = (lrow_t){L_WITH, i, ""};
-			snprintf(r[n].label, sizeof r[n].label, "CONNECT TO %s", inst_title(i));
+			snprintf(r[n].label, sizeof r[n].label, "%s", inst_title(i));
 			n++;
 		}
 	if (emu_linked(run[cur].eg) > 1)
@@ -2079,62 +2069,50 @@ static void link_update(unsigned p, float dt)
 
 static void link_draw(canvas *c)
 {
-	uint32_t col = PAL[APP_GAMES], ink = wink(col, W_NORMAL);
-	const int lx = 60, lw = 520;
-	int copy_page = M2.page == 3;
-	text_arcade(c, lx, 34, copy_page ? "PLAY ANOTHER COPY" : "LINK CABLE", 3, col);
-	text(c, lx, 66, inst_title(cur), 2, GREY);
-
-	rrect(c, lx, 92, lw, 64, 6, 0x1c1c1c);
+	uint32_t col = PAL[APP_GAMES];
+	int copy_page = M2.page == 3, y = UI_TOP;
+	ingame_header(c, copy_page ? "ANOTHER COPY" : "LINK CABLE", inst_title(cur), GREY);
+	ui_column(0, 0);
 	if (copy_page) { // what a copy is
-		text(c, lx + 16, 102, "A SECOND COPY OF THIS GAME, CONNECTED", 2, WHITE);
-		text(c, lx + 16, 124, "BY LINK CABLE: TRADE OR PLAY 2-PLAYER.", 2, WHITE);
-		text(c, lx + 16, 166, "DOUBLE-TAP MENU TO SWITCH BETWEEN THEM.", 2, GREY);
-	} else {
-	// status
-	int linked = emu_linked(run[cur].eg) > 1;
-	fill(c, lx + 16, 105, 8, 8, linked ? PAL[4] : GREY);
-	text(c, lx + 32, 102, linked ? "CONNECTED TO" : "NOT CONNECTED", 2, linked ? WHITE : GREY);
-	if (linked) {
-		char who[160] = "";
-		for (int i = 0; i < nrun; i++)
+		text(c, UI_MX + 2, y, "A 2ND COPY OF THIS GAME, LINKED", UI_TS, WHITE);
+		text(c, UI_MX + 2, y + 28, "TO IT: TRADE OR PLAY 2-PLAYER.", UI_TS, WHITE);
+		text(c, UI_MX + 2, y + 58, "DOUBLE-TAP MENU TO SWITCH BETWEEN THEM.", 2, GREY);
+		y += 82;
+	} else { // status
+		int linked = emu_linked(run[cur].eg) > 1;
+		fill(c, UI_MX + 4, y + 6, 10, 10, linked ? PAL[4] : GREY);
+		text(c, UI_MX + 24, y + 2, linked ? "CONNECTED TO" : "NOT CONNECTED", UI_TS, linked ? WHITE : GREY);
+		y += 30;
+		for (int i = 0; i < nrun && linked; i++)
 			if (linked_with_cur(i)) {
-				if (who[0])
-					strncat(who, ", ", sizeof who - strlen(who) - 1);
-				strncat(who, inst_title(i), sizeof who - strlen(who) - 1);
+				const char *t = inst_title(i);
+				int ts = text_width(t, UI_TS) <= W - 2 * UI_MX - 24 ? UI_TS : 2;
+				text(c, UI_MX + 24, y + 2, t, ts, PAL[4]);
+				y += 28;
 			}
-		int ws = text_width(who, 2) <= lw - 50 ? 2 : 1;
-		text(c, lx + 32, 126, who, ws, PAL[4]);
-	} else {
-		text(c, lx + 32, 126, "CONNECT IT TO ANOTHER OPEN GAME", 1, GREY);
-	}
+		y += 6;
 	}
 
-	// options
 	lrow_t r[16];
 	int n = link_rows(r);
-	const int top = copy_page ? 200 : 178, rh = 40;
-	if (!n)
-		text(c, lx, top + 10, "OPEN ANOTHER GAME FIRST", 2, GREY);
 	char path[600];
 	copy_sav_path(run[cur].game, next_copy(), path, sizeof path);
+	int shown_with = 0;
+	if (copy_page)
+		y = ui_section(c, y, "START WITH");
+	if (!n)
+		text(c, UI_MX + 2, y + 12, "OPEN ANOTHER GAME TO CONNECT IT", 2, GREY);
 	for (int i = 0; i < n; i++) {
-		int y = top + i * rh, sel = i == M2.lsel;
-		int hold = r[i].kind == L_COPY_MINE && access(path, F_OK) == 0;
-		if (sel) {
-			if (hold) { // fills while A is held
-				rrect(c, lx, y, lw, rh - 6, 4, mix(col, BLACK, 0.55f));
-				int fw = (int)(lw * clampf(M2.lhold / 0.9f, 0, 1));
-				if (fw > 0)
-					rrect(c, lx, y, fw, rh - 6, 4, col);
-			} else {
-				wbox(c, lx, y, lw, rh - 6, col, W_NORMAL);
-			}
-		}
-		text(c, lx + 16, y + 10, r[i].label, 2, sel ? (hold ? WHITE : ink) : 0xdddddd);
-		if (hold)
-			text(c, lx + lw - 16 - text_width("HOLD A", 2), y + 10, "HOLD A", 2,
-			     sel ? WHITE : GREY);
+		int sel = i == M2.lsel;
+		if (r[i].kind == L_WITH && !shown_with)
+			y = ui_section(c, y, "CONNECT TO"), shown_with = 1;
+		if (r[i].kind == L_UNLINK && shown_with)
+			y += 8;
+		if (r[i].kind == L_COPY_MINE && access(path, F_OK) == 0)
+			ui_row_hold(c, y, r[i].label, sel, col, M2.lhold / 0.9f);
+		else
+			ui_row(c, y, r[i].label, sel, r[i].kind == L_UNLINK ? PAL[0] : col);
+		y += UI_ROW;
 	}
 	static const char *const b[] = {"^V", "A", "B"}, *const l[] = {"MOVE", "OK", "BACK"};
 	ingame_hints(c, b, l, 3);
@@ -2211,56 +2189,6 @@ static void ingame_update(unsigned p, float dt)
 	}
 }
 
-static void draw_option_value(canvas *c, const item_t *it, int xr, int ty, int sel, uint32_t ink,
-			      uint32_t col)
-{
-	char buf[32];
-	switch (it->type) {
-	case IT_CHOICE:
-		snprintf(buf, sizeof buf, sel ? "< %s >" : "%s", it->choices[it->val]);
-		text(c, xr - text_width(buf, 2), ty, buf, 2, sel ? ink : col);
-		break;
-	case IT_TOGGLE: {
-		int mid = ty + 7;
-		rrect(c, xr - 44, mid - 9, 44, 18, 3, it->val ? PAL[3] : 0x444444);
-		fill(c, it->val ? xr - 18 : xr - 40, mid - 6, 14, 12, WHITE);
-		break;
-	}
-	case IT_SLIDER:
-		for (int k = 0; k < it->max; k++)
-			fill(c, xr - (it->max - k) * 9, ty, 7, 14,
-			     k < it->val ? (sel ? ink : col) : (sel ? mix(col, BLACK, 0.4f) : 0x333333));
-		break;
-	}
-}
-
-// Draw s in scale 2 on up to two lines of width w (wrapping at spaces,
-// cutting with ".." if needed). Returns the number of lines used.
-static int text_wrap2(canvas *c, int x, int y, const char *s, int w, uint32_t col)
-{
-	int maxc = (w + 2) / 12; // characters per line at scale 2
-	int len = (int)strlen(s);
-	char line[64];
-	if (len <= maxc) {
-		text(c, x, y, s, 2, col);
-		return 1;
-	}
-	int cut = maxc;
-	while (cut > 0 && s[cut] != ' ')
-		cut--;
-	if (cut == 0)
-		cut = maxc;
-	snprintf(line, sizeof line, "%.*s", cut, s);
-	text(c, x, y, line, 2, col);
-	const char *rest = s + cut + (s[cut] == ' ');
-	if ((int)strlen(rest) > maxc)
-		snprintf(line, sizeof line, "%.*s..", maxc - 2, rest);
-	else
-		snprintf(line, sizeof line, "%s", rest);
-	text(c, x, y + 18, line, 2, col);
-	return 2;
-}
-
 static void ingame_hints(canvas *c, const char *const *b, const char *const *l, int n)
 {
 	static const uint32_t cols[4] = {0xdddddd, 0xdddddd, 0x5ee05e, 0xff4a4a};
@@ -2274,23 +2202,65 @@ static void ingame_hints(canvas *c, const char *const *b, const char *const *l, 
 
 static void settings_draw(canvas *c)
 {
-	uint32_t col = PAL[APP_GAMES], ink = wink(col, W_NORMAL);
-	const int lx = 120, lw = 400, top = 96, rh = 30;
-	text_arcade(c, lx, 34, "SETTINGS", 3, col);
-	text(c, lx, 66, lib[run[cur].game].title, 2, GREY);
-	wbox(c, lx, top + (int)lrintf(M2.ssel_y * rh), lw, rh - 6, col, W_NORMAL);
-	for (int i = 0; i < nents; i++) {
+	uint32_t col = PAL[APP_GAMES];
+	ingame_header(c, "SETTINGS", inst_title(cur), GREY);
+	// sections and rows; scrolls so the selected row stays in view
+	int ys[32], y = 0;
+	for (int i = 0; i < nents && i < 32; i++) {
+		ys[i] = y;
+		y += ents[i].kind == E_HEADER ? 30 : UI_ROW;
+	}
+	const int top = UI_TOP, bot = H - 44;
+	static float scroll;
+	int sy = ys[M2.ssel], sh = UI_ROW;
+	if (M2.ssel > 0 && ents[M2.ssel - 1].kind == E_HEADER)
+		sy -= 30, sh += 30; // keep a row's section label with it
+	if (sy - scroll < 0)
+		scroll = (float)sy;
+	if (sy + sh - scroll > bot - top)
+		scroll = (float)(sy + sh - (bot - top));
+	for (int i = 0; i < nents && i < 32; i++) {
 		entry_t *e = &ents[i];
-		int y = top + i * rh, ty = y + (rh - 6 - 14) / 2, sel = i == M2.ssel;
+		int ry = top + ys[i] - (int)scroll;
+		if (ry < top - 4 || ry + (e->kind == E_HEADER ? 30 : UI_ROW) > bot + 4)
+			continue;
 		if (e->kind == E_HEADER) {
-			text(c, lx + 4, ty + 2, e->label, 2, GREY);
+			ui_section(c, ry, e->label);
 			continue;
 		}
-		text(c, lx + 16, ty, e->opt->label, 2, sel ? ink : 0xdddddd);
-		draw_option_value(c, e->opt, lx + lw - 12, ty, sel, ink, col);
+		int sel = i == M2.ssel;
+		ui_row(c, ry, e->opt->label, sel, col);
+		switch (e->opt->type) {
+		case IT_CHOICE: ui_row_choice(c, ry, e->opt->choices[e->opt->val], sel, col); break;
+		case IT_TOGGLE: ui_row_toggle(c, ry, e->opt->val, sel); break;
+		case IT_SLIDER: ui_row_slider(c, ry, e->opt->val, e->opt->max, sel, col); break;
+		}
+	}
+	if (y > bot - top) { // scroll indicator
+		int lh = bot - top, bh = lh * lh / y, bt = top + (int)(lh * scroll / y);
+		fill(c, W - 6, top, 2, lh, 0x2a2a2a);
+		fill(c, W - 6, bt, 2, bh, GREY);
 	}
 	static const char *const b[] = {"^V", "<>", "B"}, *const l[] = {"MOVE", "CHANGE", "BACK"};
 	ingame_hints(c, b, l, 3);
+}
+
+// Header of the in-game pages: a title as big as fits, and a status line.
+static void ingame_header(canvas *c, const char *title, const char *status, uint32_t scol)
+{
+	int ts = 4;
+	while (ts > 2 && text_width(title, ts) > W - 2 * UI_MX)
+		ts--;
+	char t[96];
+	snprintf(t, sizeof t, "%s", title);
+	int maxc = (W - 2 * UI_MX) / (6 * ts);
+	if ((int)strlen(t) > maxc)
+		snprintf(t, sizeof t, "%.*s..", maxc - 2, title);
+	text_arcade(c, UI_MX, 14 + (4 - ts) * 4, t, ts, run[cur].game >= 0 ? lib[run[cur].game].col : WHITE);
+	if (status) {
+		fill(c, UI_MX + 2, 58, 8, 8, scol);
+		text(c, UI_MX + 16, 55, status, 2, scol);
+	}
 }
 
 static void ingame_draw(canvas *c, float a)
@@ -2308,114 +2278,77 @@ static void ingame_draw(canvas *c, float a)
 		settings_draw(c);
 		return;
 	}
-	uint32_t col = PAL[APP_GAMES], ink = wink(col, W_NORMAL);
+	uint32_t col = PAL[APP_GAMES];
 	int slide = (int)((1 - a) * -30);
 	inst_t *in = &run[cur];
 
-	// left: this game
-	const int lx = 34 + slide, lw = 250, top = 120, rh = 46;
-	// title: big if it fits, else smaller, else wrapped onto two lines
-	const char *title = inst_title(cur);
-	int ty0 = 34, py0;
-	if (text_width(title, 3) <= lw) {
-		text_arcade(c, lx, ty0 + 6, title, 3, lib[in->game].col);
-		py0 = ty0 + 42;
-	} else if (text_width(title, 2) <= lw) {
-		text_arcade(c, lx, ty0 + 10, title, 2, lib[in->game].col);
-		py0 = ty0 + 38;
-	} else {
-		int maxc = (lw + 2) / 12, cut = maxc;
-		while (cut > 0 && title[cut] != ' ')
-			cut--;
-		if (cut == 0)
-			cut = maxc;
-		char l1[64], l2[64];
-		snprintf(l1, sizeof l1, "%.*s", cut, title);
-		const char *rest = title + cut + (title[cut] == ' ');
-		if ((int)strlen(rest) > maxc)
-			snprintf(l2, sizeof l2, "%.*s..", maxc - 2, rest);
-		else
-			snprintf(l2, sizeof l2, "%s", rest);
-		text_arcade(c, lx, ty0, l1, 2, lib[in->game].col);
-		text_arcade(c, lx, ty0 + 22, l2, 2, lib[in->game].col);
-		py0 = ty0 + 50;
-	}
-	fill(c, lx, py0 + 3, 8, 8, PAL[3]);
-	text(c, lx + 14, py0, emu_linked(in->eg) > 1 ? "PLAYING - LINKED" : "PLAYING", 2, PAL[3]);
-	if (M2.col == 0)
-		wbox(c, lx, top + (int)lrintf(M2.sel_y[0] * rh), lw, rh - 8, col, W_NORMAL);
+	// header: the game, as big as fits, and its state
+	ingame_header(c, inst_title(cur), emu_linked(in->eg) > 1 ? "PLAYING - LINKED" : "PLAYING", PAL[3]);
+
+	// left: what to do with this game
+	const int lx = UI_MX + slide, lw = 300, top = UI_TOP;
+	ui_column(lx, lw);
 	for (int i = 0; i < NACT; i++) {
-		int y = top + i * rh, sel = M2.col == 0 && i == M2.sel[0];
-		text(c, lx + 16, y + 12, ACT_NAMES[i], 2, sel ? ink : 0xdddddd);
+		int y = top + i * UI_ROW, sel = M2.col == 0 && i == M2.sel[0];
+		ui_row(c, y, ACT_NAMES[i], sel, col);
 		if (i == ACT_STATES) {
 			int sv2[NSLOTS];
 			char nb[16];
 			snprintf(nb, sizeof nb, "%d", states_order(sv2));
-			text(c, lx + lw - 16 - text_width(nb, 2), y + 12, nb, 2, sel ? ink : GREY);
+			ui_row_value(c, y, nb, 0, sel, col, GREY);
 		} else if (i == ACT_SETTINGS || i == ACT_COPY) {
-			text(c, lx + lw - 28, y + 12, ">", 2, sel ? ink : GREY);
+			ui_row_value(c, y, NULL, 1, sel, col, GREY);
 		} else if (i == ACT_LINK) {
-			int on = emu_linked(in->eg) > 1;
-			text(c, lx + lw - 16 - text_width(on ? "ON >" : ">", 2), y + 12, on ? "ON >" : ">", 2,
-			     sel ? ink : on ? PAL[4] : GREY);
+			ui_row_value(c, y, emu_linked(in->eg) > 1 ? "ON" : NULL, 1, sel, col, PAL[4]);
 		}
 	}
 
 	// right: other open games, then home / all games
-	const int rx = 330 - slide, rw = 280;
+	const int rx = lx + lw + 16, rw = W - UI_MX - rx - slide;
 	int sv[MAXRUN + 2], ns = switch_items(sv), nother = ns - 2;
-	text(c, rx, 44, "OPEN GAMES", 2, GREY);
-	fill(c, rx + text_width("OPEN GAMES", 2) + 10, 50, rw - text_width("OPEN GAMES", 2) - 10, 2, 0x2a2a2a);
-	if (!nother)
-		text(c, rx, 76, "NO OTHER GAMES OPEN", 2, 0x666666);
-	// compact rows, scrolling so the selection stays in view
-	const int tw = 72, th = 48, grow = th + 12, arow = 40, ytop = 70, ybot = 432;
-	int ys[MAXRUN + 2], yy = nother ? 0 : 30; // leave room for "no other games"
-	for (int i = 0; i < ns; i++) {
-		if (i == nother)
-			yy += 6;
-		ys[i] = yy;
-		yy += sv[i] >= 0 ? grow : arow;
+	ui_column(rx, rw);
+	int ytop = top;
+	if (!nother) {
+		text(c, rx + 16, ytop + 14, "NO OTHER GAMES", 2, 0x666666);
+		ytop += UI_ROW;
 	}
-	int total = yy, view = ybot - ytop;
+	const int view = (H - 44 - ytop) / UI_ROW; // rows that fit
 	static float rscroll;
-	int ssel = M2.sel[1], sh = sv[ssel] >= 0 ? grow : arow;
-	if (ys[ssel] - rscroll < 0)
-		rscroll = (float)ys[ssel];
-	if (ys[ssel] + sh - rscroll > view)
-		rscroll = (float)(ys[ssel] + sh - view);
-	if (total <= view)
+	int ssel = M2.sel[1];
+	if (ssel - rscroll > view - 1)
+		rscroll = (float)(ssel - view + 1);
+	if (ssel < rscroll)
+		rscroll = (float)ssel;
+	if (ns <= view)
 		rscroll = 0;
-	for (int i = 0; i < ns; i++) {
-		int y = ytop + 4 + ys[i] - (int)rscroll;
-		int h = sv[i] >= 0 ? grow : arow;
-		if (y < ytop || y + h - 8 > ybot)
-			continue; // outside the visible part of the column
-		int sel = M2.col == 1 && i == ssel;
-		if (sv[i] >= 0) { // an open game: thumbnail + title
-			if (sel)
-				fill(c, rx - 5, y - 5, tw + 10, th + 10, WHITE);
-			fill(c, rx - 2, y - 2, tw + 4, th + 4, is_linked(sv[i]) ? LINK_COL : PAL[3]);
-			blit_game(c, run[sv[i]].frame, GW, GH, rx, y, tw, th, 0);
-			if (is_linked(sv[i]))
-				link_chip(c, rx + 2, y + th - 12, 1);
-			const char *t = inst_title(sv[i]);
-			int lines = text_wrap2(c, rx + tw + 14, y, t, rw - tw - 14, sel ? WHITE : 0xcccccc);
-			if (lines == 1)
-				text(c, rx + tw + 14, y + 22, linked_with_cur(sv[i]) ? "LINKED" : "PAUSED", 2,
-				     linked_with_cur(sv[i]) ? PAL[4] : PAL[3]);
+	for (int i = (int)rscroll; i < ns && i < (int)rscroll + view; i++) {
+		int y = ytop + (i - (int)rscroll) * UI_ROW, sel = M2.col == 1 && i == ssel;
+		if (sv[i] >= 0) { // an open game: thumbnail, title, state
+			uint32_t ink = ui_row(c, y, "", sel, col);
+			int g = sv[i], tw = 60, th = 40, ty = y + (UI_ROW - 6 - th) / 2;
+			fill(c, rx + 6, ty - 1, tw + 2, th + 2, is_linked(g) ? LINK_COL : PAL[3]);
+			blit_game(c, run[g].frame, GW, GH, rx + 7, ty, tw, th, 0);
+			char t[64];
+			int maxc = (rw - tw - 30) / 12;
+			const char *it = inst_title(g);
+			if ((int)strlen(it) > maxc)
+				snprintf(t, sizeof t, "%.*s..", maxc - 2, it);
+			else
+				snprintf(t, sizeof t, "%s", it);
+			int lk = linked_with_cur(g);
+			text(c, rx + tw + 20, y + 6, t, 2, sel ? ink : 0xdddddd);
+			text(c, rx + tw + 20, y + 25, lk ? "LINKED" : "PAUSED", 2, sel ? ink : lk ? PAL[4] : PAL[3]);
 		} else { // home / all games
-			if (sel)
-				wbox(c, rx, y, rw, 32, col, W_NORMAL);
-			text(c, rx + 14, y + 9, sv[i] == -1 ? "HOME" : "ALL GAMES", 2, sel ? ink : 0xdddddd);
-			text(c, rx + rw - 24, y + 9, ">", 2, sel ? ink : GREY);
+			ui_row(c, y, sv[i] == -1 ? "HOME" : "ALL GAMES", sel, col);
+			ui_row_value(c, y, NULL, 1, sel, col, GREY);
 		}
 	}
-	if (total > view) { // scroll indicator
-		int bh = view * view / total, bt = ytop + (int)(view * rscroll / total);
-		fill(c, rx + rw + 8, ytop, 2, view, 0x2a2a2a);
-		fill(c, rx + rw + 8, bt, 2, bh, GREY);
+	if (ns > view) { // scroll indicator
+		int lh = view * UI_ROW - 6, bh = lh * view / ns, bt = ytop + (int)(lh * rscroll / ns);
+		fill(c, W - 6, ytop, 2, lh, 0x2a2a2a);
+		fill(c, W - 6, bt, 2, bh, GREY);
 	}
+	ui_column(0, 0);
 	static const char *const b[] = {"^V", "<>", "A", "B"}, *const l[] = {"MOVE", "SWITCH SIDE", "OK", "RESUME"};
 	ingame_hints(c, b, l, 4);
 }
