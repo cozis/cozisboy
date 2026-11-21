@@ -24,6 +24,8 @@ define COZISBOY_WEB_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0644 $(@D)/web/index.html $(TARGET_DIR)/usr/share/cozisboy-web/index.html
 	$(INSTALL) -D -m 0644 $(@D)/web/logo.png $(TARGET_DIR)/usr/share/cozisboy-web/logo.png
 	$(INSTALL) -D -m 0644 $(@D)/web/favicon.png $(TARGET_DIR)/usr/share/cozisboy-web/favicon.png
+	$(INSTALL) -D -m 0644 $(@D)/web/font5x7.js $(TARGET_DIR)/usr/share/cozisboy-web/font5x7.js
+	$(INSTALL) -D -m 0644 $(@D)/web/pixel.js $(TARGET_DIR)/usr/share/cozisboy-web/pixel.js
 endef
 
 $(eval $(generic-package))

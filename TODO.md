@@ -132,6 +132,13 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
 - [ ] Recognise ROMs by checksum (libretro-database No-Intro DATs): proper
       names, covers, year/genre/players.
 - [ ] Launcher: browse/install from Homebrew Hub on the device itself.
+- [x] Web app redesign (from apps/web/mock): flat, framed shell with sidebar
+      filters, Recently played row + systems A-Z, carousel game view with
+      saves/states/More, Add games popup (your computer incl. ZIP unpacking and
+      .sav matching, Homebrew Hub, itch.io feeds, from a link via the console).
+- [ ] Homebrew Hub: the browser fetches 10-entry pages one at a time (it
+      throttles parallel requests): let the console cache the whole catalogue.
+- [ ] Popup source icons are letters: draw small pixel icons.
 - [ ] Live screen over WebSocket (JPEG), remote input.
 
 ## Games

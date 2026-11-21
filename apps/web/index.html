@@ -5,296 +5,254 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>cozisboy</title>
 <link rel="icon" href="/favicon.png">
+<script src="/font5x7.js"></script>
+<script src="/pixel.js"></script>
+<!--
+	cozisboy web app. Design from apps/web/mock (console views): flat colours
+	only (no shadows, glows, gradients or blur), the launcher's 5x7 pixel font
+	for headings and buttons, regular type for everything you read.
+-->
 <style>
 :root {
-	--bg: #101012;
-	--panel: #1a1a1e;
-	--panel2: #232329;
-	--line: #2f2f37;
-	--text: #f4f4f4;
-	--dim: #9d9daa;
-	--faint: #62626e;
 	--red: #ff4a4a; --orange: #ff9a2e; --yellow: #ffd93d; --green: #59d65a;
 	--cyan: #3dc6ff; --blue: #6a7dff; --purple: #c56bff; --pink: #ff6bc1;
 	--sys-gb: var(--green); --sys-gbc: var(--purple); --sys-gba: var(--blue);
-	--r: 10px;
-	--shadow: 4px 4px 0 #000;
+	--page: #0b0b0d; --frame: #101012; --bar: #17171a; --side: #141417; --tool: #121215;
+	--line: #26262b; --field: #1c1c20; --chip: #232327;
+	--text: #ffffff; --dim: #b0b0b8; --faint: #77777f; --fainter: #66666e;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--text);
-	font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+*, *::before, *::after { box-shadow: none; text-shadow: none; }
+html, body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 button, input { font: inherit; color: inherit; }
 a { color: inherit; }
-img.px { image-rendering: pixelated; }
-.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px 80px; }
+img.pix { image-rendering: pixelated; }
 .hidden { display: none !important; }
+.px { line-height: 0; }
 
-/* ---- header */
-header { display: flex; align-items: center; gap: 16px; padding: 18px 0 22px; }
-header .logo { height: 40px; cursor: pointer; }
-header .grow { flex: 1; }
-.pill { display: flex; gap: 14px; align-items: center; color: var(--dim); font-size: 13px;
-	background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; }
-.pill b { color: var(--text); font-weight: 600; }
-.pill:empty { display: none; }
-.batt { display: inline-block; width: 22px; height: 11px; border: 2px solid var(--dim); border-radius: 2px;
-	position: relative; vertical-align: -1px; margin-right: 6px; }
-.batt::after { content: ""; position: absolute; right: -5px; top: 2px; width: 2px; height: 3px; background: var(--dim); }
-.batt i { position: absolute; left: 1px; top: 1px; bottom: 1px; background: var(--green); }
+/* ---- buttons */
+.pb { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #fff; color: #000; border: 0; padding: 11px 16px; cursor: pointer; white-space: nowrap; text-decoration: none; position: relative; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.pb:hover { filter: brightness(1.08); }
+.pb:active { filter: brightness(.92); }
+.pb:disabled { opacity: .45; cursor: default; filter: none; }
+.pb.go { background: var(--yellow); }
+.pb.dim { background: #2a2a2e; }
+.pb.red { background: var(--red); }
+.pb.small { padding: 8px 12px; }
+.pb .px svg g:last-child { fill: #000; }
+.pb.dim .px svg g:last-child { fill: #d0d0d6; }
+.pb.red .px svg g:last-child { fill: #fff; }
+/* hold to confirm: a flat bar fills while pressed */
+.pb.hold { touch-action: none; -webkit-touch-callout: none; }
+.pb.hold .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(0,0,0,.28); pointer-events: none; }
+.pb.hold.holding .fill { width: 100%; transition: width 1s linear; }
+.pb.hold > .px { position: relative; }
 
-/* ---- buttons: chunky, hard shadow, press down */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-	background: var(--panel2); border: 2px solid #000; border-radius: 8px; box-shadow: 3px 3px 0 #000;
-	padding: 8px 16px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap;
-	position: relative; overflow: hidden; user-select: none; -webkit-user-select: none; }
-.btn:hover { background: #2c2c34; }
-.btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
-.btn:disabled { opacity: .45; cursor: default; transform: none; box-shadow: 3px 3px 0 #000; }
-.btn.go { background: var(--yellow); color: #111; }
-.btn.go:hover { background: #ffe46b; }
-.btn.small { padding: 5px 11px; font-size: 13px; box-shadow: 2px 2px 0 #000; }
-.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--dim); }
-.btn.ghost:hover { color: var(--text); background: var(--panel2); }
-/* hold to confirm: a bar fills while pressed */
-.btn.hold { color: var(--red); touch-action: none; -webkit-touch-callout: none; }
-.btn.hold .fill { position: absolute; inset: 0; width: 0; background: var(--red); opacity: .35; pointer-events: none; }
-.btn.hold.holding .fill { width: 100%; transition: width 1s linear; }
-.btn.hold > span { position: relative; }
+/* ---- shell */
+.wrap { padding: 24px; display: flow-root; }
+.shell { display: grid; grid-template-columns: 250px 1fr; grid-template-rows: 64px 1fr; max-width: 1280px; height: calc(100vh - 48px); margin: 0 auto; border: 2px solid var(--line); background: var(--frame); overflow: hidden; }
+.hd { grid-column: 1 / -1; display: flex; align-items: center; gap: 18px; padding: 0 24px; background: var(--bar); border-bottom: 2px solid var(--line); }
+.hd .logo { height: 30px; cursor: pointer; }
+.hd .grow { flex: 1; }
+.hd .stat { display: flex; gap: 18px; align-items: center; }
+.hd .wifi { color: var(--faint); font-size: 13px; }
+.hd .bat { display: inline-flex; align-items: center; gap: 8px; }
+.hd .bat i { display: inline-block; width: 22px; height: 11px; border: 2px solid #9a9aa4; position: relative; }
+.hd .bat i::after { content: ""; position: absolute; right: -5px; top: 2px; width: 2px; height: 3px; background: #9a9aa4; }
+.hd .bat i b { position: absolute; left: 1px; top: 1px; bottom: 1px; background: var(--green); }
+.snav { background: var(--side); border-right: 2px solid var(--line); overflow-y: auto; padding: 18px 0 18px; display: flex; flex-direction: column; }
+.snav .lbl { padding: 16px 22px 8px; }
+.snav button.f { display: flex; align-items: center; gap: 10px; width: 100%; background: transparent; border: 0; border-left: 4px solid transparent; padding: 10px 18px; cursor: pointer; text-align: left; color: var(--dim); font-weight: 600; }
+.snav button.f:hover { background: #ffffff08; }
+.snav button.f.on { background: #ffffff0f; border-left-color: var(--c, var(--yellow)); color: #fff; }
+.snav .dot { width: 10px; height: 10px; background: var(--c); flex: none; }
+.snav .n { margin-left: auto; color: var(--fainter); font-weight: 500; }
+.snav .spacer { flex: 1; min-height: 20px; }
+.snav .meter { padding: 6px 22px 4px; }
+.snav .track { height: 8px; background: var(--line); margin: 8px 0 6px; }
+.snav .track i { display: block; height: 100%; background: var(--purple); }
+.snav small { color: var(--faint); font-size: 12px; }
+.snav .links { padding: 14px 22px 0; display: flex; flex-direction: column; gap: 8px; }
+.snav .links a { color: var(--faint); font-size: 13px; cursor: pointer; text-decoration: none; }
+.snav .links a:hover { color: #fff; }
+.mn { display: grid; grid-template-rows: auto 1fr; min-height: 0; }
+.tb { display: flex; gap: 14px; align-items: center; padding: 16px 28px; border-bottom: 2px solid var(--line); background: var(--tool); }
+.tb .grow { flex: 1; }
+.search { flex: 1; min-width: 160px; max-width: 560px; background: var(--field); border: 0; outline: 2px solid transparent; color: #fff; padding: 11px 14px; font-weight: 600; }
+.search:focus { outline-color: var(--yellow); }
+.ct { overflow-y: auto; padding: 4px 28px 60px; }
 
-/* ---- library */
-.toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 26px; }
-.search { flex: 1; min-width: 200px; background: var(--panel); border: 2px solid var(--line);
-	border-radius: 8px; padding: 9px 14px; outline: none; }
-.search:focus { border-color: var(--cyan); }
-.sys-head { display: flex; align-items: baseline; gap: 12px; margin: 30px 0 14px; }
-.sys-head h2 { margin: 0; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; }
-.sys-head h2::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 10px;
-	background: var(--c); box-shadow: 2px 2px 0 #000; vertical-align: -1px; }
-.sys-head .n { color: var(--faint); font-size: 13px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 22px 18px; }
-.game { cursor: pointer; min-width: 0; outline: none; }
-.cover { aspect-ratio: 1; border-radius: 8px; background: var(--panel); border: 2px solid #000;
-	box-shadow: var(--shadow); overflow: hidden; position: relative; display: grid; place-items: center;
-	transition: transform .12s; }
-.game:hover .cover, .game:focus-visible .cover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #000; }
-.game:focus-visible .cover { border-color: var(--yellow); }
-.cover img { width: 100%; height: 100%; object-fit: contain; }
-.cover .ph { width: 100%; height: 100%; display: grid; place-items: center; background: var(--c); }
-.cover .ph b { font: 900 46px/1 ui-monospace, Menlo, Consolas, monospace; color: #fff;
-	text-shadow: 3px 3px 0 #000; -webkit-text-stroke: 2px #000; paint-order: stroke fill; }
-.cover .tags { position: absolute; left: 6px; bottom: 6px; display: flex; gap: 4px; }
-.tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; background: #000c; color: #fff;
-	padding: 2px 6px; border-radius: 4px; }
-.game .t { margin-top: 10px; font-weight: 600; line-height: 1.25; display: -webkit-box;
-	-webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.game .r { color: var(--faint); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ---- sections + cover grid */
+.sech { display: flex; align-items: center; gap: 14px; margin: 28px 0 16px; }
+.sech .ln { flex: 1; height: 2px; background: var(--line); }
+.seeall { color: #9a9aa4; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.seeall:hover { color: #fff; }
+.cg { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 26px 20px; }
+.cg.one-row { grid-template-rows: auto; grid-auto-rows: 0; overflow: hidden; row-gap: 0; }
+.it { cursor: pointer; outline: none; min-width: 0; }
+.fr { aspect-ratio: 1; background: #000; position: relative; overflow: hidden; outline: 2px solid transparent; outline-offset: 3px; }
+.it:hover .fr, .it:focus-visible .fr { outline-color: #fff; }
+.fr img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fr.shot img { image-rendering: pixelated; }
+.fr .ph { width: 100%; height: 100%; display: grid; place-items: center; background: var(--c); }
+.fr .tg { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 5px; }
+.fr .tg span { background: #000; padding: 4px 6px; }
+.fr .tg span.ok { background: var(--green); }
+.fr .act { position: absolute; right: 8px; bottom: 8px; opacity: 0; }
+.it:hover .fr .act, .it:focus-within .fr .act { opacity: 1; }
+.it .nm { margin-top: 12px; font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.it .sb { color: #8a8a94; font-size: 12px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.empty { color: var(--faint); padding: 40px 0; }
+.empty .pb { margin-top: 16px; }
 
-.empty { margin-top: 40px; border: 2px dashed var(--line); border-radius: 16px; padding: 60px 20px; text-align: center; }
-.empty h3 { margin: 0 0 8px; font-size: 20px; }
-.empty p { color: var(--dim); margin: 0 0 20px; }
+/* ---- game view (carousel) */
+.cv { position: fixed; inset: 0; background: var(--page); overflow: hidden; z-index: 5; }
+.cv .top { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 20px; padding: 22px 34px; z-index: 3; }
+.cv .top .logo { height: 30px; cursor: pointer; }
+.cv .top .grow { flex: 1; }
+.cv .count { position: absolute; left: 50%; transform: translateX(-50%); top: calc(11vh - 14px); z-index: 3; }
+.cv .stage { position: absolute; left: 0; right: 0; top: 11vh; height: 320px; z-index: 2; }
+.cov { position: absolute; top: 50%; left: 50%; width: 290px; height: 290px; margin: -145px 0 0 -145px; cursor: pointer; transition: transform .3s cubic-bezier(.2,.8,.2,1), opacity .3s; }
+.cov .box { width: 100%; height: 100%; background: #000; overflow: hidden; display: grid; place-items: center; }
+.cov.sel .box { outline: 3px solid #fff; outline-offset: 4px; }
+.cov img { width: 100%; height: 100%; object-fit: cover; }
+.cov .ph { width: 100%; height: 100%; display: grid; place-items: center; background: var(--c); }
+.cv .info { position: absolute; left: 0; right: 0; top: calc(11vh + 345px); bottom: 70px; text-align: center; z-index: 2; padding: 0 20px; overflow-y: auto; }
+.cv .info .t { display: flex; justify-content: center; min-height: 40px; }
+.cv .info .s { margin-top: 10px; color: #cfcfd6; }
+.cv .acts { display: flex; gap: 12px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
+.cv .panel { max-width: 860px; margin: 26px auto 0; text-align: left; }
+.states { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+.st { width: 210px; }
+.st .im { aspect-ratio: 3/2; background: #000; cursor: zoom-in; }
+.st .im img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; display: block; }
+.st b { display: block; margin-top: 8px; font-size: 14px; }
+.st span { color: #9a9aa4; font-size: 12px; display: block; margin-bottom: 8px; }
+.st .row { display: flex; gap: 8px; }
+.more { display: flex; flex-direction: column; gap: 2px; max-width: 560px; margin: 0 auto; }
+.more .mi { display: flex; align-items: center; gap: 12px; background: var(--side); padding: 12px 16px; }
+.more .mi .grow { flex: 1; color: var(--dim); font-size: 14px; }
+.more input { flex: 1; background: var(--field); border: 0; outline: 2px solid transparent; color: #fff; padding: 9px 12px; }
+.more input:focus { outline-color: var(--yellow); }
+.cv .hints { position: absolute; left: 0; right: 0; bottom: 22px; display: flex; gap: 26px; justify-content: center; z-index: 3; flex-wrap: wrap; }
+.hint { display: flex; gap: 8px; align-items: center; cursor: default; }
+.key { background: #ddd; padding: 3px 7px; }
+.key.y { background: var(--yellow); }
 
-/* ---- game page */
-.back { margin: -6px 0 18px -10px; }
-.hero { display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 34px; }
-.hero .cover { width: 260px; flex: none; }
-.hero .info { flex: 1; min-width: 260px; }
-.hero h1 { margin: 6px 0 4px; font-size: 32px; line-height: 1.15; }
-.hero .sub { color: var(--dim); }
-.sysbadge { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .1em; color: #000;
-	background: var(--c); padding: 3px 8px; border-radius: 4px; box-shadow: 2px 2px 0 #000; }
-.facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 18px; margin: 18px 0 22px; color: var(--dim); font-size: 14px; }
-.facts b { color: var(--text); font-weight: 500; }
-.row-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+/* ---- add games popup */
+.modal-bg { position: fixed; inset: 0; z-index: 25; background: var(--page); display: grid; place-items: center; }
+.modal-bg.anim, .modal.anim { animation: fadein .15s ease-out; }
+@keyframes fadein { from { opacity: 0; } }
+.modal { width: min(1120px, 94vw); height: min(760px, 88vh); background: #131316; outline: 2px solid var(--line); display: grid; grid-template-columns: 260px 1fr; grid-template-rows: auto 1fr; overflow: hidden; }
+.modal .mh { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 18px 22px; background: var(--bar); }
+.modal .mh .pb { margin-left: auto; }
+.modal .side { padding: 14px 0; background: #101013; overflow-y: auto; }
+.modal .side button { display: flex; gap: 12px; align-items: center; width: 100%; background: transparent; border: 0; border-left: 5px solid transparent; padding: 12px 18px; cursor: pointer; text-align: left; }
+.modal .side button:hover { background: #ffffff08; }
+.modal .side button.on { background: #ffffff10; border-left-color: var(--c); }
+.modal .side .ic { width: 34px; height: 34px; display: grid; place-items: center; background: var(--c); flex: none; }
+.modal .side small { display: block; color: var(--faint); font-size: 12px; margin-top: 3px; }
+.modal .body { overflow-y: auto; padding: 22px 26px 30px; }
+.modal .cg { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 22px 16px; }
+.ctl { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.chips { display: flex; gap: 6px; }
+.chip { background: var(--chip); border: 0; padding: 8px 12px; cursor: pointer; }
+.chip.on { background: #fff; }
+.dropzone { border: 3px dashed #3a3a40; padding: 70px 20px; text-align: center; }
+.dropzone p { color: #9a9aa4; margin: 14px 0 22px; }
+.note { margin: 16px 0 0; color: #9a9aa4; font-size: 14px; max-width: 70ch; }
+.hhd { display: grid; grid-template-columns: 300px 1fr; gap: 26px; }
+.hhd .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: start; }
+.hhd .shots img { width: 100%; aspect-ratio: 10/9; object-fit: cover; image-rendering: pixelated; background: #000; }
+.hhd .shots img:first-child { grid-column: 1 / -1; aspect-ratio: auto; }
+.hhd .desc { color: #c9c9d1; font-size: 14px; margin: 14px 0; max-height: 260px; overflow-y: auto; white-space: pre-wrap; }
+.linkrow { display: flex; gap: 12px; margin-top: 22px; flex-wrap: wrap; }
+.linkrow .search { max-width: none; }
+.loading { color: var(--faint); padding: 30px 0; }
+.cg > .loading, .cg > .note { grid-column: 1 / -1; }
 
-.section { background: var(--panel); border: 2px solid #000; box-shadow: var(--shadow); border-radius: var(--r);
-	padding: 20px 22px; margin-bottom: 26px; }
-.section > h2 { margin: 0 0 14px; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
-.saveline { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.saveline .what { flex: 1; min-width: 200px; }
-.saveline .what b { display: block; font-size: 17px; }
-.saveline .what span { color: var(--dim); font-size: 13px; }
-.saveline + .saveline { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
-.floppy { width: 34px; height: 34px; flex: none; }
-.muted { color: var(--dim); }
+/* ---- uploads tray */
+.tray { position: fixed; right: 22px; bottom: 22px; width: 380px; max-width: calc(100vw - 44px); z-index: 30; background: #1a1a1e; outline: 2px solid var(--line); padding: 16px 18px; max-height: 50vh; overflow-y: auto; }
+.tray .th { display: flex; justify-content: space-between; align-items: center; }
+.tray .th a { color: #888; cursor: pointer; }
+.tray .row { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; font-size: 13px; }
+.tray .row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tray .row span:last-child { color: #9a9aa4; white-space: nowrap; }
+.tray .row.bad span:last-child { color: var(--red); white-space: normal; text-align: right; }
+.segs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; margin-top: 6px; }
+.segs i { height: 8px; background: #2a2a2e; }
+.segs i.on { background: var(--c); }
 
-.states { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
-.state .shot { aspect-ratio: 3 / 2; background: #000; border: 2px solid #000; border-radius: 6px;
-	box-shadow: 3px 3px 0 #000; overflow: hidden; }
-.state .shot img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; display: block; }
-.state .when { margin: 10px 0 8px; }
-.state .when b { display: block; }
-.state .when span { color: var(--faint); font-size: 12px; }
-
-.rename { display: flex; gap: 10px; flex-wrap: wrap; }
-.rename input { flex: 1; min-width: 220px; background: var(--panel2); border: 2px solid var(--line); border-radius: 8px; padding: 8px 12px; outline: none; }
-.rename input:focus { border-color: var(--cyan); }
-.danger-zone { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.danger-zone p { flex: 1; min-width: 220px; margin: 0; color: var(--dim); font-size: 14px; }
-.sep { height: 1px; background: var(--line); margin: 18px 0; }
-
-
-/* ---- tabs */
-.tabs { display: flex; gap: 6px; margin: 0 0 24px; border-bottom: 2px solid var(--line); }
-.tabs a { padding: 10px 16px; font-weight: 700; color: var(--dim); text-decoration: none; cursor: pointer;
-	border-bottom: 3px solid transparent; margin-bottom: -2px; }
-.tabs a:hover { color: var(--text); }
-.tabs a.on { color: var(--text); border-bottom-color: var(--yellow); }
-.tabs a .n { color: var(--faint); font-weight: 500; margin-left: 4px; }
-
-/* ---- discover */
-.seg { display: inline-flex; border: 2px solid #000; border-radius: 8px; overflow: hidden; box-shadow: 3px 3px 0 #000; }
-.seg button { background: var(--panel2); border: 0; padding: 8px 14px; font-weight: 700; cursor: pointer; color: var(--dim); }
-.seg button + button { border-left: 2px solid #000; }
-.seg button.on { background: var(--c, var(--yellow)); color: #000; }
-.check { display: inline-flex; gap: 8px; align-items: center; color: var(--dim); font-size: 14px; cursor: pointer; }
-.check input { accent-color: var(--yellow); width: 16px; height: 16px; }
-.hh-note { color: var(--faint); font-size: 13px; margin: -8px 0 20px; }
-.hh-note a { color: var(--dim); }
-.cover.shot img { object-fit: cover; image-rendering: pixelated; }
-.tag.ok { background: var(--green); color: #000; }
-.tag.wip { background: var(--orange); color: #000; }
-.loading { color: var(--dim); padding: 30px 0; }
-.shots { display: flex; gap: 14px; overflow-x: auto; padding: 4px 4px 12px; margin: 0 -4px 20px; }
-.shots img { height: 200px; border: 2px solid #000; border-radius: 6px; box-shadow: 3px 3px 0 #000;
-	image-rendering: pixelated; flex: none; background: #000; }
-.desc { white-space: pre-wrap; line-height: 1.6; color: #d8d8de; max-width: 75ch; }
-.tagrow { display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 0 18px; }
-.tagrow .tag { background: var(--panel2); border: 1px solid var(--line); color: var(--dim); }
-.btn.big { padding: 12px 26px; font-size: 17px; }
+/* ---- drop overlay, zoom, toast */
+.drop { position: fixed; inset: 0; z-index: 40; background: var(--page); display: grid; place-items: center; pointer-events: none; }
+.drop .frame { border: 6px dashed var(--yellow); padding: 60px 90px; text-align: center; }
+.drop p { color: #bbb; margin: 18px 0 0; }
+#zoom { position: fixed; inset: 0; z-index: 60; background: var(--page); display: grid; place-items: center; cursor: zoom-out; }
+#zoom img { max-width: 92vw; max-height: 86vh; image-rendering: pixelated; background: #000; }
+#toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #fff; color: #000; padding: 10px 18px; z-index: 70; font-weight: 600; }
 
 /* ---- pairing */
-#pair { max-width: 420px; margin: 10vh auto 0; text-align: center; }
-#pair .logo { height: 56px; margin-bottom: 30px; }
-#pair p { color: var(--dim); }
-#code { width: 100%; font: 800 38px ui-monospace, Menlo, Consolas, monospace; letter-spacing: .45em;
-	text-align: center; padding: 14px 0 14px .45em; background: var(--panel2); border: 2px solid #000;
-	box-shadow: var(--shadow); border-radius: var(--r); margin: 14px 0 10px; outline: none; }
-#code:focus { border-color: var(--yellow); }
-.err { color: var(--red); min-height: 1.5em; }
+.pair { max-width: 440px; margin: 14vh auto 0; text-align: center; padding: 0 20px; }
+.pair .logo { height: 54px; margin-bottom: 34px; }
+.pair .card { background: var(--bar); outline: 2px solid var(--line); padding: 30px 28px; }
+.pair p { color: var(--dim); margin: 14px 0 0; }
+.pair input { width: 100%; font: 800 36px ui-monospace, Menlo, monospace; letter-spacing: .45em; text-align: center; padding: 14px 0 14px .45em; background: var(--field); border: 0; outline: 2px solid transparent; color: #fff; margin: 20px 0 12px; }
+.pair input:focus { outline-color: var(--yellow); }
+.pair .err { color: var(--red); min-height: 1.5em; font-size: 14px; }
+.pair .pb { width: 100%; }
 
-/* ---- drop overlay + upload tray */
-#drop { position: fixed; inset: 0; background: #101012e0; display: grid; place-items: center; z-index: 20;
-	pointer-events: none; }
-#drop div { border: 3px dashed var(--yellow); border-radius: 20px; padding: 50px 70px; text-align: center; }
-#drop b { font-size: 24px; display: block; margin-bottom: 6px; }
-#drop span { color: var(--dim); }
-#tray { position: fixed; right: 20px; bottom: 20px; width: 360px; max-width: calc(100vw - 40px); max-height: 50vh;
-	overflow: auto; background: var(--panel); border: 2px solid #000; box-shadow: var(--shadow);
-	border-radius: var(--r); padding: 14px 16px; z-index: 10; }
-#tray h3 { margin: 0 0 10px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
-	display: flex; justify-content: space-between; }
-.up { font-size: 13px; margin-top: 10px; }
-.up .l { display: flex; justify-content: space-between; gap: 10px; }
-.up .l span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.up .l span:last-child { color: var(--dim); white-space: nowrap; }
-.bar { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; margin-top: 5px; }
-.bar i { display: block; height: 100%; width: 0; background: var(--cyan); transition: width .2s; }
-.up.ok .bar i { background: var(--green); }
-.up.bad .bar i { background: var(--red); width: 100% !important; }
-.up.bad .l span:last-child { color: var(--red); }
-
-#toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--panel2);
-	border: 2px solid #000; box-shadow: var(--shadow); border-radius: 8px; padding: 10px 18px; z-index: 30; }
-
-footer { margin-top: 50px; color: var(--faint); font-size: 13px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
-footer a { cursor: pointer; text-decoration: underline; }
-
-@media (max-width: 600px) {
-	.wrap { padding: 0 14px 80px; }
-	.grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 18px 12px; }
-	.hero .cover { width: 100%; max-width: 320px; }
-	.hero h1 { font-size: 26px; }
-	header .logo { height: 32px; }
-	.pill .storage { display: none; }
+@media (max-width: 800px) {
+	.wrap { padding: 0; }
+	.shell { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; height: 100vh; border: 0; }
+	.snav { flex-direction: row; overflow-x: auto; padding: 0; border-right: 0; border-bottom: 2px solid var(--line); }
+	.snav .lbl, .snav .spacer, .snav .meter, .snav .links { display: none; }
+	.snav button.f { width: auto; white-space: nowrap; border-left: 0; border-bottom: 4px solid transparent; }
+	.snav button.f.on { border-bottom-color: var(--c, var(--yellow)); }
+	.ct, .tb { padding-left: 16px; padding-right: 16px; }
+	.cg { grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 20px 12px; }
+	.modal { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; width: 100vw; height: 100vh; }
+	.modal .side { display: flex; overflow-x: auto; padding: 0; }
+	.modal .side button { width: auto; border-left: 0; border-bottom: 4px solid transparent; }
+	.modal .side button.on { border-bottom-color: var(--c); }
+	.modal .side small { display: none; }
+	.hhd { grid-template-columns: 1fr; }
+	.cov { width: 220px; height: 220px; margin: -110px 0 0 -110px; }
 }
 </style>
 </head>
 <body>
-
-<!-- pairing -->
-<section id="pair" class="hidden">
-	<img class="logo px" src="/logo.png" alt="cozisboy">
-	<div class="section">
-		<h2>Connect to your cozisboy</h2>
-		<p>Enter the 6-digit code shown on the device.</p>
-		<input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="······">
-		<div class="err" id="pairErr"></div>
-		<button class="btn go" id="pairBtn" style="width:100%">Connect</button>
-	</div>
-</section>
-
-<div class="wrap hidden" id="app">
-	<header>
-		<img class="logo px" src="/logo.png" alt="cozisboy" onclick="location.hash=''">
-		<div class="grow"></div>
-		<div class="pill" id="pill"></div>
-	</header>
-
-	<nav class="tabs">
-		<a id="tabLib" href="#/">On this cozisboy<span class="n" id="libN"></span></a>
-		<a id="tabHh" href="#/discover">Discover</a>
-	</nav>
-
-	<!-- library -->
-	<main id="libView">
-		<div class="toolbar">
-			<input class="search" id="search" type="search" placeholder="Search games">
-			<button class="btn go" id="addBtn">+ Add games</button>
-		</div>
-		<div id="lib"></div>
-		<footer>
-			<span id="libCount"></span>
-			<span>
-				<a id="backupBtn">Back up all saves</a> ·
-				<a id="backupAllBtn">saves and states</a> ·
-				<a id="coversBtn">Find missing covers</a> ·
-				<a id="logout">Disconnect this browser</a>
-			</span>
-		</footer>
-	</main>
-
-	<!-- game -->
-	<main id="gameView" class="hidden"></main>
-
-	<!-- discover: homebrew from Homebrew Hub -->
-	<main id="hhView" class="hidden">
-		<div class="toolbar">
-			<input class="search" id="hhSearch" type="search" placeholder="Search free games">
-			<div class="seg" id="hhSys"></div>
-			<label class="check"><input type="checkbox" id="hhWip"> Include unfinished</label>
-		</div>
-		<p class="hh-note">Free homebrew games made by the community, from <a href="https://hh.gbdev.io" target="_blank" rel="noopener">Homebrew Hub</a>. Install puts them in your library.</p>
-		<div id="hhList"></div>
-	</main>
-	<main id="hhGameView" class="hidden"></main>
-</div>
-
-<input type="file" id="romIn" multiple accept=".gba,.gbc,.gb" hidden>
+<div id="root"></div>
+<div id="layer"></div>
+<div id="trayc"></div>
+<input type="file" id="fileIn" multiple accept=".gba,.gbc,.gb,.sav,.srm,.zip" hidden>
 <input type="file" id="saveIn" accept=".sav,.srm" hidden>
-<input type="file" id="coverIn" accept="image/png" hidden>
-
-<div id="drop" class="hidden"><div><b id="dropT">Drop to add games</b><span id="dropS">.gba, .gbc and .gb files</span></div></div>
-<div id="tray" class="hidden"><h3><span>Adding games</span><a id="trayClose" style="cursor:pointer">✕</a></h3><div id="ups"></div></div>
-<div id="toast" class="hidden"></div>
+<input type="file" id="coverIn" accept="image/*" hidden>
 
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
 const HDR = { "X-Cozis": "1" };
+const ROM_EXT = /\.(gba|gbc|gb)$/i, SAVE_EXT = /\.(sav|srm)$/i;
+const SYS_ORDER = ["gba", "gbc", "gb"];
 const SYS_REPO = { gb: "Nintendo_-_Game_Boy", gbc: "Nintendo_-_Game_Boy_Color", gba: "Nintendo_-_Game_Boy_Advance" };
-const ROM_EXT = /\.(gba|gbc|gb)$/i;
+const HH_STATIC = "https://hh3.gbdev.io/static";
 
-let systems = [], games = [], current = null;
+let systems = [], games = [], status = null;
+let page = "all", libFilter = "all", q = "", focusId = null, panel = null, renameDraft = null;
+let uploads = [], addOpen = false, addSrc = "pc", hq = "", hhSys = "GBA", hhPick = null, hhEntry = null;
+const hhCache = {}, itchCache = { list: null, err: null, loading: false };
 
 // ------------------------------------------------------------ helpers
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pal = k => getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+const PX = (t, sc = 2, col = "#ffffff") => `<span class="px" data-scale="${sc}" data-color="${col}">${esc(String(t).toUpperCase())}</span>`;
 function size(n) {
 	if (n < 1024) return n + " B";
-	const u = ["KB", "MB", "GB"]; let i = -1;
-	do { n /= 1024; i++; } while (n >= 1024 && i < 2);
+	const u = ["KB", "MB", "GB", "TB"]; let i = -1;
+	do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
 	return (n < 10 ? n.toFixed(1) : Math.round(n)) + " " + u[i];
 }
-const known = t => t > 978307200; // the device clock may not be set (no RTC/NTP yet)
+const known = t => t > 978307200;	// before 2001: the console clock wasn't set
 function ago(t) {
 	if (!known(t)) return "date unknown";
 	const s = Date.now() / 1000 - t, rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
@@ -304,11 +262,14 @@ function ago(t) {
 	if (s < 86400 * 30) return rtf.format(-Math.round(s / 86400), "day");
 	return new Date(t * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
-const when = t => known(t) ? new Date(t * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "";
-const sysOf = k => systems.find(s => s.key === k) || { key: k, short: k.toUpperCase(), label: k };
 const initials = t => (t.match(/[A-Za-z0-9]+/g) || ["?"]).slice(0, 2).map(w => w[0].toUpperCase()).join("");
+const sysLabel = k => (systems.find(s => s.key === k) || {}).label || k.toUpperCase();
+const lastPlayed = g => Math.max(g.save ? g.save.time : 0, g.last_state || 0);
+const byTitle = (a, b) => a.title.localeCompare(b.title, undefined, { numeric: true });
 function toast(msg) {
-	const t = $("toast"); t.textContent = msg; t.classList.remove("hidden");
+	let t = $("toast");
+	if (!t) { t = document.createElement("div"); t.id = "toast"; document.body.append(t); }
+	t.textContent = msg; t.classList.remove("hidden");
 	clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add("hidden"), 3500);
 }
 async function api(method, path, body) {
@@ -318,482 +279,602 @@ async function api(method, path, body) {
 	if (!r.ok) throw new Error(j && j.error || r.statusText);
 	return j;
 }
-function coverHTML(g) {
-	if (g.cover) return `<img src="/api/games/${g.id}/cover?x=1&v=${g.cover}" alt="" loading="lazy">`;
-	return `<div class="ph" style="--c:var(--sys-${g.sys})"><b>${esc(initials(g.title))}</b></div>`;
+const coverURL = g => g.cover ? `/api/games/${g.id}/cover?x=1&v=${g.cover}` : null;
+const placeholder = (title, sys, scale) => `<div class="ph" style="--c:var(--sys-${sys})">${PX(initials(title), scale)}</div>`;
+// Hold for 1 s to confirm (destructive actions, as on the console).
+function holdButton(label, cls, action) {
+	const id = "h" + Math.random().toString(36).slice(2);
+	holdButton.actions[id] = action;
+	return `<button id="${id}" class="pb hold ${cls}" title="Press and hold to confirm"><i class="fill"></i>${PX(label, 2)}</button>`;
 }
-const FLOPPY = `<svg class="floppy" viewBox="0 0 16 16" shape-rendering="crispEdges"><path fill="#000" d="M1 1h12l2 2v12H1z"/><path fill="var(--cyan)" d="M2 2h10l2 2v10H2z"/><path fill="#fff" d="M4 2h7v4H4z"/><path fill="#000" d="M9 3h1v2H9z"/><path fill="#e8e8e8" d="M4 9h8v5H4z"/></svg>`;
-
-// "Hold to confirm" buttons: the action runs after 1 s of pressing.
-function holdButton(label, action) {
-	const b = document.createElement("button");
-	b.className = "btn small hold";
-	b.innerHTML = `<i class="fill"></i><span>${esc(label)}</span>`;
-	b.title = "Press and hold to confirm";
-	let t;
-	const start = e => { e.preventDefault(); b.classList.add("holding"); t = setTimeout(() => { b.classList.remove("holding"); action(); }, 1000); };
-	const stop = () => { clearTimeout(t); b.classList.remove("holding"); };
-	b.addEventListener("pointerdown", start);
-	["pointerup", "pointerleave", "pointercancel"].forEach(ev => b.addEventListener(ev, stop));
-	b.addEventListener("click", e => { if (e.detail === 0) toast("Hold the button to confirm"); });
-	return b;
-}
-
-// ------------------------------------------------------------ pairing
-function showPair() { $("app").classList.add("hidden"); $("pair").classList.remove("hidden"); $("code").focus(); }
-async function pair() {
-	const code = $("code").value.replace(/\D/g, "");
-	if (code.length !== 6) { $("pairErr").textContent = "The code has 6 digits."; return; }
-	$("pairBtn").disabled = true;
-	const r = await fetch("/api/pair", { method: "POST", headers: HDR, body: code });
-	$("pairBtn").disabled = false;
-	if (r.ok) { $("code").value = ""; $("pairErr").textContent = ""; boot(); }
-	else { $("pairErr").textContent = "That's not it. After 5 tries the device shows a new code."; $("code").select(); }
-}
-$("pairBtn").onclick = pair;
-$("code").addEventListener("input", e => { if (e.target.value.replace(/\D/g, "").length === 6) pair(); });
-$("code").addEventListener("keydown", e => { if (e.key === "Enter") pair(); });
-$("logout").onclick = async () => { await api("POST", "logout"); showPair(); };
-
-// ------------------------------------------------------------ status pill
-async function refreshStatus() {
-	const s = await api("GET", "status"), b = s.battery;
-	const col = b.capacity <= 15 ? "var(--red)" : b.capacity <= 35 ? "var(--yellow)" : "var(--green)";
-	$("pill").innerHTML = (b.capacity < 0 ? "" :
-		`<span><span class="batt"><i style="width:${Math.max(0, b.capacity) * 18 / 100}px;background:${col}"></i></span><b>${b.capacity}%</b>${/^Charging/.test(b.status) ? " charging" : ""}</span>`) +
-		(s.storage ? `<span class="storage"><b>${size(s.storage.free)}</b> free</span>` : "");
-}
-
-// ------------------------------------------------------------ library
-async function loadGames() {
-	const j = await api("GET", "games");
-	systems = j.systems; games = j.games;
-	renderLib();
-}
-function renderLib() {
-	const q = $("search").value.trim().toLowerCase();
-	const shown = games.filter(g => !q || g.name.toLowerCase().includes(q));
-	const lib = $("lib");
-	$("libCount").textContent = games.length ? `${games.length} game${games.length === 1 ? "" : "s"}` : "";
-	$("libN").textContent = games.length ? games.length : "";
-	if (!games.length) {
-		lib.innerHTML = `<div class="empty"><h3>No games yet</h3><p>Drag your .gba, .gbc and .gb files anywhere on this page,<br>or pick them from your computer.</p><button class="btn go" onclick="$('romIn').click()">Choose files</button> <a class="btn" href="#/discover">Discover free games</a></div>`;
-		return;
-	}
-	if (!shown.length) { lib.innerHTML = `<p class="muted">No game matches “${esc(q)}”.</p>`; return; }
-	let html = "";
-	for (const s of [...systems].reverse()) {	// newest system first
-		const gs = shown.filter(g => g.sys === s.key);
-		if (!gs.length) continue;
-		html += `<div class="sys-head" style="--c:var(--sys-${s.key})"><h2>${esc(s.label)}</h2><span class="n">${gs.length}</span></div><div class="grid">`;
-		for (const g of gs) {
-			const tags = (g.save ? `<span class="tag">SAVE</span>` : "") + (g.states ? `<span class="tag">${g.states} STATE${g.states > 1 ? "S" : ""}</span>` : "");
-			html += `<div class="game" tabindex="0" data-id="${g.id}">
-				<div class="cover">${coverHTML(g)}<div class="tags">${tags}</div></div>
-				<div class="t">${esc(g.title)}</div><div class="r">${esc(g.region)}</div></div>`;
-		}
-		html += `</div>`;
-	}
-	lib.innerHTML = html;
-	lib.querySelectorAll(".game").forEach(el => {
-		el.onclick = () => location.hash = "#/game/" + el.dataset.id;
-		el.onkeydown = e => { if (e.key === "Enter") el.click(); };
+holdButton.actions = {};
+function wireHolds(root) {
+	root.querySelectorAll(".pb.hold:not([data-w])").forEach(b => {
+		b.dataset.w = 1;
+		let t;
+		const start = e => { e.preventDefault(); b.classList.add("holding"); t = setTimeout(() => { b.classList.remove("holding"); holdButton.actions[b.id]?.(); }, 1000); };
+		const stop = () => { clearTimeout(t); b.classList.remove("holding"); };
+		b.addEventListener("pointerdown", start);
+		["pointerup", "pointerleave", "pointercancel"].forEach(ev => b.addEventListener(ev, stop));
+		b.addEventListener("click", e => { if (e.detail === 0) toast("Hold the button to confirm"); });
 	});
 }
-$("search").addEventListener("input", renderLib);
-$("addBtn").onclick = () => $("romIn").click();
-$("romIn").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
-$("backupBtn").onclick = () => location.href = "/api/backup?x=1";
-$("backupAllBtn").onclick = () => location.href = "/api/backup?x=1&states=1";
-$("coversBtn").onclick = async () => {
+function paint(el) { renderPixelText(el); wireHolds(el); }
+
+// ------------------------------------------------------------ pairing
+function showPair() {
+	page = "pair";
+	$("layer").innerHTML = ""; $("trayc").innerHTML = "";
+	$("root").innerHTML = `<div class="pair"><img class="logo pix" src="/logo.png" alt="cozisboy">
+		<div class="card">${PX("Connect", 4, pal("--yellow"))}
+			<p>Enter the 6-digit code shown on your cozisboy.</p>
+			<input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="······">
+			<div class="err" id="pairErr"></div>
+			<button class="pb go" id="pairBtn">${PX("Connect", 2)}</button></div></div>`;
+	paint($("root"));
+	const pair = async () => {
+		const code = $("code").value.replace(/\D/g, "");
+		if (code.length !== 6) { $("pairErr").textContent = "The code has 6 digits."; return; }
+		$("pairBtn").disabled = true;
+		const r = await fetch("/api/pair", { method: "POST", headers: HDR, body: code });
+		$("pairBtn").disabled = false;
+		if (r.ok) boot();
+		else { $("pairErr").textContent = "That's not it. After 5 tries the console shows a new code."; $("code").select(); }
+	};
+	$("pairBtn").onclick = pair;
+	$("code").oninput = e => { if (e.target.value.replace(/\D/g, "").length === 6) pair(); };
+	$("code").onkeydown = e => { if (e.key === "Enter") pair(); };
+	$("code").focus();
+}
+
+// ------------------------------------------------------------ data
+async function loadGames() { const j = await api("GET", "games"); systems = j.systems; games = j.games; }
+async function loadStatus() { status = await api("GET", "status"); }
+async function refresh() { await loadGames(); render(); renderPopup(); }
+
+// ------------------------------------------------------------ main view: all games
+function gameCard(g) {
+	const img = coverURL(g);
+	const sub = [lastPlayed(g) ? "played " + ago(lastPlayed(g)) : "not played yet",
+		g.states ? g.states + (g.states > 1 ? " states" : " state") : ""].filter(Boolean).join(" · ");
+	return `<div class="it" tabindex="0" data-id="${g.id}" onclick="openGame('${g.id}')" onkeydown="if(event.key==='Enter')openGame('${g.id}')">
+		<div class="fr">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : placeholder(g.title, g.sys, 7)}</div>
+		<div class="nm">${esc(g.title)}</div><div class="sb">${esc(sub)}</div></div>`;
+}
+function contentHTML() {
+	const match = g => !q || g.title.toLowerCase().includes(q) || g.name.toLowerCase().includes(q);
+	const recent = games.filter(g => lastPlayed(g)).sort((a, b) => lastPlayed(b) - lastPlayed(a));
+	const section = (title, col, xs) => xs.length ? `<div class="sech">${PX(title, 3, col)}${PX(String(xs.length), 2, "#66666e")}<span class="ln"></span></div>
+		<div class="cg">${xs.map(gameCard).join("")}</div>` : "";
+	if (!games.length)
+		return `<div class="empty">${PX("No games yet", 3)}<p class="note">Drop .gba, .gbc or .gb files anywhere on this page, or get free games from Homebrew Hub.</p>
+			<button class="pb go" onclick="openAdd()">${PX("+ Add games", 2)}</button></div>`;
+	let body = "";
+	if (libFilter === "recent") body = section("Recently played", pal("--yellow"), recent.filter(match));
+	else if (libFilter !== "all") body = section(sysLabel(libFilter), pal(`--sys-${libFilter}`), games.filter(g => g.sys === libFilter && match(g)).sort(byTitle));
+	else {
+		if (!q && recent.length)
+			body += `<div class="sech">${PX("Recently played", 3, pal("--yellow"))}<span class="ln"></span><a class="seeall" onclick="setFilter('recent')">See all ${recent.length}</a></div>
+				<div class="cg one-row">${recent.slice(0, 12).map(gameCard).join("")}</div>`;
+		for (const k of SYS_ORDER) body += section(sysLabel(k), pal(`--sys-${k}`), games.filter(g => g.sys === k && match(g)).sort(byTitle));
+	}
+	return body || `<p class="empty">No game matches “${esc(q)}”.</p>`;
+}
+function statusHTML() {
+	const b = status && status.battery;
+	return (status && status.wifi.ssid ? `<span class="wifi">${esc(status.wifi.ssid)}</span>` : "") +
+		(b && b.capacity >= 0 ? `<span class="bat" title="${esc(b.status)}"><i><b style="width:${Math.round(b.capacity * 14 / 100)}px;background:${b.capacity <= 15 ? "var(--red)" : "var(--green)"}"></b></i>${PX(b.capacity + "%", 2, "#dddddd")}</span>` : "");
+}
+function pageAll() {
+	const recentN = games.filter(g => lastPlayed(g)).length;
+	const item = (key, label, n, col) => `<button class="f ${libFilter === key ? "on" : ""}" style="--c:${col}" onclick="setFilter('${key}')"><span class="dot"></span>${esc(label)}<span class="n">${n}</span></button>`;
+	const st = status && status.storage;
+	return `<div class="wrap"><div class="shell">
+		<header class="hd"><img class="logo pix" src="/logo.png" alt="cozisboy" onclick="setFilter('all')"><div class="grow"></div>
+			<div class="stat">${statusHTML()}</div></header>
+		<nav class="snav">
+			<div class="lbl">${PX("Library", 2, "#66666e")}</div>
+			${item("all", "All games", games.length, "var(--yellow)")}
+			${item("recent", "Recently played", recentN, "var(--yellow)")}
+			${SYS_ORDER.map(k => item(k, sysLabel(k), games.filter(g => g.sys === k).length, `var(--sys-${k})`)).join("")}
+			<div class="spacer"></div>
+			${st ? `<div class="meter">${PX("Storage", 2, "#66666e")}<div class="track"><i style="width:${(100 * (st.total - st.free) / st.total).toFixed(1)}%"></i></div><small>${size(st.free)} free of ${size(st.total)}</small></div>` : ""}
+			<div class="links"><a href="/api/backup?x=1">Back up all saves</a><a href="/api/backup?x=1&states=1">Back up saves and states</a>
+				<a onclick="findCovers()">Find missing covers</a><a onclick="logout()">Disconnect this browser</a></div>
+		</nav>
+		<section class="mn">
+			<div class="tb"><input class="search" id="q" placeholder="Search your games" value="${esc(q)}">
+				<div class="grow"></div><button class="pb go" onclick="openAdd()">${PX("+ Add games", 2)}</button></div>
+			<div class="ct" id="ct">${contentHTML()}</div>
+		</section>
+	</div></div>`;
+}
+function setFilter(k) { libFilter = k; q = ""; page = "all"; render(); }
+
+// ------------------------------------------------------------ game view (carousel)
+function openGame(id) { focusId = id; panel = null; renameDraft = null; page = "game"; render(); }
+function closeGame() {
+	page = "all"; render();
+	document.querySelector(`.it[data-id="${focusId}"]`)?.scrollIntoView({ block: "center" });
+}
+function gameOrder() {	// the order of the view the game was opened from
+	if (libFilter === "recent") return games.filter(g => lastPlayed(g)).sort((a, b) => lastPlayed(b) - lastPlayed(a));
+	if (libFilter !== "all") return games.filter(g => g.sys === libFilter).sort(byTitle);
+	return SYS_ORDER.flatMap(k => games.filter(g => g.sys === k).sort(byTitle));
+}
+function move(d) {
+	const list = gameOrder(), i = list.findIndex(g => g.id === focusId), n = i + d;
+	if (n < 0 || n >= list.length) {	// bump, as on the console
+		document.querySelector(".cv .stage")?.animate([{ transform: "translateX(0)" }, { transform: `translateX(${-d * 24}px)` }, { transform: "translateX(0)" }], { duration: 300, easing: "ease-out" });
+		return;
+	}
+	focusId = list[n].id; panel = null; renameDraft = null; render();
+}
+let states = { id: null, list: null };
+async function loadStates(g) {
+	if (states.id === g.id) return;
+	states = { id: g.id, list: null };
+	try { states.list = g.states ? (await api("GET", `games/${g.id}/states`)).states : []; } catch { states.list = []; }
+	if (page === "game" && focusId === g.id && panel === "states") render();
+}
+const cur = () => games.find(g => g.id === focusId);
+function pageGame() {
+	const list = gameOrder(), i = list.findIndex(g => g.id === focusId);
+	if (i < 0) { page = "all"; return pageAll(); }
+	const g = list[i];
+	if (panel === "states") loadStates(g);
+	const covers = list.map((x, j) => {
+		const off = j - i, a = Math.abs(off);
+		if (a > 4) return "";
+		const sc = off === 0 ? 1 : 0.62, xx = off === 0 ? 0 : Math.sign(off) * (245 + (a - 1) * 195);
+		const img = coverURL(x);
+		return `<div class="cov ${off === 0 ? "sel" : ""}" style="transform:translateX(${xx}px) scale(${sc});opacity:${off === 0 ? 1 : a > 3 ? 0 : 0.5};z-index:${10 - a}" onclick="move(${off})">
+			<div class="box">${img ? `<img src="${esc(img)}" alt="">` : placeholder(x.title, x.sys, 9)}</div></div>`;
+	}).join("");
+	const tcol = pal(["--red", "--orange", "--yellow", "--green", "--cyan", "--blue", "--purple", "--pink"][[...g.title].reduce((h, c) => h * 31 + c.charCodeAt(0) >>> 0, 7) % 8]);
+	const sub = [sysLabel(g.sys), g.region, g.save ? "saved " + ago(g.save.time) : "no save yet"].filter(Boolean).join("  ·  ");
+	const acts = (g.save ? `<a class="pb" href="/api/games/${g.id}/save?x=1">${PX("Download save", 2)}</a>` : "") +
+		`<button class="pb" onclick="$('saveIn').click()">${PX(g.save ? "Replace save" : "Upload save", 2)}</button>` +
+		(g.states ? `<button class="pb ${panel === "states" ? "go" : ""}" onclick="panel=panel==='states'?null:'states';render()">${PX(g.states + (g.states > 1 ? " states" : " state"), 2)}</button>` : "") +
+		`<button class="pb ${panel === "more" ? "go" : "dim"}" onclick="panel=panel==='more'?null:'more';renameDraft=null;render()">${PX("More", 2)}</button>`;
+	let pnl = "";
+	if (panel === "states") {
+		const sl = states.id === g.id ? states.list : null;
+		pnl = `<div class="panel"><div class="states">${!sl ? `<p class="note">Loading…</p>` : sl.map(s => `<div class="st">
+			<div class="im" onclick="zoom('/api/games/${g.id}/states/${s.id}/thumb?x=1')">${s.thumb ? `<img src="/api/games/${g.id}/states/${s.id}/thumb?x=1" alt="" loading="lazy">` : ""}</div>
+			<b>${ago(s.time)}</b><span>${known(s.time) ? new Date(s.time * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "&nbsp;"}</span>
+			<div class="row"><a class="pb small dim" href="/api/games/${g.id}/states/${s.id}?x=1">${PX("Download", 2)}</a>${holdButton("Delete", "small red", () => deleteState(g, s.id))}</div></div>`).join("")}</div></div>`;
+	} else if (panel === "more") {
+		pnl = `<div class="panel"><div class="more">
+			<div class="mi"><input id="rn" value="${esc(renameDraft ?? g.name)}" spellcheck="false" onkeydown="if(event.key==='Enter')renameGame()"><button class="pb small" onclick="renameGame()">${PX("Rename", 2)}</button></div>
+			<div class="mi"><span class="grow">The game file</span><a class="pb small" href="/api/games/${g.id}/rom?x=1">${PX("Download", 2)}</a></div>
+			<div class="mi"><span class="grow">Box art</span><button class="pb small" onclick="findCover()">${PX("Find online", 2)}</button><button class="pb small dim" onclick="$('coverIn').click()">${PX("Upload", 2)}</button></div>
+			${g.save_backup ? `<div class="mi"><span class="grow">Previous battery save, kept when it was replaced or deleted</span><a class="pb small dim" href="/api/games/${g.id}/save/backup?x=1">${PX("Download", 2)}</a><button class="pb small" onclick="restoreSave()">${PX(g.save ? "Swap" : "Restore", 2)}</button></div>` : ""}
+			${g.save ? `<div class="mi"><span class="grow">Delete the battery save (kept as the previous save)</span>${holdButton("Delete save", "small red", deleteSave)}</div>` : ""}
+			<div class="mi"><span class="grow">Delete the game with its saves and states</span>${holdButton("Delete game", "small red", deleteGame)}</div>
+		</div></div>`;
+	}
+	return `<div class="cv">
+		<div class="top"><img class="logo pix" src="/logo.png" alt="cozisboy" onclick="closeGame()"><div class="grow"></div>
+			<button class="pb dim" onclick="closeGame()">${PX("All games", 2)}</button></div>
+		<div class="count">${PX((i + 1) + " / " + list.length, 2, "#888888")}</div>
+		<div class="stage">${covers}</div>
+		<div class="info">
+			<div class="t">${PX(g.title, g.title.length > 26 ? 3 : 4, tcol)}</div>
+			<div class="s">${esc(sub)}</div>
+			<div class="acts">${acts}</div>
+			${pnl}
+		</div>
+		<div class="hints">
+			<span class="hint"><span class="key">${PX("<>", 2, "#000000")}</span>${PX("Move")}</span>
+			<span class="hint" style="cursor:pointer" onclick="closeGame()"><span class="key">${PX("Esc", 2, "#000000")}</span>${PX("All games")}</span>
+			<span class="hint"><span class="key y">${PX("+", 2, "#000000")}</span>${PX("Drop a .sav to replace this save")}</span>
+		</div>
+	</div>`;
+}
+async function renameGame() {
+	const g = cur(), name = ($("rn")?.value ?? g.name).trim();
+	if (!name || name === g.name) return;
+	try { const n = await api("POST", `games/${g.id}/rename?name=${encodeURIComponent(name)}`); focusId = n.id; renameDraft = null; toast("Renamed."); await refresh(); }
+	catch (e) { toast(e.message); }
+}
+async function findCover() { toast((await fetchCover(cur())) ? "Cover found." : "No cover found for this name."); await refresh(); }
+async function restoreSave() { try { await api("POST", `games/${cur().id}/save/restore`); toast("Previous save restored."); await refresh(); } catch (e) { toast(e.message); } }
+async function deleteSave() { try { await api("DELETE", `games/${cur().id}/save`); toast("Save deleted (kept as the previous save)."); await refresh(); } catch (e) { toast(e.message); } }
+async function deleteGame() {
+	const g = cur();
+	try { await api("DELETE", `games/${g.id}`); toast(`Deleted ${g.title}.`); page = "all"; await refresh(); } catch (e) { toast(e.message); }
+}
+async function deleteState(g, sid) { try { await api("DELETE", `games/${g.id}/states/${sid}`); states.id = null; await refresh(); } catch (e) { toast(e.message); } }
+async function replaceSave(file, g = cur()) {
+	try { await api("PUT", `games/${g.id}/save`, file); toast(`Save of ${g.title} replaced (the old one is kept).`); await refresh(); }
+	catch (e) { toast(e.message); }
+}
+$("saveIn").onchange = e => { if (e.target.files[0]) replaceSave(e.target.files[0]); e.target.value = ""; };
+$("coverIn").onchange = async e => {
+	const f = e.target.files[0]; e.target.value = "";
+	if (!f) return;
+	try { await api("PUT", `games/${cur().id}/cover`, await toPNG(f)); toast("Cover updated."); await refresh(); } catch (err) { toast(err.message); }
+};
+function zoom(src) {
+	let z = $("zoom");
+	if (!z) { z = document.createElement("div"); z.id = "zoom"; document.body.append(z); z.onclick = () => z.remove(); }
+	z.innerHTML = `<img src="${esc(src)}" alt="">`;
+}
+
+// ------------------------------------------------------------ covers
+async function toPNG(blob) {	// any image -> PNG (the library stores PNG)
+	const bmp = await createImageBitmap(blob);
+	const c = document.createElement("canvas");
+	c.width = bmp.width; c.height = bmp.height;
+	c.getContext("2d").drawImage(bmp, 0, 0);
+	return await new Promise(ok => c.toBlob(ok, "image/png"));
+}
+async function fetchCover(g) {	// libretro-thumbnails, matched by the No-Intro name
+	const file = g.name.replace(/[&*/:`<>?\\|"]/g, "_") + ".png";
+	try {
+		const r = await fetch(`https://raw.githubusercontent.com/libretro-thumbnails/${SYS_REPO[g.sys]}/master/Named_Boxarts/${encodeURIComponent(file)}`);
+		if (!r.ok) return false;
+		await api("PUT", `games/${g.id}/cover`, await r.blob());
+		return true;
+	} catch { return false; }
+}
+async function findCovers() {
 	const missing = games.filter(g => !g.cover);
 	if (!missing.length) { toast("Every game has a cover."); return; }
 	toast(`Looking for ${missing.length} cover${missing.length > 1 ? "s" : ""}…`);
 	let found = 0;
 	for (const g of missing) if (await fetchCover(g)) found++;
 	toast(`Found ${found} of ${missing.length} covers.`);
-	loadGames();
-};
-
-// Box art from libretro-thumbnails, matched by the No-Intro name.
-async function fetchCover(g) {
-	const file = g.name.replace(/[&*/:`<>?\\|"]/g, "_") + ".png";
-	const url = `https://raw.githubusercontent.com/libretro-thumbnails/${SYS_REPO[g.sys]}/master/Named_Boxarts/${encodeURIComponent(file)}`;
-	try {
-		const r = await fetch(url);
-		if (!r.ok) return false;
-		await api("PUT", `games/${g.id}/cover`, await r.blob());
-		return true;
-	} catch { return false; }
+	await refresh();
 }
 
-// ------------------------------------------------------------ uploads
-const queue = []; let busy = false;
-function trayItem(name) {
-	$("tray").classList.remove("hidden");
-	const el = document.createElement("div");
-	el.className = "up";
-	el.innerHTML = `<div class="l"><span>${esc(name)}</span><span class="st">waiting</span></div><div class="bar"><i></i></div>`;
-	$("ups").prepend(el);
-	return el;
+// ------------------------------------------------------------ uploads (tray)
+function renderTray() {
+	const T = $("trayc");
+	if (!uploads.length || page === "pair") { T.innerHTML = ""; return; }
+	const busy = uploads.filter(u => u.state === "up" || u.state === "wait").length;
+	T.innerHTML = `<div class="tray"><div class="th">${PX(busy ? "Adding " + busy : "Done", 2)}<a onclick="uploads=uploads.filter(u=>u.state==='up'||u.state==='wait');renderTray()">✕</a></div>` +
+		uploads.map(u => `<div class="row ${u.state === "bad" ? "bad" : ""}"><span>${esc(u.name)}</span><span>${esc(u.msg)}</span></div>
+			<div class="segs" style="--c:${u.state === "ok" ? "var(--green)" : u.state === "bad" ? "var(--red)" : "var(--yellow)"}">${Array.from({ length: 8 }, (_, i) => `<i class="${(u.state === "bad" ? 1 : u.p) * 8 > i ? "on" : ""}"></i>`).join("")}</div>`).join("") + `</div>`;
+	paint(T);
 }
-function addFiles(files) {
-	for (const f of files) {
-		const el = trayItem(f.name);
-		if (!ROM_EXT.test(f.name)) { el.classList.add("bad"); el.querySelector(".st").textContent = "not a .gba/.gbc/.gb file"; continue; }
-		queue.push({ f, el });
-	}
-	pump();
-}
-function put(url, file, el) {
+function putFile(url, blob, onprog) {
 	return new Promise(res => {
 		const x = new XMLHttpRequest();
-		x.open("PUT", url);
-		x.setRequestHeader("X-Cozis", "1");
-		const st = el.querySelector(".st"), bar = el.querySelector(".bar i"), t0 = performance.now();
-		x.upload.onprogress = e => {
-			if (!e.lengthComputable) return;
-			bar.style.width = (100 * e.loaded / e.total) + "%";
-			const rate = e.loaded / ((performance.now() - t0) / 1000);
-			st.textContent = `${Math.round(100 * e.loaded / e.total)}% · ${size(rate)}/s`;
-		};
-		x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch {} res({ status: x.status, j }); };
+		x.open("PUT", url); x.setRequestHeader("X-Cozis", "1");
+		x.upload.onprogress = e => { if (e.lengthComputable) onprog(e.loaded / e.total); };
+		x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch { } res({ status: x.status, j }); };
 		x.onerror = () => res({ status: 0, j: { error: "connection lost" } });
-		x.send(file);
+		x.send(blob);
 	});
+}
+let pumping = false;
+function addFiles(list) {
+	for (const f of list) uploads.push({ file: f, name: f.name, p: 0, state: "wait", msg: "waiting" });
+	renderTray(); pump();
 }
 async function pump() {
-	if (busy) return;
-	busy = true;
-	while (queue.length) {
-		const { f, el } = queue.shift(), st = el.querySelector(".st");
-		let r = await put(`/api/games?filename=${encodeURIComponent(f.name)}`, f, el);
-		if (r.status === 409) {
-			if (confirm(`"${f.name.replace(ROM_EXT, "")}" is already on the device. Replace the game file? (Its save and states stay.)`))
-				r = await put(`/api/games?filename=${encodeURIComponent(f.name)}&replace=1`, f, el);
-			else { el.classList.add("bad"); st.textContent = "already there"; continue; }
-		}
-		if (r.status !== 200) { el.classList.add("bad"); st.textContent = r.j.error || "failed"; continue; }
-		el.classList.add("ok");
-		el.querySelector(".bar i").style.width = "100%";
-		if (!r.j.cover) { st.textContent = "finding cover…"; await fetchCover(r.j); }
-		st.textContent = "added";
-		await loadGames();
+	if (pumping) return;
+	pumping = true;
+	let u;
+	while ((u = uploads.find(x => x.state === "wait"))) {
+		u.state = "up"; u.msg = "0%"; renderTray();
+		try { await handleFile(u); } catch (e) { u.state = "bad"; u.msg = e.message || "failed"; }
+		renderTray();
 	}
-	busy = false;
-	setTimeout(() => { if (!busy && !queue.length) { $("tray").classList.add("hidden"); $("ups").innerHTML = ""; } }, 6000);
+	pumping = false;
+	await refresh();
+	setTimeout(() => { if (!pumping) { uploads = uploads.filter(x => x.state !== "ok"); renderTray(); } }, 4000);
 }
-$("trayClose").onclick = () => { $("tray").classList.add("hidden"); if (!busy) $("ups").innerHTML = ""; };
-
-// Drag and drop anywhere. On a game page, a .sav replaces its save and a .png its cover.
-let dragDepth = 0;
-document.addEventListener("dragenter", e => {
-	if (!e.dataTransfer || ![...e.dataTransfer.types].includes("Files") || $("app").classList.contains("hidden")) return;
-	e.preventDefault(); dragDepth++;
-	$("dropT").textContent = current ? "Drop a game, a save or a cover" : "Drop to add games";
-	$("dropS").textContent = current ? ".gba/.gbc/.gb adds games · .sav replaces this game's save · .png sets its cover" : ".gba, .gbc and .gb files";
-	$("drop").classList.remove("hidden");
-});
-document.addEventListener("dragover", e => e.preventDefault());
-document.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; $("drop").classList.add("hidden"); } });
-document.addEventListener("drop", e => {
-	e.preventDefault(); dragDepth = 0; $("drop").classList.add("hidden");
-	const files = [...(e.dataTransfer && e.dataTransfer.files || [])];
-	if (!files.length || $("app").classList.contains("hidden")) return;
-	if (current) {
-		const save = files.find(f => /\.(sav|srm)$/i.test(f.name)), png = files.find(f => /\.png$/i.test(f.name));
-		if (save) return replaceSave(save);
-		if (png) return setCover(png);
-	}
-	addFiles(files);
-});
-
-// ------------------------------------------------------------ game page
-async function showGame(id) {
-	let g, st;
-	try { [g, st] = await Promise.all([api("GET", "games/" + id), api("GET", `games/${id}/states`)]); }
-	catch (e) { toast(e.message); location.hash = ""; return; }
-	current = g;
-	const s = sysOf(g.sys), v = $("gameView");
-	v.innerHTML = `
-		<button class="btn ghost back" onclick="location.hash=''">← All games</button>
-		<div class="hero">
-			<div class="cover">${coverHTML(g)}</div>
-			<div class="info">
-				<span class="sysbadge" style="--c:var(--sys-${g.sys})">${esc(s.short)}</span>
-				<h1>${esc(g.title)}</h1>
-				<div class="sub">${esc(s.label)}${g.region ? " · " + esc(g.region) : ""}</div>
-				<div class="facts">
-					<span>Battery save</span><b>${g.save ? "saved " + ago(g.save.time) : "none yet"}</b>
-					<span>Save states</span><b>${g.states || "none"}</b>
-					<span>Game size</span><b>${size(g.rom_size)}</b>
-					<span>Added</span><b>${known(g.added) ? ago(g.added) : "—"}</b>
-				</div>
-				<div class="row-btns">
-					${g.save ? `<a class="btn" href="/api/games/${g.id}/save?x=1">Download save</a>` : ""}
-					<a class="btn" href="/api/games/${g.id}/rom?x=1">Download game</a>
-				</div>
-			</div>
-		</div>
-
-		<div class="section" id="saveSec"><h2>Battery save</h2></div>
-		<div class="section"><h2>Save states</h2><div id="statesBox"></div></div>
-		<div class="section" id="gameSec"><h2>Game</h2></div>`;
-
-	// battery save
-	const ss = $("saveSec");
-	const line = document.createElement("div");
-	line.className = "saveline";
-	if (g.save) {
-		line.innerHTML = `${FLOPPY}<div class="what"><b>Saved ${ago(g.save.time)}</b><span>${when(g.save.time)} · ${size(g.save.size)}</span></div>`;
-		const dl = document.createElement("a"); dl.className = "btn small"; dl.textContent = "Download"; dl.href = `/api/games/${g.id}/save?x=1`;
-		const rep = document.createElement("button"); rep.className = "btn small"; rep.textContent = "Replace…"; rep.onclick = () => $("saveIn").click();
-		line.append(dl, rep, holdButton("Hold to delete", async () => { await api("DELETE", `games/${g.id}/save`); toast("Save deleted. You can still restore it below."); showGame(g.id); }));
-	} else {
-		line.innerHTML = `${FLOPPY}<div class="what"><b>No save yet</b><span>The game creates one the first time you save in it. You can also bring a save from another device.</span></div>`;
-		const up = document.createElement("button"); up.className = "btn small"; up.textContent = "Upload a save…"; up.onclick = () => $("saveIn").click();
-		line.append(up);
-	}
-	ss.append(line);
-	if (g.save_backup) {
-		const b = document.createElement("div");
-		b.className = "saveline";
-		b.innerHTML = `<div class="what"><b>Previous save</b><span>Kept when the save was last replaced or deleted.</span></div>`;
-		const dl = document.createElement("a"); dl.className = "btn small"; dl.textContent = "Download"; dl.href = `/api/games/${g.id}/save/backup?x=1`;
-		const rs = document.createElement("button"); rs.className = "btn small"; rs.textContent = g.save ? "Swap with current" : "Restore";
-		rs.onclick = async () => { await api("POST", `games/${g.id}/save/restore`); toast("Previous save restored."); showGame(g.id); };
-		b.append(dl, rs);
-		ss.append(b);
-	}
-
-	// states gallery
-	const sb = $("statesBox");
-	if (!st.states.length) sb.innerHTML = `<p class="muted" style="margin:0">No save states yet. They appear here when you save a state while playing.</p>`;
-	else {
-		const grid = document.createElement("div"); grid.className = "states";
-		for (const x of st.states) {
-			const el = document.createElement("div"); el.className = "state";
-			el.innerHTML = `<div class="shot">${x.thumb ? `<img src="/api/games/${g.id}/states/${x.id}/thumb?x=1" alt="" loading="lazy">` : ""}</div>
-				<div class="when"><b>${ago(x.time)}</b><span>${when(x.time)}</span></div><div class="row-btns"></div>`;
-			const dl = document.createElement("a"); dl.className = "btn small"; dl.textContent = "Download"; dl.href = `/api/games/${g.id}/states/${x.id}?x=1`;
-			el.querySelector(".row-btns").append(dl, holdButton("Hold to delete", async () => { await api("DELETE", `games/${g.id}/states/${x.id}`); showGame(g.id); }));
-			grid.append(el);
-		}
-		sb.append(grid);
-	}
-
-	// game management
-	const gs = $("gameSec");
-	gs.insertAdjacentHTML("beforeend", `<div class="rename"><input id="nameIn" value="${esc(g.name)}" spellcheck="false"><button class="btn small" id="renameBtn">Rename</button></div>
-		<p class="muted" style="font-size:13px;margin:8px 0 0">The name decides the cover: keep the official name (e.g. “Pokemon - Emerald Version (USA, Europe)”) to find it automatically.</p>
-		<div class="sep"></div>
-		<div class="row-btns" id="coverBtns"></div>
-		<div class="sep"></div>
-		<div class="danger-zone"><p>Delete the game together with its battery save and all its save states. This can't be undone.</p></div>`);
-	$("renameBtn").onclick = async () => {
-		const name = $("nameIn").value.trim();
-		if (!name || name === g.name) return;
-		try { const n = await api("POST", `games/${g.id}/rename?name=${encodeURIComponent(name)}`); toast("Renamed."); location.hash = "#/game/" + n.id; loadGames(); }
-		catch (e) { toast(e.message); }
-	};
-	const cb = $("coverBtns");
-	const find = document.createElement("button"); find.className = "btn small"; find.textContent = "Find cover online";
-	find.onclick = async () => { find.disabled = true; const ok = await fetchCover(g); toast(ok ? "Cover found." : "No cover found for this name."); showGame(g.id); loadGames(); };
-	const upc = document.createElement("button"); upc.className = "btn small"; upc.textContent = "Upload cover…"; upc.onclick = () => $("coverIn").click();
-	cb.append(find, upc);
-	if (g.cover) {
-		const rm = document.createElement("button"); rm.className = "btn small ghost"; rm.textContent = "Remove cover";
-		rm.onclick = async () => { await api("DELETE", `games/${g.id}/cover`); showGame(g.id); loadGames(); };
-		cb.append(rm);
-	}
-	gs.querySelector(".danger-zone").append(holdButton("Hold to delete game", async () => {
-		await api("DELETE", "games/" + g.id); toast(`Deleted ${g.title}.`); location.hash = ""; loadGames();
-	}));
-}
-
-async function replaceSave(file) {
-	const g = current;
-	if (g.save && !confirm(`Replace the save of ${g.title} with "${file.name}"? The current save is kept as the previous save.`)) return;
-	try { await api("PUT", `games/${g.id}/save`, file); toast("Save replaced."); showGame(g.id); loadGames(); }
-	catch (e) { toast(e.message); }
-}
-async function setCover(file) {
-	try { await api("PUT", `games/${current.id}/cover`, file); toast("Cover updated."); showGame(current.id); loadGames(); }
-	catch (e) { toast(e.message); }
-}
-$("saveIn").onchange = e => { if (e.target.files[0]) replaceSave(e.target.files[0]); e.target.value = ""; };
-$("coverIn").onchange = e => { if (e.target.files[0]) setCover(e.target.files[0]); e.target.value = ""; };
-
-
-// ------------------------------------------------------------ discover (Homebrew Hub)
-// The catalogue comes through the device (/api/hh/..., the API isn't readable
-// cross-origin); ROMs and images are fetched from hh3.gbdev.io directly.
-const HH_STATIC = "https://hh3.gbdev.io/static";
-const HH_SYS = [["GBA", "gba"], ["GBC", "gbc"], ["GB", "gb"]];
-const hhCache = {};	// "GBA:0" -> entries
-let hhSys = "GBA";
-const hhFile = (e, f) => `${HH_STATIC}/${e.basepath}/entries/${encodeURIComponent(e.slug)}/${f.split("/").map(encodeURIComponent).join("/")}`;
-const hhCover = e => e.screenshots && e.screenshots.length ? hhFile(e, e.screenshots[0]) : "";
-// Library name for a homebrew game: its title, made safe for the library.
-const hhName = e => e.title.replace(/[\/\\\x00-\x1f\x7f]/g, "-").replace(/^[.\s]+|\s+$/g, "").slice(0, 200) || e.slug;
-const installed = e => games.some(g => g.name === hhName(e));
-// developer: a string, a list of strings, or a list of {name: ...}
-const devName = d => (Array.isArray(d) ? d : d ? [d] : []).map(x => typeof x === "string" ? x : (x && x.name) || "").filter(Boolean).join(", ");
-function hhRom(e) {
-	const roms = (e.files || []).filter(f => ROM_EXT.test(f.filename));
-	return roms.find(f => f.default) || roms.find(f => f.playable) || roms[0];
-}
-
-function renderHhTabs() {
-	$("hhSys").innerHTML = HH_SYS.map(([k, key]) =>
-		`<button data-k="${k}" class="${k === hhSys ? "on" : ""}" style="--c:var(--sys-${key})">${k}</button>`).join("");
-	$("hhSys").querySelectorAll("button").forEach(b => b.onclick = () => { hhSys = b.dataset.k; renderHhTabs(); loadHh(); });
-}
-
-async function loadHh() {
-	const wip = $("hhWip").checked, key = hhSys + ":" + (wip ? 1 : 0);
-	if (hhCache[key]) return renderHh();
-	$("hhList").innerHTML = `<div class="loading">Loading ${hhSys} games…</div>`;
-	const q = p => `hh/search?platform=${hhSys}&typetag=game&sort=title&order=asc&page=${p}`;
-	try {
-		const first = await api("GET", q(1));
-		let entries = first.entries, pages = [];
-		for (let p = 2; p <= first.page_total; p++) pages.push(p);
-		// a few requests at a time through the device
-		while (pages.length) {
-			const batch = pages.splice(0, 6);
-			const res = await Promise.all(batch.map(p => api("GET", q(p))));
-			res.forEach(r => entries = entries.concat(r.entries));
-			$("hhList").innerHTML = `<div class="loading">Loading ${hhSys} games… ${entries.length} of ${first.results}</div>`;
-		}
-		hhCache[hhSys + ":1"] = entries;
-		hhCache[hhSys + ":0"] = entries.filter(e => !e.wip);
-		renderHh();
-	} catch (err) {
-		$("hhList").innerHTML = `<div class="loading">Couldn't reach Homebrew Hub: ${esc(err.message)}. Is the cozisboy online?</div>`;
-	}
-}
-
-function renderHh() {
-	const all = hhCache[hhSys + ":" + ($("hhWip").checked ? 1 : 0)];
-	if (!all) return;
-	const q = $("hhSearch").value.trim().toLowerCase();
-	const list = all.filter(e => !q || e.title.toLowerCase().includes(q) ||
-		devName(e.developer).toLowerCase().includes(q) || (e.tags || []).join(" ").toLowerCase().includes(q));
-	if (!list.length) { $("hhList").innerHTML = `<p class="muted">No game matches.</p>`; return; }
-	$("hhList").innerHTML = `<div class="grid">` + list.map(e => {
-		const dev = devName(e.developer);
-		const tags = (installed(e) ? `<span class="tag ok">INSTALLED</span>` : "") + (e.wip ? `<span class="tag wip">UNFINISHED</span>` : "");
-		const img = hhCover(e);
-		return `<div class="game" tabindex="0" data-slug="${esc(e.slug)}">
-			<div class="cover shot">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : `<div class="ph" style="--c:var(--sys-${e.platform.toLowerCase()})"><b>${esc(initials(e.title))}</b></div>`}<div class="tags">${tags}</div></div>
-			<div class="t">${esc(e.title)}</div><div class="r">${esc(dev)}</div></div>`;
-	}).join("") + `</div>`;
-	$("hhList").querySelectorAll(".game").forEach(el => {
-		el.onclick = () => location.hash = "#/discover/" + encodeURIComponent(el.dataset.slug);
-		el.onkeydown = ev => { if (ev.key === "Enter") el.click(); };
-	});
-}
-$("hhSearch").addEventListener("input", renderHh);
-$("hhWip").addEventListener("change", loadHh);
-
-async function showHhGame(slug) {
-	const v = $("hhGameView");
-	v.innerHTML = `<div class="loading">Loading…</div>`;
-	let e;
-	try { e = await api("GET", `hh/entry/${encodeURIComponent(slug)}.json`); }
-	catch (err) { v.innerHTML = `<div class="loading">${esc(err.message)}</div>`; return; }
-	const dev = devName(e.developer) || "unknown";
-	const rom = hhRom(e), sysKey = e.platform.toLowerCase();
-	const shots = (e.screenshots || []).map(f => `<img src="${esc(hhFile(e, f))}" alt="" loading="lazy">`).join("");
-	const site = e.website ? `<a class="btn" href="${esc(e.website)}" target="_blank" rel="noopener">Website</a>` : "";
-	v.innerHTML = `
-		<button class="btn ghost back" onclick="history.back()">← Discover</button>
-		<div class="hero">
-			<div class="cover shot">${hhCover(e) ? `<img src="${esc(hhCover(e))}" alt="">` : ""}</div>
-			<div class="info">
-				<span class="sysbadge" style="--c:var(--sys-${sysKey})">${esc(e.platform)}</span>
-				<h1>${esc(e.title)}</h1>
-				<div class="sub">by ${esc(dev)}${e.date ? " · " + esc(String(e.date).slice(0, 4)) : ""}</div>
-				<div class="tagrow">${(e.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join("")}${e.wip ? `<span class="tag wip">UNFINISHED</span>` : ""}</div>
-				<div class="row-btns" id="hhInstall"></div>
-				<p class="muted" style="font-size:13px;margin-top:14px">${rom ? `${esc(rom.filename.split("/").pop())}${rom.version ? " · version " + esc(rom.version) : ""}` : "No playable game file for this console."}</p>
-			</div>
-		</div>
-		${shots ? `<div class="shots">${shots}</div>` : ""}
-		${e.description ? `<div class="section"><h2>About</h2><div class="desc">${esc(e.description)}</div></div>` : ""}
-		<div class="row-btns">${site}<a class="btn ghost" href="https://hh.gbdev.io/game/${encodeURIComponent(e.slug)}" target="_blank" rel="noopener">View on Homebrew Hub</a></div>`;
-	renderInstall(e, rom);
-}
-
-function renderInstall(e, rom) {
-	const box = $("hhInstall");
-	if (!box) return;
-	const have = games.find(g => g.name === hhName(e));
-	if (have) {
-		box.innerHTML = `<span class="tag ok" style="padding:8px 12px;font-size:13px">INSTALLED</span> <a class="btn" href="#/game/${have.id}">Open in library</a>`;
+async function handleFile(u) {
+	const f = u.file, name = f.name;
+	if (/\.zip$/i.test(name)) {	// unpacked: the games and saves inside go in one by one
+		u.msg = "unpacking"; renderTray();
+		const files = await unzip(f, n => ROM_EXT.test(n) || SAVE_EXT.test(n));
+		if (!files.length) throw new Error("no game or save in this zip");
+		u.state = "ok"; u.p = 1; u.msg = `${files.length} file${files.length > 1 ? "s" : ""} inside`;
+		// ROMs first, so saves in the same zip find their game
+		files.sort((a, b) => SAVE_EXT.test(a.name) - SAVE_EXT.test(b.name));
+		for (const x of files) uploads.push({ file: x, name: x.name, p: 0, state: "wait", msg: "waiting" });
 		return;
 	}
-	const b = document.createElement("button");
-	b.className = "btn go big"; b.textContent = "Install";
-	b.disabled = !rom;
-	b.onclick = async () => {
-		b.disabled = true;
-		try { await installHh(e, rom, msg => b.textContent = msg); renderInstall(e, rom); toast(`${e.title} is in your library.`); }
-		catch (err) { toast("Install failed: " + err.message); b.textContent = "Install"; b.disabled = false; }
-	};
-	box.append(b);
-}
-
-// Download the ROM (and cover) in the browser, then send them to the device.
-async function installHh(e, rom, progress) {
-	progress("Downloading…");
-	const r = await fetch(hhFile(e, rom.filename));
-	if (!r.ok) throw new Error("download failed (" + r.status + ")");
-	const data = await r.blob();
-	const ext = rom.filename.match(ROM_EXT)[1].toLowerCase();
-	progress("Installing…");
-	const res = await fetch(`/api/games?filename=${encodeURIComponent(hhName(e) + "." + ext)}`, { method: "PUT", headers: HDR, body: data });
-	const g = await res.json();
-	if (!res.ok) throw new Error(g.error || res.statusText);
-	const img = hhCover(e);
-	if (img) {
-		try {	// any image format -> PNG for the library
-			const bmp = await createImageBitmap(await (await fetch(img)).blob());
-			const c = document.createElement("canvas");
-			c.width = bmp.width; c.height = bmp.height;
-			c.getContext("2d").drawImage(bmp, 0, 0);
-			const png = await new Promise(ok => c.toBlob(ok, "image/png"));
-			await api("PUT", `games/${g.id}/cover`, png);
-		} catch { /* no cover is fine */ }
+	if (SAVE_EXT.test(name)) {	// a save goes to the game with the same name (or the open game)
+		await loadGames();
+		const base = name.replace(SAVE_EXT, "").toLowerCase();
+		const g = games.find(x => x.name.toLowerCase() === base) || games.find(x => x.title.toLowerCase() === base) || (page === "game" ? cur() : null);
+		if (!g) throw new Error("no game with this name on the console");
+		const r = await putFile(`/api/games/${g.id}/save`, f, p => { u.p = p; u.msg = Math.round(p * 100) + "%"; renderTray(); });
+		if (r.status !== 200) throw new Error(r.j.error || "failed");
+		u.state = "ok"; u.p = 1; u.msg = "save → " + g.title;
+		return;
 	}
-	await loadGames();
+	if (!ROM_EXT.test(name)) throw new Error("not a .gba, .gbc, .gb, .sav or .zip file");
+	const t0 = performance.now();
+	const url = rep => `/api/games?filename=${encodeURIComponent(name)}${rep ? "&replace=1" : ""}`;
+	const prog = p => { u.p = p; const rate = f.size * p / Math.max(0.001, (performance.now() - t0) / 1000); u.msg = `${Math.round(p * 100)}% · ${size(rate)}/s`; renderTray(); };
+	let r = await putFile(url(false), f, prog);
+	if (r.status === 409) {
+		if (!confirm(`"${name.replace(ROM_EXT, "")}" is already on the console. Replace the game file? Its saves and states stay.`)) { u.state = "bad"; u.msg = "already on the console"; return; }
+		r = await putFile(url(true), f, prog);
+	}
+	if (r.status !== 200) throw new Error(r.j.error || "failed");
+	u.p = 1; u.state = "ok"; u.msg = "added";
+	if (!r.j.cover) { u.msg = "finding cover…"; renderTray(); await fetchCover(r.j); u.msg = "added"; }
+}
+// Minimal ZIP reader: stored and deflated entries (DecompressionStream).
+async function unzip(file, want) {
+	const buf = new Uint8Array(await file.arrayBuffer()), dv = new DataView(buf.buffer);
+	let eocd = -1;
+	for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--)
+		if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+	if (eocd < 0) throw new Error("not a zip file");
+	const n = dv.getUint16(eocd + 10, true);
+	let p = dv.getUint32(eocd + 16, true);
+	const out = [], td = new TextDecoder();
+	for (let k = 0; k < n; k++) {
+		if (dv.getUint32(p, true) !== 0x02014b50) break;
+		const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true);
+		const nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true);
+		const loff = dv.getUint32(p + 42, true);
+		const fname = td.decode(buf.subarray(p + 46, p + 46 + nlen));
+		p += 46 + nlen + xlen + clen;
+		const base = fname.split("/").pop();
+		if (!base || base.startsWith(".") || fname.startsWith("__MACOSX/") || !want(base)) continue;
+		const ds = loff + 30 + dv.getUint16(loff + 26, true) + dv.getUint16(loff + 28, true);
+		const data = buf.subarray(ds, ds + csize);
+		let blob;
+		if (method === 0) blob = new Blob([data]);
+		else if (method === 8) blob = await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).blob();
+		else continue;
+		out.push(new File([blob], base));
+	}
+	return out;
 }
 
-// ------------------------------------------------------------ routing
-function route() {
-	const h = location.hash;
-	const game = h.match(/^#\/game\/([0-9a-f]{16})$/);
-	const hhGame = h.match(/^#\/discover\/(.+)$/);
-	const view = game ? "gameView" : hhGame ? "hhGameView" : h === "#/discover" ? "hhView" : "libView";
-	for (const v of ["libView", "gameView", "hhView", "hhGameView"]) $(v).classList.toggle("hidden", v !== view);
-	$("tabLib").classList.toggle("on", view === "libView" || view === "gameView");
-	$("tabHh").classList.toggle("on", view === "hhView" || view === "hhGameView");
-	current = null;
-	if (game) showGame(game[1]);
-	else if (hhGame) showHhGame(decodeURIComponent(hhGame[1]));
-	else if (view === "hhView") { renderHhTabs(); loadHh(); }
-	else renderLib();
-	window.scrollTo(0, 0);
+// ------------------------------------------------------------ add games popup
+const SOURCES = [
+	{ k: "pc", name: "Your computer", line: "Drop or pick files", col: "--yellow", icon: "+" },
+	{ k: "hh", name: "Homebrew Hub", line: "Free homebrew · gbdev", col: "--cyan", icon: "H" },
+	{ k: "itch", name: "itch.io", line: "Indie Game Boy games", col: "--pink", icon: "I" },
+	{ k: "link", name: "From a link", line: "Paste a URL", col: "--green", icon: "@" },
+];
+function openAdd(src) { addOpen = true; if (src) addSrc = src; hhPick = null; renderPopup(true); }
+function closeAdd() { addOpen = false; renderPopup(); }
+function setSrc(k) { addSrc = k; hhPick = null; renderPopup(); }
+function popupSide() {
+	return SOURCES.map(s => `<button class="${addSrc === s.k ? "on" : ""}" style="--c:var(${s.col})" onclick="setSrc('${s.k}')">
+		<span class="ic">${PX(s.icon, 3, "#000000")}</span><span>${PX(s.name, 2, addSrc === s.k ? "#ffffff" : "#bbbbbb")}<small>${esc(s.line)}</small></span></button>`).join("");
 }
-window.addEventListener("hashchange", route);
+// Homebrew Hub: the catalogue comes through the console (its JSON API isn't
+// readable cross-origin); ROMs and images are fetched from hh3.gbdev.io.
+const hhFile = (e, f) => `${HH_STATIC}/${e.basepath}/entries/${encodeURIComponent(e.slug)}/${f.split("/").map(encodeURIComponent).join("/")}`;
+const hhName = e => e.title.replace(/[\/\\\x00-\x1f\x7f]/g, "-").replace(/^[.\s]+|\s+$/g, "").slice(0, 200) || e.slug;
+const devName = d => (Array.isArray(d) ? d : d ? [d] : []).map(x => typeof x === "string" ? x : (x && x.name) || "").filter(Boolean).join(", ");
+const installed = e => games.some(g => g.name === hhName(e));
+function hhRom(e) { const roms = (e.files || []).filter(f => ROM_EXT.test(f.filename)); return roms.find(f => f.default) || roms.find(f => f.playable) || roms[0]; }
+async function loadHH(sys) {
+	if (hhCache[sys]) return;
+	const c = hhCache[sys] = { list: null, done: 0, total: 0, err: null };
+	const pq = p => `hh/search?platform=${sys}&typetag=game&sort=title&order=asc&page=${p}`;
+	try {
+		const first = await api("GET", pq(1));
+		let all = first.entries; c.total = first.results; c.done = all.length; c.partial = all;
+		const pages = []; for (let p = 2; p <= first.page_total; p++) pages.push(p);
+		while (pages.length) {
+			// one page at a time: Homebrew Hub throttles parallel requests hard
+			const res = [await api("GET", pq(pages.shift()))];
+			res.forEach(r => all = all.concat(r.entries));
+			c.done = all.length; c.partial = all;	// show games as they arrive
+			if (addOpen && addSrc === "hh" && hhSys === sys && hhPick == null) updateHHGrid();
+		}
+		c.list = all.filter(e => !e.wip);
+	} catch (err) { c.err = err.message; }
+	if (addOpen && addSrc === "hh" && hhSys === sys && hhPick == null) updateHHGrid();
+}
+function hhCard(e, i) {
+	const shot = e.screenshots && e.screenshots[0];
+	return `<div class="it" tabindex="0" onclick="pickHH(${i})">
+		<div class="fr shot">${shot ? `<img src="${esc(hhFile(e, shot))}" alt="" loading="lazy">` : placeholder(e.title, (e.platform || "GBA").toLowerCase(), 5)}
+			${installed(e) ? `<div class="tg"><span class="ok">${PX("On console", 1.5, "#000000")}</span></div>` : `<button class="pb go small act" onclick="event.stopPropagation();installHH(${i})">${PX("Install", 2)}</button>`}</div>
+		<div class="nm">${esc(e.title)}</div><div class="sb">${esc(e.platform)} · ${esc(devName(e.developer) || "unknown")}</div></div>`;
+}
+function hhGridHTML() {
+	const c = hhCache[hhSys];
+	if (c && c.err) return `<p class="note">Couldn't reach Homebrew Hub: ${esc(c.err)}. Is the cozisboy online?</p>`;
+	const src = c && (c.list || c.partial && c.partial.filter(e => !e.wip));
+	const more = !c || !c.list ? `<p class="loading">Loading ${hhSys} games from Homebrew Hub… ${c && c.total ? c.done + " of " + c.total : ""}</p>` : "";
+	if (!src) return more;
+	const list = src.filter(e => !hq || e.title.toLowerCase().includes(hq) || devName(e.developer).toLowerCase().includes(hq));
+	return (list.length ? list.map(e => hhCard(e, src.indexOf(e))).join("") : c.list ? `<p class="note">No game matches.</p>` : "") + more;
+}
+function hhList() { const c = hhCache[hhSys]; return c.list || c.partial.filter(e => !e.wip); }
+function updateHHGrid() { const g = $("hhgrid"); if (g) { g.innerHTML = hhGridHTML(); paint(g); } }
+async function pickHH(i) {
+	hhPick = i; hhEntry = null; renderPopup();
+	$("layer").querySelector(".body").scrollTop = 0;
+	const e = hhList()[i];
+	try { hhEntry = await api("GET", `hh/entry/${encodeURIComponent(e.slug)}.json`); } catch { hhEntry = e; }
+	if (hhPick === i) renderPopup();
+}
+async function installHH(i) {
+	const e0 = hhList()[i];
+	const u = { name: e0.title, p: 0, state: "up", msg: "downloading" };
+	uploads.push(u); renderTray();
+	try {
+		const e = (hhEntry && hhEntry.slug === e0.slug) ? hhEntry : await api("GET", `hh/entry/${encodeURIComponent(e0.slug)}.json`);
+		const rom = hhRom(e);
+		if (!rom) throw new Error("no playable file for this console");
+		const r = await fetch(hhFile(e, rom.filename));
+		if (!r.ok) throw new Error("download failed (" + r.status + ")");
+		const data = await r.blob();
+		const ext = rom.filename.match(ROM_EXT)[1].toLowerCase();
+		u.msg = "installing"; renderTray();
+		const res = await putFile(`/api/games?filename=${encodeURIComponent(hhName(e) + "." + ext)}`, data, p => { u.p = p; renderTray(); });
+		if (res.status !== 200) throw new Error(res.j.error || "failed");
+		const shot = e.screenshots && e.screenshots[0];
+		if (shot) try { await api("PUT", `games/${res.j.id}/cover`, await toPNG(await (await fetch(hhFile(e, shot))).blob())); } catch { }
+		u.state = "ok"; u.p = 1; u.msg = "installed";
+	} catch (err) { u.state = "bad"; u.msg = err.message; }
+	renderTray();
+	await refresh();
+}
+// itch.io: its public tag feeds are readable from the browser; downloads are not.
+async function loadItch() {
+	if (itchCache.list || itchCache.loading) return;
+	itchCache.loading = true; itchCache.err = null;
+	try {
+		const out = [];
+		for (const [tag, plat] of [["gameboy-advance", "GBA"], ["gameboy", "GB"]]) {
+			const r = await fetch(`https://itch.io/games/free/tag-${tag}.xml`);
+			if (!r.ok) throw new Error(r.status === 429 ? "itch.io is limiting requests right now. Try again in a few minutes." : "itch.io answered " + r.status + ".");
+			const x = new DOMParser().parseFromString(await r.text(), "text/xml");
+			for (const it of x.querySelectorAll("item")) {
+				const tx = s => (it.querySelector(s) || {}).textContent || "";
+				const link = tx("link");
+				out.push({ title: tx("plainTitle") || tx("title"), img: tx("imageurl"), link, author: (link.match(/^https:\/\/([^.]+)\.itch\.io/) || [])[1] || "", platform: plat });
+			}
+		}
+		itchCache.list = out;
+	} catch (err) { itchCache.err = err.message; }
+	itchCache.loading = false;
+	if (addOpen && addSrc === "itch") renderPopup();
+}
+function popupBody() {
+	if (addSrc === "pc")
+		return `<div class="dropzone">${PX("Drop files here", 4)}
+			<p>.gba  .gbc  .gb  ·  .sav saves go to the game with the same name  ·  .zip is unpacked for you</p>
+			<button class="pb go" onclick="$('fileIn').click()">${PX("Choose files", 2)}</button></div>
+			<p class="note">You can drop files anywhere on the page, even with this window closed.</p>`;
+	if (addSrc === "hh" && hhPick != null) {
+		const e = hhEntry || hhList()[hhPick], have = installed(e);
+		const shots = (e.screenshots || []).map(f => `<img src="${esc(hhFile(e, f))}" alt="">`).join("");
+		return `<button class="pb dim small" onclick="hhPick=null;renderPopup()" style="margin-bottom:18px">${PX("< Back", 2)}</button>
+			<div class="hhd"><div class="shots">${shots}</div>
+			<div>${PX(e.title, e.title.length > 20 ? 3 : 4, pal(`--sys-${(e.platform || "GBA").toLowerCase()}`))}
+				<p class="note" style="margin-top:10px">${esc(e.platform)} · by ${esc(devName(e.developer) || "unknown")}${e.date ? " · " + esc(String(e.date).slice(0, 4)) : ""}</p>
+				<div class="desc">${esc(e.description || (hhEntry ? "No description." : "Loading…"))}</div>
+				${have ? PX("On your console", 2, pal("--green")) : `<button class="pb go" onclick="installHH(${hhPick})">${PX("+ Install", 3)}</button>`}
+				<p class="note"><a href="https://hh.gbdev.io/game/${encodeURIComponent(e.slug)}" target="_blank" rel="noopener">View on Homebrew Hub</a></p></div></div>`;
+	}
+	if (addSrc === "hh") {
+		loadHH(hhSys);
+		return `<div class="ctl"><input class="search" id="hq" placeholder="Search Homebrew Hub" value="${esc(hq)}">
+			<div class="chips">${["GBA", "GBC", "GB"].map(f => `<button class="chip ${hhSys === f ? "on" : ""}" onclick="hhSys='${f}';renderPopup()">${PX(f, 2, hhSys === f ? "#000000" : "#cccccc")}</button>`).join("")}</div></div>
+			<div class="cg" id="hhgrid" style="margin-top:22px">${hhGridHTML()}</div>`;
+	}
+	if (addSrc === "itch") {
+		loadItch();
+		const grid = itchCache.err ? `<p class="note">${esc(itchCache.err)}</p>`
+			: !itchCache.list ? `<p class="loading">Loading free Game Boy games from itch.io…</p>`
+			: itchCache.list.map(e => `<div class="it"><a href="${esc(e.link)}" target="_blank" rel="noopener" style="text-decoration:none">
+				<div class="fr shot">${e.img ? `<img src="${esc(e.img)}" alt="" loading="lazy">` : placeholder(e.title, e.platform.toLowerCase(), 5)}</div>
+				<div class="nm">${esc(e.title)}</div><div class="sb">${esc(e.platform)} · ${esc(e.author)}</div></a></div>`).join("");
+		return `<p class="note" style="margin-top:0">itch.io has no download API: click a game to open its page, download it there (often a .zip), then drop the file anywhere on this page.</p>
+			<div class="cg" style="margin-top:22px">${grid}</div>`;
+	}
+	return `<p class="note" style="margin-top:0">A direct link to a .gba, .gbc or .gb file. The console downloads it itself (up to 64 MB). For a .zip, download it here and drop it on the page.</p>
+		<div class="linkrow"><input class="search" id="url" placeholder="https://example.com/My Game (USA).gba" onkeydown="if(event.key==='Enter')fetchLink()"><button class="pb go" onclick="fetchLink()">${PX("Download to console", 2)}</button></div>`;
+}
+async function fetchLink() {
+	const url = $("url").value.trim();
+	if (!/^https?:\/\//i.test(url)) { toast("Paste an http(s) link."); return; }
+	let name = url.split(/[?#]/)[0].split("/").pop() || url;
+	try { name = decodeURIComponent(name); } catch { }
+	const u = { name, p: 0.15, state: "up", msg: "the console is downloading" };
+	uploads.push(u); renderTray();
+	try {
+		const r = await api("POST", `games/fetch?url=${encodeURIComponent(url)}`);
+		u.state = "ok"; u.p = 1; u.msg = "added";
+		if (!r.cover) await fetchCover(r);
+		if ($("url")) $("url").value = "";
+	} catch (e) { u.state = "bad"; u.msg = e.message; }
+	renderTray(); await refresh();
+}
+// The popup lives in its own layer: updates keep its scroll position and
+// focus, and the opening animation only plays when it opens.
+function renderPopup(opening) {
+	const L = $("layer");
+	if (!addOpen || page === "pair") { L.innerHTML = ""; return; }
+	if (!opening && L.querySelector(".modal")) {
+		const body = L.querySelector(".body"), top = body.scrollTop;
+		const focused = document.activeElement && document.activeElement.id;
+		L.querySelector(".side").innerHTML = popupSide();
+		body.innerHTML = popupBody();
+		body.scrollTop = top;
+		const el = focused && $(focused);
+		if (el && el.tagName === "INPUT") { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+	} else {
+		L.innerHTML = `<div class="modal-bg anim" onclick="if(event.target===this)closeAdd()"><div class="modal anim" role="dialog" aria-label="Add games">
+			<div class="mh">${PX("Add games", 4, pal("--yellow"))}<button class="pb dim small" onclick="closeAdd()">${PX("Esc", 2)}</button></div>
+			<nav class="side">${popupSide()}</nav><div class="body">${popupBody()}</div></div></div>`;
+	}
+	paint(L);
+}
+document.addEventListener("input", e => {
+	if (e.target.id === "hq") { hq = e.target.value.toLowerCase(); updateHHGrid(); }
+	if (e.target.id === "q") { q = e.target.value.toLowerCase(); $("ct").innerHTML = contentHTML(); paint($("ct")); }
+	if (e.target.id === "rn") renameDraft = e.target.value;
+});
+$("fileIn").onchange = e => { addFiles([...e.target.files]); e.target.value = ""; };
 
+// ------------------------------------------------------------ drag and drop, keys, wheel
+let dragDepth = 0;
+function dropLayer(on) {
+	let d = document.querySelector(".drop");
+	if (on && !d) {
+		d = document.createElement("div"); d.className = "drop";
+		d.innerHTML = `<div class="frame">${PX(page === "game" ? "Drop here" : "Drop to add", 6, pal("--yellow"))}<p>${page === "game" ? "A .sav replaces this game's save (the old one is kept) · games are added" : ".gba  .gbc  .gb  ·  .sav  ·  .zip"}</p></div>`;
+		document.body.append(d); paint(d);
+	} else if (!on && d) d.remove();
+}
+document.addEventListener("dragenter", e => { if (page === "pair" || !e.dataTransfer || ![...e.dataTransfer.types].includes("Files")) return; e.preventDefault(); dragDepth++; dropLayer(true); });
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; dropLayer(false); } });
+document.addEventListener("drop", e => {
+	e.preventDefault(); dragDepth = 0; dropLayer(false);
+	const files = [...(e.dataTransfer && e.dataTransfer.files || [])];
+	if (!files.length || page === "pair") return;
+	if (page === "game" && files.length === 1 && SAVE_EXT.test(files[0].name)) { replaceSave(files[0]); return; }
+	addFiles(files);
+});
+document.addEventListener("keydown", e => {
+	if ($("zoom")) { if (e.key === "Escape") $("zoom").remove(); return; }
+	if (addOpen && e.key === "Escape") { if (hhPick != null) { hhPick = null; renderPopup(); } else closeAdd(); return; }
+	if (page !== "game" || addOpen || e.target.tagName === "INPUT") return;
+	if (e.key === "ArrowRight") { move(1); e.preventDefault(); }
+	if (e.key === "ArrowLeft") { move(-1); e.preventDefault(); }
+	if (e.key === "Escape") closeGame();
+});
+let wheelT = 0;
+document.addEventListener("wheel", e => {
+	if (page !== "game" || addOpen || e.target.closest(".info")) return;
+	const now = performance.now(), d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+	if (now - wheelT < 160 || Math.abs(d) < 4) return;
+	wheelT = now; move(d > 0 ? 1 : -1);
+}, { passive: true });
+
+// ------------------------------------------------------------ shell
+function render() {
+	if (page === "pair") return;
+	$("root").innerHTML = page === "game" ? pageGame() : pageAll();
+	paint($("root"));
+	renderTray();
+}
+async function logout() { await api("POST", "logout"); showPair(); }
 async function boot() {
-	try { await Promise.all([refreshStatus(), loadGames()]); } catch { return; }
-	$("pair").classList.add("hidden"); $("app").classList.remove("hidden");
-	route();
+	try { await Promise.all([loadGames(), loadStatus()]); } catch { return; }
+	page = "all"; render();
 	clearInterval(boot.t);
-	boot.t = setInterval(() => refreshStatus().catch(() => {}), 15000);
+	boot.t = setInterval(async () => {	// battery and storage, and games changed on the console
+		try {
+			const before = JSON.stringify(games);
+			await Promise.all([loadStatus(), loadGames()]);
+			const stat = document.querySelector(".hd .stat");
+			if (stat) { stat.innerHTML = statusHTML(); paint(stat); }
+			if (page === "all" && JSON.stringify(games) !== before && document.activeElement?.id !== "q") { $("ct").innerHTML = contentHTML(); paint($("ct")); }
+		} catch { }
+	}, 15000);
 }
 boot();
 </script>

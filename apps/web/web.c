@@ -282,6 +282,7 @@ static void serve_static(struct req *r)
 {
 	static const char *const assets[][2] = {
 		{ "/", "index.html" }, { "/logo.png", "logo.png" }, { "/favicon.png", "favicon.png" },
+		{ "/font5x7.js", "font5x7.js" }, { "/pixel.js", "pixel.js" },
 	};
 	const char *name = NULL;
 	for (size_t i = 0; i < sizeof assets / sizeof assets[0]; i++)
@@ -306,7 +307,8 @@ static void serve_static(struct req *r)
 			 "HTTP/1.1 200 OK\r\nContent-Type: %s\r\n"
 			 "Content-Length: %lld\r\nCache-Control: no-cache\r\n"
 			 "X-Frame-Options: DENY\r\nConnection: close\r\n\r\n",
-			 strstr(name, ".png") ? "image/png" : "text/html; charset=utf-8", (long long)st.st_size);
+			 strstr(name, ".png") ? "image/png" : strstr(name, ".js") ? "text/javascript; charset=utf-8"
+						: "text/html; charset=utf-8", (long long)st.st_size);
 	if (send_all(r->fd, h, n) == 0) {
 		off_t off = 0;
 		while (off < st.st_size)
@@ -849,6 +851,106 @@ static int zent_add(struct zent **z, int *n, int *cap, const char *path, const c
 
 // GET /api/backup[?states=1]: every battery save (and state), as a zip:
 //   saves/<System>/<Game>.sav, states/<System>/<Game>/<time>.state|.png
+// POST /api/games/fetch?url=https://.../Game%20(USA).gba[&replace=1]
+// The console downloads a ROM itself ("From a link"). Only http(s) links to a
+// .gb/.gbc/.gba file, up to 64 MB; the file name (from the URL path) is the
+// game's name.
+#define FETCH_MAX (64LL << 20)
+
+struct fetch_sink {
+	int fd;
+	long long got;
+	int err;
+};
+
+static size_t fetch_write(char *data, size_t sz, size_t n, void *arg)
+{
+	struct fetch_sink *f = arg;
+	size_t len = sz * n;
+	if (f->got + (long long)len > FETCH_MAX) {
+		f->err = 413;
+		return 0;
+	}
+	if (write(f->fd, data, len) != (ssize_t)len) {
+		f->err = 500;
+		return 0;
+	}
+	f->got += len;
+	return len;
+}
+
+static void api_game_fetch(struct req *r)
+{
+	char url[1024], rep[4] = "0";
+	if (query_param(r->query, "url", url, sizeof url) ||
+	    (strncmp(url, "https://", 8) && strncmp(url, "http://", 7))) {
+		respond_error(r->fd, 400, "give an http(s) link");
+		return;
+	}
+	query_param(r->query, "replace", rep, sizeof rep);
+	// file name: last path segment, without query/fragment, URL-decoded
+	char path[1024];
+	snprintf(path, sizeof path, "%s", url);
+	path[strcspn(path, "?#")] = 0;
+	const char *seg = strrchr(path, '/');
+	char name[COZ_NAME_MAX + 16];
+	if (!seg || !seg[1]) {
+		respond_error(r->fd, 400, "the link doesn't end in a file name");
+		return;
+	}
+	{	// decode %XX in the segment
+		char q[1100];
+		snprintf(q, sizeof q, "n=%s", seg + 1);
+		if (query_param(q, "n", name, sizeof name)) {
+			respond_error(r->fd, 400, "bad file name in the link");
+			return;
+		}
+	}
+	coz_import imp;
+	int rc = coz_import_begin(&imp, name);
+	if (rc) {
+		respond_lib_error(r->fd, rc, rc == -EINVAL ? "link: it must point to a .gb, .gbc or .gba file" : "game");
+		return;
+	}
+	struct fetch_sink sink = { .fd = imp.fd };
+	CURL *c = curl_easy_init();
+	long status = 0;
+	CURLcode cr = CURLE_FAILED_INIT;
+	if (c) {
+		curl_easy_setopt(c, CURLOPT_URL, url);
+		curl_easy_setopt(c, CURLOPT_PROTOCOLS_STR, "http,https");
+		curl_easy_setopt(c, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
+		curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L);
+		curl_easy_setopt(c, CURLOPT_MAXREDIRS, 5L);
+		curl_easy_setopt(c, CURLOPT_TIMEOUT, 300L);
+		curl_easy_setopt(c, CURLOPT_CONNECTTIMEOUT, 15L);
+		curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);
+		curl_easy_setopt(c, CURLOPT_USERAGENT, "cozisboy-web");
+		curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, fetch_write);
+		curl_easy_setopt(c, CURLOPT_WRITEDATA, &sink);
+		cr = curl_easy_perform(c);
+		curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &status);
+		curl_easy_cleanup(c);
+	}
+	if (cr != CURLE_OK || status != 200 || !sink.got) {
+		coz_import_abort(&imp);
+		char msg[200];
+		snprintf(msg, sizeof msg, "%s", sink.err == 413 ? "the file is larger than 64 MB"
+			 : cr != CURLE_OK ? curl_easy_strerror(cr) : status == 404 ? "the link gives 'not found'" : "the download failed");
+		respond_error(r->fd, sink.err == 413 ? 413 : 502, msg);
+		return;
+	}
+	coz_game g;
+	pthread_mutex_lock(&lib_lock);
+	rc = coz_import_commit(&imp, rep[0] == '1', &g);
+	cache_valid = 0;
+	pthread_mutex_unlock(&lib_lock);
+	if (rc)
+		respond_lib_error(r->fd, rc, rc == -EINVAL ? "game: the file isn't a ROM for this system" : "game");
+	else
+		respond_game(r->fd, &g);
+}
+
 static void api_backup(struct req *r)
 {
 	char st[4] = "0";
@@ -1328,6 +1430,8 @@ static void route(struct req *r)
 		api_games_list(r);
 	else if (!strcmp(ep, "games") && put)
 		api_game_add(r);
+	else if (!strcmp(ep, "games/fetch") && post)
+		api_game_fetch(r);
 	else if (!strncmp(ep, "games/", 6))
 		api_game(r, ep + 6);
 	else if (get && !strncmp(ep, "hh/", 3))
