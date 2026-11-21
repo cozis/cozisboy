@@ -5,12 +5,16 @@
 #   tools/deploy.sh uboot    -> bootloader (written to the card at 8 KiB)
 #   tools/deploy.sh all      -> kernel + rootfs (default; not the bootloader)
 # Add NOREBOOT=1 to skip the reboot.
+#
+# rootfs first rebuilds the apps built from apps/ (splash, launcher, web) from
+# the current source tree: Buildroot only copies local sources when a package
+# is (re)built, so output/target could hold an older build than the one the UI
+# session put on the console with `make -C apps/ui deploy`.
 set -e
 TOP="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$TOP/output"
 HOST="${HOST:-root@10.55.0.2}"
-# The device regenerates its SSH host key at every boot (read-only root, keys in
-# RAM) and is only reachable over the USB link: don't pin the host key.
+# Don't pin the host key (it lived in RAM on early images; reflashing changes it).
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 DTB=allwinner/sun50i-h700-anbernic-rg35xx-sp.dtb
 WHAT="${1:-all}"
@@ -22,6 +26,8 @@ ssh $SSH_OPTS "$HOST" 'mount -o remount,rw /'
 trap 'ssh $SSH_OPTS "$HOST" "sync; mount -o remount,ro / 2>/dev/null" || true' EXIT
 
 if [ "$WHAT" = rootfs ] || [ "$WHAT" = all ]; then
+	echo ">>> rebuilding apps/ (splash, launcher, web) from the current sources"
+	make -C "$TOP" cozisboy-splash-rebuild cozisboy-ui-rebuild cozisboy-web-rebuild >/dev/null
 	echo ">>> rootfs"
 	tar -C "$OUT/target" --exclude=./boot --exclude=./dev --exclude=./proc \
 		--exclude=./sys --exclude=./tmp --exclude=./run --exclude=./etc/dropbear \
