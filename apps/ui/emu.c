@@ -412,7 +412,7 @@ static void unlink_game(emu_game *g)
 
 int emu_linked(emu_game *g)
 {
-	return g->grp ? g->grp->n : 1;
+	return g && g->grp ? g->grp->n : 1;
 }
 
 int emu_same_group(emu_game *a, emu_game *b)

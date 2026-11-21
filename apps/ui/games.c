@@ -76,7 +76,9 @@ typedef struct {
 	int copy;              // 0: the game itself, n: linked copy shown as "#n+1"
 	int last_used;
 	gstate_t st;           // mock scene state
-	emu_game *eg;          // the emulator running this game (NULL: mock scene)
+	emu_game *eg;          // its emulator while loaded (NULL: unloaded or mock scene)
+	uint8_t *state;        // snapshot while unloaded (paused, not linked)
+	size_t state_n;
 	uint32_t frame[GW * GH];
 } inst_t;
 
@@ -443,10 +445,54 @@ static int linked_with_cur(int i)
 	return cur >= 0 && i != cur && emu_same_group(run[i].eg, run[cur].eg);
 }
 
+// Battery save of open game i (copies have their own).
+static void inst_sav_path(int i, char *out, size_t sz)
+{
+	if (run[i].copy)
+		copy_sav_path(run[i].game, run[i].copy, out, sz);
+	else
+		snprintf(out, sz, "%s", lib[run[i].game].sav_out);
+}
+
+/* Paused games are snapshotted and unloaded; linked games stay loaded (they
+ * need each other) and run together while one of them is on screen. */
+static void park(int i)
+{
+	inst_t *in = &run[i];
+	if (!in->eg || emu_linked(in->eg) > 1)
+		return;
+	size_t n = emu_state_size(in->eg);
+	free(in->state);
+	in->state = malloc(n);
+	in->state_n = in->state && !emu_save_state(in->eg, in->state, n) ? n : 0;
+	emu_close(in->eg); // writes the battery save
+	in->eg = NULL;
+}
+
+// Load open game i again (restoring its snapshot). Returns 0 on success.
+static int wake(int i)
+{
+	inst_t *in = &run[i];
+	if (in->eg || !is_emu(in->game))
+		return 0;
+	char sav[600];
+	inst_sav_path(i, sav, sizeof sav);
+	in->eg = emu_open(lib[in->game].rom, in->copy ? NULL : lib[in->game].sav_in, sav);
+	if (!in->eg)
+		return -1;
+	if (in->state_n)
+		emu_load_state(in->eg, in->state, in->state_n);
+	free(in->state);
+	in->state = NULL, in->state_n = 0;
+	return 0;
+}
+
 static void close_running(int i)
 {
 	emu_close(run[i].eg); // writes the battery save
 	run[i].eg = NULL;
+	free(run[i].state);
+	run[i].state = NULL, run[i].state_n = 0;
 	memcpy(lastshot[run[i].game], run[i].frame, sizeof run[i].frame);
 	has_lastshot[run[i].game] = 1;
 	lib[run[i].game].last = "JUST NOW";
@@ -475,6 +521,15 @@ static int running_order(int *v)
 
 static void enter_game(int i, int x, int y)
 {
+	if (wake(i)) {
+		snprintf(toast_buf, sizeof toast_buf, "COULD NOT START %s", inst_title(i));
+		sfx_play(SFX_BUMP, 0);
+		toast(toast_buf);
+		return;
+	}
+	for (int k = 0; k < nrun; k++)
+		if (k != i && !emu_same_group(run[k].eg, run[i].eg))
+			park(k);
 	cur = i;
 	run[i].last_used = ++use_counter;
 	lib[run[i].game].recent = ++recent_counter;
@@ -510,9 +565,7 @@ static void open_game(int game, int slot, int x, int y)
 	}
 	slot_t *sl = slot >= 0 ? &slots[game][slot] : NULL;
 	if (is_emu(game)) {
-		if (!run[i].eg)
-			run[i].eg = emu_open(lib[game].rom, lib[game].sav_in, lib[game].sav_out);
-		if (!run[i].eg) {
+		if (wake(i)) {
 			snprintf(toast_buf, sizeof toast_buf, "COULD NOT START %s", lib[game].title);
 			sfx_play(SFX_BUMP, 0);
 			toast(toast_buf);
@@ -1693,7 +1746,8 @@ static int link_rows(lrow_t *r)
 		r[n++] = (lrow_t){L_COPY_MINE, 0, "LINKED COPY - COPY OF MY SAVE"};
 	}
 	for (int i = 0; i < nrun && n < 12; i++)
-		if (i != cur && run[i].eg && emu_linked(run[i].eg) == 1 && emu_linked(run[cur].eg) < 4) {
+		if (i != cur && is_emu(run[i].game) && (!run[i].eg || emu_linked(run[i].eg) == 1) &&
+		    emu_linked(run[cur].eg) < 4) {
 			r[n] = (lrow_t){L_WITH, i, ""};
 			snprintf(r[n].label, sizeof r[n].label, "LINK WITH %s", inst_title(i));
 			n++;
@@ -1767,7 +1821,7 @@ static void link_update(unsigned p, float dt)
 	case L_COPY_OWN: open_linked_copy(0); break;
 	case L_COPY_MINE: open_linked_copy(1); break;
 	case L_WITH:
-		if (emu_link(run[cur].eg, run[row->target].eg) == 0) {
+		if (wake(row->target) == 0 && emu_link(run[cur].eg, run[row->target].eg) == 0) {
 			snprintf(toast_buf, sizeof toast_buf, "LINKED WITH %s", inst_title(row->target));
 			sfx_play(SFX_CONFIRM, 0);
 			toast(toast_buf);

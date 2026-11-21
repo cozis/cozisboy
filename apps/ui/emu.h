@@ -35,7 +35,7 @@ const uint32_t *emu_frame(emu_game *g); // EMU_W x EMU_H XRGB
 
 // Link cable: connect b to a's group (up to 4 games). Returns 0 on success.
 int emu_link(emu_game *a, emu_game *b);
-int emu_linked(emu_game *g); // number of games in g's group (1 = not linked)
+int emu_linked(emu_game *g); // games in g's group (1 = not linked, or g is NULL)
 int emu_same_group(emu_game *a, emu_game *b); // linked together?
 void emu_unlink(emu_game *g);
 const uint32_t *emu_frame_peek(emu_game *g); // last converted frame (no update)
