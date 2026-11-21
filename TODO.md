@@ -88,6 +88,10 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
 
 ## System
 
+- [x] File transfer over SSH: scp, sftp (file managers: `sftp://root@<ip>/data`)
+      and rsync. ~8.7 MB/s over USB, ~2.5 MB/s over Wi-Fi.
+- [ ] Wi-Fi throughput only ~2.5 MB/s at 72 Mbit/s link (rtw88 SDIO): check
+      SDIO clock/bus width, 5 GHz.
 - [ ] Grow `/data` to the rest of the card on first boot (ROMs, saves, settings).
 - [ ] U-Boot USB disk mode (Menu at power-on -> `ums`) never triggered.
 - [ ] `tools/deploy.sh` causes ext4 orphan recovery on the next boot (replaces

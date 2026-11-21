@@ -18,6 +18,11 @@ rm -f "$TARGET_DIR/boot/Image"
 rm -f "$TARGET_DIR"/etc/init.d/S01seedrng "$TARGET_DIR"/etc/init.d/S01syslogd \
 	"$TARGET_DIR"/etc/init.d/S02klogd "$TARGET_DIR"/etc/init.d/S50crond
 
+# OpenSSH is only here for sftp-server (dropbear serves SSH)
+rm -f "$TARGET_DIR"/etc/init.d/S50sshd "$TARGET_DIR"/usr/sbin/sshd \
+	"$TARGET_DIR"/usr/libexec/sshd-session "$TARGET_DIR"/usr/libexec/sshd-auth \
+	"$TARGET_DIR"/usr/libexec/ssh-keysign "$TARGET_DIR"/usr/libexec/sshd-keygen-wrapper
+
 # SSH host keys live on the writable data partition (generated once, kept)
 rm -rf "$TARGET_DIR/etc/dropbear"
 ln -s /data/dropbear "$TARGET_DIR/etc/dropbear"
