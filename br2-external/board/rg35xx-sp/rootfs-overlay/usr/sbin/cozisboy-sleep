@@ -1,0 +1,27 @@
+#!/bin/sh
+# Sleep (s2idle): there is no deep suspend on the H616 without SCP firmware.
+# Wi-Fi off (rtw88 refuses to suspend), backlight off, freeze; on wake
+# (power button, lid) restore everything and re-attach the USB gadget.
+BL=/sys/class/backlight/backlight
+UDC=$(ls /sys/class/udc 2>/dev/null | head -1)
+LOG=/run/sleep.log
+
+wifi_was_up=0
+[ -d /sys/class/net/wlan0 ] && wifi_was_up=1
+ip link set wlan0 down 2>/dev/null
+rmmod rtw88_8821cs rtw88_8821c rtw88_sdio 2>/dev/null
+echo 4 > $BL/bl_power
+
+echo "$(cut -d' ' -f1 /proc/uptime) sleep" >> $LOG
+echo freeze > /sys/power/state
+echo "$(cut -d' ' -f1 /proc/uptime) wake (rc=$?)" >> $LOG
+
+echo 0 > $BL/bl_power
+# The MUSB gadget does not re-enumerate after resume: virtual replug.
+if [ -n "$UDC" ]; then
+	echo disconnect > /sys/class/udc/$UDC/soft_connect 2>/dev/null
+	sleep 1
+	echo connect > /sys/class/udc/$UDC/soft_connect 2>/dev/null
+fi
+[ $wifi_was_up = 1 ] && modprobe rtw88_8821cs
+exit 0

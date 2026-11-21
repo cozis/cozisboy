@@ -70,7 +70,10 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
 - [x] Battery / charging readout (AXP717): /sys/class/power_supply/axp20x-battery
       (capacity, status, voltage, current); power button = axp20x-pek input.
 - [ ] Low-battery handling and power-button actions in the UI.
-- [ ] Suspend to RAM (instant on), lid switch.
+- [x] Sleep: `cozisboy-sleep` (s2idle; no deep suspend without SCP firmware):
+      Wi-Fi unloaded (rtw88 refuses to suspend), backlight off, wakes on the
+      power button, USB gadget re-attached via soft_connect.
+- [ ] Hook sleep to the power button / lid in the UI; measure s2idle drain.
 - [ ] TF2 slot (`mmc2`?) not described in the mainline device tree.
 - [ ] Rumble motor (PH2), HDMI out.
 
