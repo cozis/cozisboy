@@ -52,6 +52,7 @@ void toast(const char *msg);
 void draw_background(canvas *c);
 void draw_tile(canvas *c, int app, int x, int y, int size, int scale, int dim);
 void draw_header(canvas *c, int app, const char *title);
+void ui_page_anim(int back); // animate a page change just made (Look > TRANSITION)
 void draw_hint(canvas *c, int *x, const char *btn, const char *label, uint32_t col);
 void draw_hintbar(canvas *c); // background of the bottom bar; hints start at x=16
 

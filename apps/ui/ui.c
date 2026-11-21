@@ -512,6 +512,7 @@ static struct {
 	uint32_t trans_col;
 	int trans_x, trans_y;
 	int trans_style, trans_back, snap_pending; // snapshot: copy the old frame next draw
+	int trans_page; // a page change inside the same screen (already done: the old page is the snapshot)
 	// toast message
 	const char *toast;
 	float toast_t;
@@ -653,6 +654,22 @@ void go(int to, uint32_t col, int x, int y)
 	S.trans_x = x;
 	S.trans_y = y;
 	sfx_play(SFX_WHOOSH, 0);
+}
+
+// Animate a page change inside an app or menu (the change has just been
+// made): the same transition style as between screens.
+void ui_page_anim(int back)
+{
+	if (S.trans)
+		return;
+	S.trans_style = look_items[SET_TRANS].val;
+	S.trans_page = 1;
+	S.trans_back = back;
+	S.trans_t = 0;
+	S.trans = TR_TIME[S.trans_style][0] > 0 ? 1 : 2;
+	S.trans_col = S.screen == SCR_APP ? PAL[S.app] : PAL[APP_GAMES];
+	S.trans_x = W / 2, S.trans_y = H / 2;
+	S.snap_pending = 1;
 }
 
 void toast(const char *msg)
@@ -825,15 +842,17 @@ static void update(unsigned p, unsigned held, float dt)
 	if (S.trans) {
 		S.trans_t += dt;
 		if (S.trans == 1 && S.trans_t >= TR_TIME[S.trans_style][0]) {
-			if (S.trans_to == SCR_HOME && S.screen == SCR_GAME)
-				S.sel = 0, S.cam = 0; // back from a game: focus its tile
-			S.screen = S.trans_to;
+			if (!S.trans_page) {
+				if (S.trans_to == SCR_HOME && S.screen == SCR_GAME)
+					S.sel = 0, S.cam = 0; // back from a game: focus its tile
+				S.screen = S.trans_to;
+				S.hop = 0;
+				S.snap_pending = 1; // the buffer still holds the old screen
+			}
 			S.trans = 2;
 			S.trans_t = 0;
-			S.hop = 0;
-			S.snap_pending = 1; // the buffer still holds the old screen
 		} else if (S.trans == 2 && S.trans_t >= TR_TIME[S.trans_style][1]) {
-			S.trans = 0;
+			S.trans = 0, S.trans_page = 0;
 		}
 		return; // no input during transitions
 	}
@@ -888,7 +907,7 @@ static void update(unsigned p, unsigned held, float dt)
 	case SCR_APP: {
 		if (S.app == APP_SETTINGS && (S.page == PAGE_WIFI || S.page == PAGE_SSH)) {
 			if (net_update(S.page, p, dt))
-				S.page = PAGE_MAIN;
+				S.page = PAGE_MAIN, ui_page_anim(1);
 			break;
 		}
 		list_t *l = S.app == APP_SETTINGS && S.page == PAGE_LOOK    ? &look_list
@@ -897,7 +916,7 @@ static void update(unsigned p, unsigned held, float dt)
 		if (p & BTN_B) {
 			sfx_play(SFX_BACK, 0);
 			if (S.page != PAGE_MAIN)
-				S.page = PAGE_MAIN;
+				S.page = PAGE_MAIN, ui_page_anim(1);
 			else
 				go(SCR_HOME, BG0, W / 2, H / 2);
 			return;
@@ -912,6 +931,7 @@ static void update(unsigned p, unsigned held, float dt)
 		if (l == &settings_list && (a == SET_WIFI || a == SET_SSH || a == SET_LOOK || a == SET_ABOUT)) {
 			sfx_play(SFX_OPEN, APP_SETTINGS);
 			S.page = a == SET_WIFI ? PAGE_WIFI : a == SET_SSH ? PAGE_SSH : a == SET_LOOK ? PAGE_LOOK : PAGE_ABOUT;
+			ui_page_anim(0);
 			if (S.page == PAGE_LOOK)
 				look_list.sel = 0, look_list.y = 0;
 			else if (S.page != PAGE_ABOUT)
@@ -1563,6 +1583,9 @@ static void draw_transition(canvas *c)
 		return;
 	int st = S.trans_style;
 	float dur = TR_TIME[st][S.trans - 1], p = dur > 0 ? clampf(S.trans_t / dur, 0, 1) : 1;
+	if (S.trans_page && S.trans == 1) // page change, covering: the old page is still shown
+		for (int y = 0; y < H; y++)
+			memcpy(c->px + (size_t)y * c->stride, snap + (size_t)y * W, W * 4);
 	switch (st) {
 	case TR_SQUARES: draw_squares(c, p, 40, S.trans_col); break;
 	case TR_SQUARES_LIGHT: draw_squares(c, p, 20, mix(S.trans_col, BG0, 0.55f)); break;

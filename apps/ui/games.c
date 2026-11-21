@@ -1754,6 +1754,7 @@ static void states_open(void)
 {
 	memset(&SV, 0, sizeof SV);
 	SV.on = 1;
+	ui_page_anim(0);
 	sfx_play(SFX_OPEN, APP_GAMES);
 }
 
@@ -1814,6 +1815,7 @@ static void states_update(unsigned p, float dt)
 	}
 	if (p & BTN_B) {
 		SV.on = 0;
+		ui_page_anim(1);
 		sfx_play(SFX_BACK, 0);
 		return;
 	}
@@ -1932,6 +1934,7 @@ static void settings_update(unsigned p, float dt)
 	M2.ssel_y += (M2.ssel - M2.ssel_y) * (1 - expf(-dt * 22));
 	if (p & BTN_B) {
 		M2.page = 0;
+		ui_page_anim(1);
 		sfx_play(SFX_BACK, 0);
 		return;
 	}
@@ -2044,6 +2047,7 @@ static void link_update(unsigned p, float dt)
 		M2.larmed = 1;
 	if (p & BTN_B) {
 		M2.page = 0;
+		ui_page_anim(1);
 		sfx_play(SFX_BACK, 0);
 		return;
 	}
@@ -2187,6 +2191,7 @@ static void ingame_update(unsigned p, float dt)
 	case ACT_STATES: states_open(); break;
 	case ACT_SETTINGS:
 		M2.page = 1, M2.ssel = 1, M2.ssel_y = 1;
+		ui_page_anim(0);
 		sfx_play(SFX_OPEN, APP_SETTINGS);
 		break;
 	case ACT_COPY:
@@ -2202,6 +2207,7 @@ static void ingame_update(unsigned p, float dt)
 			break;
 		}
 		M2.page = *sel == ACT_COPY ? 3 : 2, M2.lsel = 0, M2.lhold = 0, M2.larmed = 0;
+		ui_page_anim(0);
 		sfx_play(SFX_OPEN, APP_GAMES);
 		break;
 	case ACT_RESET: quick_action(QA_RESET); break;
