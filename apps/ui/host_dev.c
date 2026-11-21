@@ -4,10 +4,13 @@
 // - Display: /dev/fb0 (640x480 XRGB, already switched on by the boot splash).
 //   Each frame is drawn off-screen, then copied after the vertical blank.
 // - Buttons: gpio-keys-gamepad, polled as a key bitmap (EVIOCGKEY) every frame.
-//   Volume keys change the UI volume; the power button and the lid put the
-//   console to sleep (cozisboy-sleep).
+//   Volume keys step the system volume (the codec's DAC, 20 steps evenly
+//   spaced in dB) with an on-screen indicator; the level is kept in
+//   /data/ui/system-volume. The UI's own volume setting is left alone. The power button and the lid put the console to sleep
+//   (cozisboy-sleep).
 // - Sound: a thread mixes UI sounds and the emulator into hw:0,0 (48 kHz).
 #include "emu.h"
+#include "gfx.h"
 #include "sfx.h"
 #include "ui.h"
 #include "ui_priv.h"
@@ -27,6 +30,7 @@ enum {
 #include <fcntl.h>
 #include <linux/fb.h>
 #include <linux/input.h>
+#include <math.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
@@ -47,8 +51,103 @@ enum {
 
 static volatile sig_atomic_t quit;
 
+/* ---- volume ------------------------------------------------------------------- */
+//
+// System volume on the codec: "DAC Playback Volume" is 0..63 in 1.16 dB steps
+// (63 = 0 dB, 0 = mute). Level 1..20 spans -40..0 dB evenly, so every press
+// sounds like the same change; level 0 mutes.
+
+#define VOLUME_FILE "/data/ui/system-volume"
+#define VOL_STEPS 20
+#define VOL_DEFAULT 14
+#define OSD_SHOW 1.5f	// seconds the indicator stays after the last press
+
+static float osd_t;	// time left on screen
+static float osd_in;	// slide-in progress 0..1
+static int vol_level = VOL_DEFAULT;
+static int volume_dirty;
+static float volume_save_t;
+
+static long dac_value(int level)
+{
+	if (level <= 0)
+		return 0;
+	double db = -40.0 * (VOL_STEPS - level) / (VOL_STEPS - 1);
+	long v = 63 + lround(db / 1.16);
+	return v < 1 ? 1 : v > 63 ? 63 : v;
+}
+
+static void volume_apply(void)
+{
+	snd_mixer_t *m;
+	if (snd_mixer_open(&m, 0) < 0)
+		return;
+	if (snd_mixer_attach(m, "hw:0") == 0 && snd_mixer_selem_register(m, NULL, NULL) == 0 &&
+	    snd_mixer_load(m) == 0) {
+		snd_mixer_selem_id_t *id;
+		snd_mixer_selem_id_alloca(&id);
+		snd_mixer_selem_id_set_name(id, "DAC");
+		snd_mixer_elem_t *e = snd_mixer_find_selem(m, id);
+		if (e)
+			snd_mixer_selem_set_playback_volume_all(e, dac_value(vol_level));
+	}
+	snd_mixer_close(m);
+}
+
+static void volume_load(void)
+{
+	FILE *f = fopen(VOLUME_FILE, "r");
+	int v;
+	if (f) {
+		if (fscanf(f, "%d", &v) == 1 && v >= 0 && v <= VOL_STEPS)
+			vol_level = v;
+		fclose(f);
+	}
+}
+
+static void volume_save(void)
+{
+	FILE *f = fopen(VOLUME_FILE ".tmp", "w");
+	if (!f)
+		return;
+	fprintf(f, "%d\n", vol_level);
+	fclose(f);
+	rename(VOLUME_FILE ".tmp", VOLUME_FILE);
+}
+
+static void volume_step(int dir)
+{
+	int v = vol_level + dir;
+	if (v < 0 || v > VOL_STEPS) {
+		sfx_play(SFX_BUMP, 0);
+	} else {
+		vol_level = v;
+		volume_apply();
+		sfx_play(SFX_CHANGE, v * 10 / VOL_STEPS);
+		volume_dirty = 1;
+		volume_save_t = 1.0f;	// write once the buttons settle
+	}
+	osd_t = OSD_SHOW;
+}
+
+static void volume_tick(float dt)
+{
+	if (volume_dirty && (volume_save_t -= dt) <= 0) {
+		volume_save();
+		volume_dirty = 0;
+	}
+	if (osd_t > 0)
+		osd_t -= dt;
+	float target = osd_t > 0 ? 1.0f : 0.0f;
+	osd_in += (target - osd_in) * (1 - expf(-dt * 16));
+	if (osd_in < 0.002f)
+		osd_in = 0;
+}
+
 /* ---- sound -------------------------------------------------------------------- */
 
+// Codec mixer: outputs on, Line Out at -6 dB headroom (27 of 31), and the DAC
+// (the system volume) at the saved level.
 static void mixer_setup(void)
 {
 	snd_mixer_t *m;
@@ -62,13 +161,11 @@ static void mixer_setup(void)
 	for (snd_mixer_elem_t *e = snd_mixer_first_elem(m); e; e = snd_mixer_elem_next(e)) {
 		if (snd_mixer_selem_has_playback_switch(e))
 			snd_mixer_selem_set_playback_switch_all(e, 1);
-		if (snd_mixer_selem_has_playback_volume(e)) {
-			long lo, hi;
-			snd_mixer_selem_get_playback_volume_range(e, &lo, &hi);
-			snd_mixer_selem_set_playback_volume_all(e, lo + (hi - lo) * 9 / 10);
-		}
+		if (!strcmp(snd_mixer_selem_get_name(e), "Line Out") && snd_mixer_selem_has_playback_volume(e))
+			snd_mixer_selem_set_playback_volume_all(e, 27);
 	}
 	snd_mixer_close(m);
+	volume_apply();
 }
 
 static void *audio_thread(void *arg)
@@ -100,6 +197,61 @@ static void *audio_thread(void *arg)
 	}
 	snd_pcm_close(pcm);
 	return NULL;
+}
+
+// Speaker with 0-3 sound waves, white, at (x, y), 2x scale pixel art.
+static void draw_speaker(canvas *c, int x, int y, int level)
+{
+	fill(c, x, y + 8, 6, 8, WHITE);			// body
+	for (int i = 0; i < 7; i++)			// cone
+		fill(c, x + 6 + i, y + 7 - i, 1, 10 + 2 * i, WHITE);
+	if (level == 0) {				// muted: a cross
+		for (int i = 0; i < 9; i++) {
+			fill(c, x + 17 + i, y + 7 + i, 2, 2, WHITE);
+			fill(c, x + 25 - i, y + 7 + i, 2, 2, WHITE);
+		}
+		return;
+	}
+	int waves = level >= 8 ? 3 : level >= 4 ? 2 : 1;
+	for (int w = 0; w < waves; w++) {
+		int wx = x + 17 + w * 5, h = 8 + w * 6, wy = y + 12 - h / 2;
+		fill(c, wx, wy + 2, 2, h - 4, WHITE);
+		fill(c, wx - 1, wy, 2, 2, WHITE);
+		fill(c, wx - 1, wy + h - 2, 2, 2, WHITE);
+	}
+}
+
+// The indicator: a pill sliding down from the top edge.
+static void volume_draw(uint32_t *buf)
+{
+	if (osd_in <= 0)
+		return;
+	canvas cv = {buf, UI_W, UI_H, UI_W}, *c = &cv;
+	const int segs = VOL_STEPS, sw = 8, sg = 3, h = 44;
+	const int w = 16 + 30 + 14 + segs * (sw + sg) - sg + 16 + 64;
+	int x = (UI_W - w) / 2, y = (int)(-h - 8 + (h + 22) * osd_in);
+	int v = vol_level;
+
+	rrect(c, x - 3, y - 3, w + 6, h + 6, 5, BLACK);			// outline
+	rrect(c, x + 2, y + h + 1, w, 4, 2, 0x050505);			// drop shadow
+	rrect(c, x, y, w, h, 4, BAR);
+	draw_speaker(c, x + 16, y + 10, v * 10 / VOL_STEPS + (v > 0));
+	int sx = x + 16 + 30 + 14;
+	for (int i = 0; i < segs; i++) {
+		int on = i < v;
+		uint32_t col = on ? PAL[i * 8 / segs] : 0x2a2a2a;
+		int bh = 8 + i;					// rising steps
+		fill(c, sx + i * (sw + sg) + 2, y + h - 10 - bh + 2, sw, bh, on ? 0x050505 : BAR);
+		fill(c, sx + i * (sw + sg), y + h - 10 - bh, sw, bh, col);
+	}
+	char num[8];
+	if (v)
+		snprintf(num, sizeof num, "%d%%", v * 100 / VOL_STEPS);
+	else
+		snprintf(num, sizeof num, "MUTE");
+	int tx = x + w - 16 - text_width(num, 2);
+	text(c, tx + 1, y + 16, num, 2, BLACK);
+	text(c, tx, y + 15, num, 2, WHITE);
 }
 
 /* ---- input -------------------------------------------------------------------- */
@@ -190,7 +342,7 @@ static void system_keys(float dt)
 					if (ev[i].value == 1) {
 						vol_dir = dir;
 						vol_hold = 0;
-						ui_set_volume(ui_volume() + dir);
+						volume_step(dir);
 					} else if (ev[i].value == 0 && vol_dir == dir) {
 						vol_dir = 0;
 					}
@@ -199,7 +351,7 @@ static void system_keys(float dt)
 		vol_hold += dt;
 		if (vol_hold > 0.4f) {
 			vol_hold -= 0.12f;
-			ui_set_volume(ui_volume() + vol_dir);
+			volume_step(vol_dir);
 		}
 	}
 	int sleep_req = 0;
@@ -270,6 +422,7 @@ int main(void)
 		fprintf(stderr, "cozisboy-ui: no gamepad input\n");
 
 	ui_init();
+	volume_load();
 	sfx_init(RATE);
 	pthread_t at;
 	pthread_create(&at, NULL, audio_thread, NULL);
@@ -283,6 +436,8 @@ int main(void)
 			dt = 0.1f;
 		system_keys(dt);
 		ui_frame(buf, UI_W, dt, read_buttons());
+		volume_tick(dt);
+		volume_draw(buf);
 		__u32 crtc = 0;
 		if (ioctl(fb, FBIO_WAITFORVSYNC, &crtc) < 0) {
 			double left = 1.0 / 60 - (now() - t);	// no vblank wait: pace by time
