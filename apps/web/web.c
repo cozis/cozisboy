@@ -45,6 +45,10 @@
 #define ROOT "/data"
 #define WWW "/usr/share/cozisboy-web"
 #define CODE_FILE "/run/cozisboy-web.code"
+// A browser showing the pairing page writes REQUEST_FILE ("<code>\n<url>\n");
+// the launcher's front end shows that on screen until PAIRED_FILE is newer.
+#define REQUEST_FILE "/run/cozisboy-web.request"
+#define PAIRED_FILE "/run/cozisboy-web.paired"
 #define BACKLIGHT "/sys/class/backlight/backlight/"
 #define BATTERY "/sys/class/power_supply/axp20x-battery/"
 #define MAX_SESSIONS 16
@@ -55,6 +59,7 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static char pair_code[7];
 static char sessions[MAX_SESSIONS][33];
 static int next_session, failures;
+static char request_url[64];	// address of the last pairing request (caller holds lock)
 static const char *www_dir = WWW;
 static int dev_noauth;
 
@@ -83,7 +88,15 @@ static void new_pair_code(void)
 		fclose(f);
 	}
 	fprintf(stderr, "cozisboy-web: pairing code %s\n", pair_code);
+	if (request_url[0]) {	// a browser is waiting: show the new code on the console
+		f = fopen(REQUEST_FILE, "w");
+		if (f) {
+			fprintf(f, "%s\n%s\n", pair_code, request_url);
+			fclose(f);
+		}
+	}
 }
+
 
 static int send_all(int fd, const void *buf, size_t len)
 {
@@ -232,6 +245,8 @@ struct req {
 	char token[33];
 	char *body;		// bytes of the body already read with the headers
 	size_t body_have;
+	char local_ip[INET_ADDRSTRLEN];	// the console address the browser used
+	int via_usb;		// arrived over the USB cable link (10.55.0.0/24)
 };
 
 static int check_session(const char *cookie_hdr, char *tok_out)
@@ -320,6 +335,26 @@ static void serve_static(struct req *r)
 
 // --------------------------------------------------------------------- api
 
+// POST /api/pair/request: the pairing page is open. Over USB the browser may
+// pair without a code; otherwise the console shows the code on its screen.
+static void api_pair_request(struct req *r)
+{
+	if (!r->via_usb) {
+		pthread_mutex_lock(&lock);
+		snprintf(request_url, sizeof request_url, "http://%s", r->local_ip);
+		FILE *f = fopen(REQUEST_FILE ".tmp", "w");
+		if (f) {
+			fprintf(f, "%s\n%s\n", pair_code, request_url);
+			fclose(f);
+			rename(REQUEST_FILE ".tmp", REQUEST_FILE);
+		}
+		pthread_mutex_unlock(&lock);
+	}
+	char b[64];
+	int n = snprintf(b, sizeof b, "{\"usb\":%s}", r->via_usb ? "true" : "false");
+	respond(r->fd, 200, "application/json", NULL, b, n);
+}
+
 static void api_pair(struct req *r)
 {
 	char body[64];
@@ -335,13 +370,18 @@ static void api_pair(struct req *r)
 	code[n] = 0;
 
 	pthread_mutex_lock(&lock);
-	int ok = n == 6 && !strcmp(code, pair_code);
+	int ok = (n == 6 && !strcmp(code, pair_code)) || (r->via_usb && !strncmp(body, "usb", 3));
 	char tok[33] = "";
 	if (ok) {
 		random_hex(tok, 16);
 		strcpy(sessions[next_session], tok);
 		next_session = (next_session + 1) % MAX_SESSIONS;
 		failures = 0;
+		request_url[0] = 0;
+		unlink(REQUEST_FILE);
+		FILE *f = fopen(PAIRED_FILE, "w");	// the console hides the code
+		if (f)
+			fclose(f);
 	} else if (++failures >= MAX_FAILURES) {
 		new_pair_code();
 	}
@@ -356,7 +396,7 @@ static void api_pair(struct req *r)
 	snprintf(extra, sizeof extra,
 		 "Set-Cookie: coz=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000\r\n", tok);
 	respond(r->fd, 200, "application/json", extra, "{\"ok\":true}", 11);
-	fprintf(stderr, "cozisboy-web: browser paired\n");
+	fprintf(stderr, "cozisboy-web: browser paired%s\n", r->via_usb ? " (USB)" : "");
 }
 
 static void api_logout(struct req *r)
@@ -1420,6 +1460,10 @@ static void route(struct req *r)
 		api_pair(r);
 		return;
 	}
+	if (post && !strcmp(ep, "pair/request")) {
+		api_pair_request(r);
+		return;
+	}
 	if (!r->authed) {
 		respond_error(r->fd, 401, "not paired");
 		return;
@@ -1474,6 +1518,12 @@ static void *handle(void *arg)
 	*end = 0;
 
 	struct req r = { .fd = fd, .content_length = -1 };
+	struct sockaddr_in la;
+	socklen_t ll = sizeof la;
+	if (getsockname(fd, (struct sockaddr *)&la, &ll) == 0 && la.sin_family == AF_INET) {
+		inet_ntop(AF_INET, &la.sin_addr, r.local_ip, sizeof r.local_ip);
+		r.via_usb = (ntohl(la.sin_addr.s_addr) & 0xffffff00u) == 0x0a370000u;	// 10.55.0.x
+	}
 	r.body = end + 4;
 	r.body_have = got - (r.body - hbuf);
 
