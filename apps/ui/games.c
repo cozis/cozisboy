@@ -949,9 +949,27 @@ static void draw_frame_tile(canvas *c, const uint32_t *frame, int x, int y, int 
 	text(c, x + 8 + icon * (4 + 4 * tw), y + 8, tag, tw, BLACK);
 }
 
+#define LINK_COL PAL[4] // cyan: linked games
+
+static int is_linked(int i)
+{
+	return i >= 0 && i < nrun && emu_linked(run[i].eg) > 1;
+}
+
 static void draw_open_cover(canvas *c, int ri, int x, int y, int s)
 {
-	draw_frame_tile(c, run[ri].frame, x, y, s, PAL[3], "OPEN", 1);
+	if (is_linked(ri))
+		draw_frame_tile(c, run[ri].frame, x, y, s, LINK_COL, "LINKED", 0);
+	else
+		draw_frame_tile(c, run[ri].frame, x, y, s, PAL[3], "OPEN", 1);
+}
+
+// Small "LINKED" chip (top-left at x, y).
+static void link_chip(canvas *c, int x, int y, int scale)
+{
+	int w = text_width("LINKED", scale) + 6 * scale, h = 7 * scale + 4 * scale;
+	rrect(c, x, y, w, h, scale + 1, LINK_COL);
+	text(c, x + 3 * scale, y + 2 * scale, "LINKED", scale, BLACK);
 }
 
 /* Cover frame styles being compared: 0 current (widget frame + focus ring),
@@ -971,7 +989,7 @@ static void ring(canvas *c, int x, int y, int w, int h, int t, uint32_t col)
 
 static void cover_frame(canvas *c, int x, int y, int s, int sel, int open)
 {
-	uint32_t green = PAL[3];
+	uint32_t green = open == 2 ? PAL[4] : PAL[3]; // cyan when linked
 	switch (cover_style) {
 	case 1: // clean: dark edge; selection = one white ring with a gap
 		ring(c, x - 1, y - 1, s + 2, s + 2, 1, BLACK);
@@ -1046,7 +1064,7 @@ static void hub_draw_covers(canvas *c, const int *v, int n)
 			int y = cy - s / 2 + (sel ? -2 * (int)lrintf(sinf(ui_time() * 4)) : 0);
 			int r = find_running(v[i]);
 			if (cover_style)
-				cover_frame(c, x, y, s, sel, r >= 0);
+				cover_frame(c, x, y, s, sel, r < 0 ? 0 : is_linked(r) ? 2 : 1);
 			else if (sel)
 				wfocus(c, x, y, s, s, 9);
 			skip_frame = cover_style != 0;
@@ -2138,8 +2156,10 @@ static void ingame_draw(canvas *c, float a)
 		if (sv[i] >= 0) { // an open game: thumbnail + title
 			if (sel)
 				fill(c, rx - 5, y - 5, tw + 10, th + 10, WHITE);
-			fill(c, rx - 2, y - 2, tw + 4, th + 4, PAL[3]);
+			fill(c, rx - 2, y - 2, tw + 4, th + 4, is_linked(sv[i]) ? LINK_COL : PAL[3]);
 			blit_game(c, run[sv[i]].frame, GW, GH, rx, y, tw, th, 0);
+			if (is_linked(sv[i]))
+				link_chip(c, rx + 2, y + th - 12, 1);
 			const char *t = inst_title(sv[i]);
 			int lines = text_wrap2(c, rx + tw + 14, y, t, rw - tw - 14, sel ? WHITE : 0xcccccc);
 			if (lines == 1)
@@ -2282,6 +2302,8 @@ static const char *draw_cc_card(canvas *c, int sel_id, int x, int y, int cw, int
 		rrect(c, x + 4, y + 4, 40, 14, 2, PAL[3]);
 		text(c, x + 8, y + 7, "NOW", 1, BLACK);
 	}
+	if (is_linked(sel_id))
+		link_chip(c, x + 4, y + chh - 16, 1);
 	return inst_title(sel_id);
 }
 
@@ -2577,6 +2599,8 @@ void games_draw(canvas *c, int screen)
 			return;
 		}
 		draw_game_view(c, &run[cur]);
+		if (is_linked(cur) && !G.cc) // in the black border, never over the game
+			link_chip(c, W - 8 - text_width("LINKED", 2) - 12, 6, 2);
 
 	}
 }
@@ -2626,7 +2650,8 @@ static void ring(canvas *c, int x, int y, int w, int h, int t, uint32_t col);
 void games_ref_tile(canvas *c, int ref, int x, int y, int size, int dim)
 {
 	// same thin border as the hub covers: green when open, grey otherwise
-	ring(c, x - 2, y - 2, size + 4, size + 4, 2, ref >= 0 ? PAL[3] : 0x8a8a8a);
+	ring(c, x - 2, y - 2, size + 4, size + 4, 2,
+	     ref < 0 ? 0x8a8a8a : is_linked(ref) ? LINK_COL : PAL[3]);
 	skip_frame = 1;
 	if (ref >= 0) {
 		draw_open_cover(c, ref, x, y, size);
