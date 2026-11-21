@@ -64,7 +64,7 @@ static int next_session, failures;
 // USB: a browser on the cable link pairs without a code. Wi-Fi: with the code,
 // which is new for every Wi-Fi pairing screen.
 enum { PAIR_CLOSED, PAIR_USB, PAIR_WIFI };
-#define PAIR_KEEPALIVE 8
+#define PAIR_KEEPALIVE 4
 static int pair_mode;
 static time_t pair_until;
 static int pairs_done;	// browsers paired since start (the launcher shows PAIRED)
@@ -72,7 +72,7 @@ static int pairs_done;	// browsers paired since start (the launcher shows PAIRED
 // The server only runs while PC LINK is open on the console: the launcher
 // starts it, and checks in (/api/local/...) every couple of seconds. Without a
 // check-in for ALIVE_TIMEOUT seconds (page left, launcher gone) it exits.
-#define ALIVE_TIMEOUT 10
+#define ALIVE_TIMEOUT 4
 static time_t alive_until;
 static int watchdog = 1;
 
@@ -471,7 +471,7 @@ static void api_pair(struct req *r)
 		respond_error(r->fd, 403, "pairing is closed: open PC LINK on your cozisboy");
 		return;
 	}
-	int ok = (mode == PAIR_WIFI && n == 6 && !strcmp(code, pair_code)) ||
+	int ok = (mode == PAIR_WIFI && !r->via_usb && n == 6 && !strcmp(code, pair_code)) ||
 		 (mode == PAIR_USB && r->via_usb && !strncmp(body, "usb", 3));
 	char tok[33] = "";
 	if (ok) {
@@ -1566,6 +1566,17 @@ static void route(struct req *r)
 	}
 	if (!strncmp(ep, "local/", 6)) {
 		api_local(r, ep + 6);
+		return;
+	}
+	// The console's open screen decides who gets in: the USB screen lets in
+	// browsers on the cable only, the Wi-Fi screen browsers over Wi-Fi only.
+	pthread_mutex_lock(&lock);
+	int mode = pairing_open();
+	pthread_mutex_unlock(&lock);
+	if (!r->from_local && (mode == PAIR_CLOSED || (mode == PAIR_USB) != r->via_usb)) {
+		respond_error(r->fd, 403, mode == PAIR_CLOSED ? "closed: open PC LINK on your cozisboy"
+				 : mode == PAIR_USB ? "the cozisboy is in USB mode: use http://10.55.0.2"
+						    : "the cozisboy is in Wi-Fi mode: use its Wi-Fi address");
 		return;
 	}
 	if (!r->authed) {

@@ -644,8 +644,9 @@ void sys_web_open(void)
 
 void sys_web_close(void)
 {
-	web_local("POST", "quit", NULL, 0);
-	WEB.up = 0;
+	if (WEB.up)
+		web_local("POST", "quit", NULL, 0);
+	memset(&WEB, 0, sizeof WEB);
 }
 
 void sys_web_tick(int pairing)
@@ -656,21 +657,43 @@ void sys_web_tick(int pairing)
 		WEB.next = 0;
 	}
 	if (now >= WEB.next || now + 5 < WEB.next) {
-		WEB.next = now + 1.0f;	// check in every second (it gives up after ~10 s)
+		WEB.next = now + 0.5f;	// check in twice a second (it gives up after ~4 s)
 		web_checkin();
 	}
 }
 
 int sys_web_running(void) { return WEB.up; }
 const char *sys_web_code(void) { return WEB.code; }
-int sys_web_browsers(void) { return WEB.browsers; }
+// Paired browsers: from the server while it runs, else from its saved list.
+#define WEB_SESSIONS "/data/web/sessions"
+int sys_web_browsers(void)
+{
+	if (WEB.up)
+		return WEB.browsers;
+	static float last = -10;
+	static int n;
+	float now = ui_time();
+	if (now - last > 1.0f || now < last) {
+		last = now, n = 0;
+		FILE *f = fopen(WEB_SESSIONS, "r");
+		char line[64];
+		while (f && fgets(line, sizeof line, f))
+			n += strlen(line) >= 32;
+		if (f)
+			fclose(f);
+	}
+	return n;
+}
 int sys_web_pairs(void) { return WEB.pairs; }
 
 void sys_web_forget_browsers(void)
 {
 	char j[256];
-	if (web_local("POST", "forget", j, sizeof j) == 0)
+	if (WEB.up && web_local("POST", "forget", j, sizeof j) == 0)
 		web_parse(j);
+	else
+		unlink(WEB_SESSIONS);	// not running: it reads the list when it starts
+	sync();
 }
 
 // The USB device controller reaches "configured" once a computer has set up

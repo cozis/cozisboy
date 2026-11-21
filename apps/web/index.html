@@ -274,7 +274,9 @@ function toast(msg) {
 }
 async function api(method, path, body) {
 	const r = await fetch("/api/" + path, { method, headers: HDR, body });
-	if (r.status === 401) { showPair(); throw new Error("not connected"); }
+	if (r.status === 401 || (r.status === 403 && path !== "pair")) {	// not paired, or the console's screen doesn't let us in
+		showPair(); throw new Error("not connected");
+	}
 	const j = (r.headers.get("content-type") || "").includes("json") ? await r.json() : null;
 	if (!r.ok) throw new Error(j && j.error || r.statusText);
 	return j;
@@ -304,14 +306,17 @@ function paint(el) { renderPixelText(el); wireHolds(el); }
 // ------------------------------------------------------------ pairing
 // Pairing only works while PC LINK on the console has a pairing screen open:
 // USB (this browser on the cable pairs by itself) or Wi-Fi (type the code).
-let pairOpen = "closed";
+let pairOpen = "closed", viaUsb = false;
 async function requestPair() {
 	try {
 		const r = await (await fetch("/api/pair/request", { method: "POST", headers: HDR })).json();
-		pairOpen = r.open;
-		if (r.open === "usb" && r.usb) {
+		pairOpen = r.open; viaUsb = r.usb;
+		if (r.open === "usb" && r.usb) {	// USB screen open and we're on the cable: in
 			const p = await fetch("/api/pair", { method: "POST", headers: HDR, body: "usb" });
 			if (p.ok) { clearInterval(showPair.t); boot(); return true; }
+		} else if (r.open === "wifi" && !r.usb) {	// Wi-Fi screen: in if already paired
+			const s = await fetch("/api/status", { headers: HDR });
+			if (s.ok) { clearInterval(showPair.t); boot(); return true; }
 		}
 	} catch { pairOpen = "closed"; }
 	if (page === "pair") pairHint();
@@ -320,10 +325,11 @@ async function requestPair() {
 function pairHint() {
 	const h = $("pairHow"), wifi = $("pairWifi");
 	if (!h) return;
-	h.textContent = pairOpen === "wifi" ? "Enter the 6-digit code shown on your cozisboy."
-		: pairOpen === "usb" ? "Your cozisboy is waiting for a browser on the USB cable. Open this page at http://10.55.0.2, or choose Wi-Fi on the cozisboy."
-		: "On your cozisboy, open PC LINK and choose PAIR OVER USB or PAIR OVER WI-FI.";
-	wifi.classList.toggle("hidden", pairOpen !== "wifi");
+	h.textContent = pairOpen === "wifi" && !viaUsb ? "Enter the 6-digit code shown on your cozisboy."
+		: pairOpen === "wifi" ? "Your cozisboy is on its Wi-Fi screen: open the Wi-Fi address it shows, or choose USB CABLE on it."
+		: pairOpen === "usb" ? "Your cozisboy is on its USB screen: open http://10.55.0.2 on the computer with the cable, or choose WI-FI on it."
+		: "On your cozisboy, open PC LINK and choose USB CABLE or WI-FI.";
+	wifi.classList.toggle("hidden", !(pairOpen === "wifi" && !viaUsb));
 }
 async function showPair() {
 	if (page !== "pair" && await requestPair()) return;
@@ -347,6 +353,7 @@ async function showPair() {
 		const r = await fetch("/api/pair", { method: "POST", headers: HDR, body: code });
 		$("pairBtn").disabled = false;
 		if (r.ok) { clearInterval(showPair.t); boot(); }
+		else if (r.status === 403 && !$("pairErr")) return;
 		else { const j = await r.json().catch(() => ({})); $("pairErr").textContent = /closed/.test(j.error || "") ? "Pairing closed on the cozisboy. Choose PAIR OVER WI-FI there again." : "That's not it. After 5 tries the console shows a new code."; $("code").select(); }
 	};
 	$("pairBtn").onclick = pair;
@@ -901,8 +908,10 @@ async function boot() {
 			const stat = document.querySelector(".hd .stat");
 			if (stat) { stat.innerHTML = statusHTML(); paint(stat); }
 			if (page === "all" && JSON.stringify(games) !== before && document.activeElement?.id !== "q") { $("ct").innerHTML = contentHTML(); paint($("ct")); }
-		} catch { }
-	}, 15000);
+		} catch (e) {	// the console closed PC LINK (server gone): wait for it on the pairing screen
+			if (page !== "pair" && !uploads.some(u => u.state === "up")) showPair();
+		}
+	}, 5000);
 }
 boot();
 </script>

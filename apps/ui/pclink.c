@@ -1,7 +1,7 @@
 // PC LINK: the web app (apps/web) that manages games and saves from a browser.
-// It runs only while this page is open: entering starts it, leaving stops it.
-// The page opens on a choice, USB or Wi-Fi; each screen then has what that
-// way needs. Browsers paired before just connect; new ones pair there:
+// The page opens on a choice, USB or Wi-Fi. The web app runs only while the
+// USB or the Wi-Fi screen is open, and lets in only browsers coming that way
+// (cable or Wi-Fi). Browsers paired before just connect; new ones pair there:
 //   USB   waits for the cable to be plugged into a computer; then any browser
 //         on the cable pairs by itself
 //   Wi-Fi needs Wi-Fi to be connected; new browsers type the code shown
@@ -53,6 +53,10 @@ static struct {
 
 static void set_view(int v)
 {
+	if (v == V_CHOOSE)
+		sys_web_close();	// back to the choice: nobody gets in
+	else
+		sys_web_open();
 	L.view = v, L.t = 0, L.paired_t = 0;
 	L.pairs0 = sys_web_pairs();
 }
@@ -60,7 +64,6 @@ static void set_view(int v)
 void pclink_open(void)
 {
 	memset(&L, 0, sizeof L);
-	sys_web_open();
 	set_view(V_CHOOSE);
 }
 
@@ -75,10 +78,12 @@ int pclink_update(unsigned p, float dt)
 	L.t += dt;
 	if (L.paired_t > 0)
 		L.paired_t -= dt;
-	int pairing = L.view == V_USB && sys_usb_connected() ? WEB_PAIR_USB
-		    : L.view == V_WIFI && wifi_ip(NULL)        ? WEB_PAIR_WIFI
-							   : WEB_PAIR_NONE;
-	sys_web_tick(pairing);
+	if (L.view != V_CHOOSE) {	// keeps the web app running, open to this way only
+		int pairing = L.view == V_USB && sys_usb_connected() ? WEB_PAIR_USB
+			    : L.view == V_WIFI && wifi_ip(NULL)        ? WEB_PAIR_WIFI
+								   : WEB_PAIR_NONE;
+		sys_web_tick(pairing);
+	}
 
 	if (L.view != V_CHOOSE) {
 		if (sys_web_pairs() > L.pairs0) {	// a browser paired: say so, stay here
@@ -95,7 +100,6 @@ int pclink_update(unsigned p, float dt)
 
 	if (p & BTN_B) {
 		sfx_play(SFX_BACK, 0);
-		sys_web_close();
 		return 1;
 	}
 	int d = (p & BTN_DOWN) ? 1 : (p & BTN_UP) ? -1 : 0;
