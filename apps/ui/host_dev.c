@@ -127,7 +127,8 @@ static int key_down(const unsigned char *bits, int code)
 	return bits[code / 8] >> (code % 8) & 1;
 }
 
-// Buttons held right now (the device tree labels A/B/X/Y as on the case).
+// Buttons held right now. Measured on the device: A = BTN_EAST, B = BTN_SOUTH,
+// X = BTN_WEST, Y = BTN_NORTH (the device tree's labels for X and Y are swapped).
 static unsigned read_buttons(void)
 {
 	static const struct {
@@ -136,7 +137,7 @@ static unsigned read_buttons(void)
 	} map[] = {
 		{BTN_DPAD_UP, BTN_UP},      {BTN_DPAD_DOWN, BTN_DOWN},  {BTN_DPAD_LEFT, BTN_LEFT},
 		{BTN_DPAD_RIGHT, BTN_RIGHT}, {BTN_EAST, BTN_A},          {BTN_SOUTH, BTN_B},
-		{BTN_NORTH, BTN_X},         {BTN_WEST, BTN_Y},          {BTN_TL, BTN_L},
+		{BTN_WEST, BTN_X},          {BTN_NORTH, BTN_Y},         {BTN_TL, BTN_L},
 		{BTN_TR, BTN_R},            {BTN_START, BTN_START},     {BTN_SELECT, BTN_SELECT},
 		{BTN_MODE, BTN_MENU},
 	};

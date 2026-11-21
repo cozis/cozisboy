@@ -1,7 +1,7 @@
 From 3abea18f3cde0b444f98d392a92097aa08833dc0 Mon Sep 17 00:00:00 2001
 From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
 Date: Sat, 21 Nov 2026 12:56:29 +0100
-Subject: [PATCH 21/21] arm64: dts: allwinner: rg35xx-sp: PWM backlight
+Subject: [PATCH 21/22] arm64: dts: allwinner: rg35xx-sp: PWM backlight
  (brightness control)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

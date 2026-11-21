@@ -1,7 +1,7 @@
 From d4e57469790a91b842c739f560744b624ad29a14 Mon Sep 17 00:00:00 2001
 From: Richard Genoud <richard.genoud@bootlin.com>
 Date: Sat, 21 Nov 2026 12:56:29 +0100
-Subject: [PATCH 20/21] arm64: dts: allwinner: h616: add PWM controller
+Subject: [PATCH 20/22] arm64: dts: allwinner: h616: add PWM controller
 
 From the v4 series 'Introduce Allwinner H616 PWM controller' (LKML, 2026-03-05).
 ---

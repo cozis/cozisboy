@@ -1,7 +1,7 @@
 From 573851c05684e2fd3e2244b619354d14600781b9 Mon Sep 17 00:00:00 2001
 From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
 Date: Sat, 21 Nov 2026 11:40:13 +0100
-Subject: [PATCH 16/21] ASoC: sun4i-codec: tunable speaker PA on/off delays
+Subject: [PATCH 16/22] ASoC: sun4i-codec: tunable speaker PA on/off delays
  (100/200 ms)
 
 The fixed 700 ms PA-on wait delayed every sound (and the boot jingle vs the

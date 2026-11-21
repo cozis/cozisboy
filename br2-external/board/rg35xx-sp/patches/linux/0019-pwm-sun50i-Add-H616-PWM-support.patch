@@ -1,7 +1,7 @@
 From b1d8cb34ce78264901a3878289af5a7bcaee4d5b Mon Sep 17 00:00:00 2001
 From: Richard Genoud <richard.genoud@bootlin.com>
 Date: Sat, 21 Nov 2026 12:56:29 +0100
-Subject: [PATCH 19/21] pwm: sun50i: Add H616 PWM support
+Subject: [PATCH 19/22] pwm: sun50i: Add H616 PWM support
 
 From the v4 series 'Introduce Allwinner H616 PWM controller' (LKML, 2026-03-05).
 ---

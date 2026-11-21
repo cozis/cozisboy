@@ -1,7 +1,7 @@
 From 5c75521eee30dbb3cd64c9976cfc04fcf63542df Mon Sep 17 00:00:00 2001
 From: Richard Genoud <richard.genoud@bootlin.com>
 Date: Sat, 21 Nov 2026 12:56:28 +0100
-Subject: [PATCH 18/21] dt-bindings: pwm: allwinner: add h616 pwm compatible
+Subject: [PATCH 18/22] dt-bindings: pwm: allwinner: add h616 pwm compatible
 
 From the v4 series 'Introduce Allwinner H616 PWM controller' (LKML, 2026-03-05).
 ---

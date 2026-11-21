@@ -1,7 +1,7 @@
 From d2acb498a96499458f691636590d0effce5a7ab0 Mon Sep 17 00:00:00 2001
 From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
 Date: Sat, 21 Nov 2026 00:10:01 +0100
-Subject: [PATCH 13/21] arm64: dts: allwinner: rg35xx-sp: add mmc aliases for
+Subject: [PATCH 13/22] arm64: dts: allwinner: rg35xx-sp: add mmc aliases for
  stable device names
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

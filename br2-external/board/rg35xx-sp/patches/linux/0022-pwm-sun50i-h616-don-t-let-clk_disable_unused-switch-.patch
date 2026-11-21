@@ -1,0 +1,35 @@
+From d04998c524f13cba20ac29f534a77ce97fd2a930 Mon Sep 17 00:00:00 2001
+From: ambernic <ambernic@localhost>
+Date: Sat, 21 Nov 2026 15:43:36 +0100
+Subject: [PATCH 22/22] pwm: sun50i-h616: don't let clk_disable_unused() switch
+ off running PWMs
+
+The bypass clock gates are the channels' enable bits in ENR. With no consumer
+of the bypass clock, clk_disable_unused() clears the bit at the end of boot,
+silently stopping a PWM the PWM core still sees as enabled (on the RG35XX SP:
+the backlight goes dark ~1 s after boot). Mark the gates CLK_IGNORE_UNUSED.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HAivEfkKvP8urtyVqdwu3J
+---
+ drivers/pwm/pwm-sun50i-h616.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/pwm/pwm-sun50i-h616.c b/drivers/pwm/pwm-sun50i-h616.c
+index 86c13943e..3e3466eaf 100644
+--- a/drivers/pwm/pwm-sun50i-h616.c
++++ b/drivers/pwm/pwm-sun50i-h616.c
+@@ -231,7 +231,12 @@ struct clk_gate gate_x_bypass_##_idx = {		\
+ 		.parent_names = (const char *[]){ "pwm-clk-src" #_pair }, \
+ 		.num_parents = 1,					\
+ 		.gate_hw = &gate_x_bypass_##_idx.hw,			\
+-		.flags = CLK_SET_RATE_PARENT,	\
++		/*							\
++		 * The gate bit is the channel's PWM enable bit (ENR):	\
++		 * clk_disable_unused() must not clear it under a PWM	\
++		 * that is running without a bypass-clock consumer.	\
++		 */							\
++		.flags = CLK_SET_RATE_PARENT | CLK_IGNORE_UNUSED,	\
+ 	}
+ 
+ /*
