@@ -438,6 +438,8 @@ footer a { cursor: pointer; text-decoration: underline; }
 .flat .pxsearch:focus { outline-color: var(--yellow); }
 .flat .chip { background: #1c1c20; }
 .flat .chip.on { background: #fff; }
+/* flat: pixel labels on light buttons (yellow / white) are black */
+.flat .pb:not(.dim):not(.red) .px svg g:last-child { fill: #000; }
 .flat .tray { border: 0; box-shadow: none; background: #1a1a1e; }
 .flat .modal { border: 0; box-shadow: none; }
 .flat .modal .mh, .flat .modal .side { border: 0; }
