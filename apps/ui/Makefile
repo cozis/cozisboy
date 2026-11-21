@@ -7,9 +7,9 @@
 #                Buildroot toolchain (build the image once first: libmgba, ALSA)
 #   make deploy  device build -> copied to the console over SSH and restarted
 CFLAGS ?= -O2 -g
-CFLAGS += -Wall -Wextra -std=c11 -D_DEFAULT_SOURCE -I../common
-CORE = ui.c games.c net.c sys_mock.c emu.c gfx.c ../common/sfx.c
-HDRS = ui.h ui_priv.h gfx.h emu.h sys.h ../common/sfx.h
+CFLAGS += -Wall -Wextra -Wno-format-truncation -std=c11 -D_DEFAULT_SOURCE -I../common
+CORE = ui.c games.c net.c sys_mock.c emu.c gfx.c ../common/sfx.c ../common/library.c
+HDRS = ui.h ui_priv.h gfx.h emu.h sys.h ../common/sfx.h ../common/library.h
 
 all: cozisboy-preview cozisboy-shot sfx-demo
 
@@ -34,6 +34,20 @@ frames: cozisboy-shot
 icons: cozisboy-shot
 	./cozisboy-shot k/tmp/cozisboy-icons && magick /tmp/cozisboy-icons.ppm -scale 150% ../../art/frames/icons.png
 
+# The PC preview reads games from a game library (apps/common/library.h) like
+# the console. `make library` makes one in ./library from a folder of .gba
+# files: ROMs are linked, not copied; a .sav next to a ROM is copied once.
+PC_LIBRARY ?= library
+ROMS ?= ../../backup-stock/roms/Roms/GBA
+export COZ_LIBRARY ?= $(PC_LIBRARY)
+
+library:
+	@for f in "$(ROMS)"/*.gba; do \
+		n=$$(basename "$$f" .gba); d="$(PC_LIBRARY)/gba/$$n"; \
+		mkdir -p "$$d"; ln -sfn "$$(realpath "$$f")" "$$d/rom.gba"; \
+		s="$${f%.gba}.sav"; [ -f "$$s" ] && [ ! -e "$$d/save.sav" ] && cp "$$s" "$$d/save.sav"; \
+	done; echo "$(PC_LIBRARY): $$(ls "$(PC_LIBRARY)/gba" | wc -l) games"
+
 run: cozisboy-preview
 	./cozisboy-preview
 
@@ -43,7 +57,7 @@ run: cozisboy-preview
 # target too (with its own DEV_CC / DEV_EXTRA_CFLAGS).
 BR_OUT ?= ../../output
 DEV_CC ?= $(BR_OUT)/host/bin/aarch64-linux-gcc
-DEV_CFLAGS = -O2 -Wall -Wextra -std=c11 -D_DEFAULT_SOURCE -I../common $(DEV_EXTRA_CFLAGS)
+DEV_CFLAGS = -O2 -Wall -Wextra -Wno-format-truncation -std=c11 -D_DEFAULT_SOURCE -I../common $(DEV_EXTRA_CFLAGS)
 DEV_SRCS = host_dev.c sys_dev.c $(filter-out sys_mock.c,$(CORE))
 DEVICE ?= root@10.55.0.2
 SSH_OPTS ?= -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
@@ -64,4 +78,4 @@ deploy: cozisboy-ui
 clean:
 	rm -f cozisboy-preview cozisboy-shot sfx-demo sounds.wav cozisboy-ui
 
-.PHONY: all run clean frames icons device deploy
+.PHONY: all run clean frames icons device deploy library

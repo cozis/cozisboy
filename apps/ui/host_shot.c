@@ -70,6 +70,7 @@ static unsigned keybit(char k)
 
 int main(int argc, char **argv)
 {
+	setenv("COZ_LIBRARY", "library", 0); // PC: ./library (see `make library`)
 	ui_init();
 	for (int i = 1; i < argc; i++) {
 		const char *a = argv[i];

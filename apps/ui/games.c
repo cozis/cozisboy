@@ -16,6 +16,7 @@
 #include "ui_priv.h"
 
 #include "emu.h"
+#include "library.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -23,6 +24,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #define GW 240 // GBA screen
 #define GH 160
@@ -37,25 +39,26 @@ typedef struct {
 	const char *last; // "last played" text
 	const char *img;  // optional real cover art in mock/<img>-{cover,art}.ppm
 	char *rom;        // ROM path (NULL: built-in mock scene)
-	char *sav_in;     // battery save to read if there's none in saves/ yet
-	char *sav_out;    // battery save in saves/
+	char *sav_in;     // battery save to start from if sav_out doesn't exist (NULL: none)
+	char *sav_out;    // battery save (the library's, written by the emulator)
 	int has_art;      // art[] holds a picture
 	char *thumb;      // ROM base name: thumbs/{cover,screen}/<thumb>.ppm
 	long last_t;      // when last played (unix time), 0 = never (ROM games)
+	const coz_game *cg; // the game in the library (NULL: mock game)
 } game_t;
 
 // Fallback library when there is no emulator core or no ROMs.
 static const game_t mock_lib[] = {
-	{"POKEMON EMERALD", "RPG", 0x5ee05e, 41, 1, 7, "TODAY", "pokemon-emerald", NULL, NULL, NULL, 0, NULL, 0},
-	{"SUPER MARIO WORLD", "PLATFORMER", 0xff4a4a, 12, 0, 5, "YESTERDAY", "super-mario-world", NULL, NULL, NULL, 0, NULL, 0},
-	{"DUNGEON DASH", "ACTION", 0xffd93d, 23, 0, 6, "TODAY", NULL, NULL, NULL, NULL, 0, NULL, 0},
-	{"MOON MINER", "PUZZLE", 0x5ee05e, 5, 1, 3, "3 DAYS AGO", NULL, NULL, NULL, NULL, 0, NULL, 0},
-	{"TINY TANKS", "STRATEGY", 0x3fc8ff, 17, 0, 4, "2 DAYS AGO", NULL, NULL, NULL, NULL, 0, NULL, 0},
-	{"SKY PIRATES", "SHOOTER", 0x6a7dff, 0, 0, 0, "NEVER", NULL, NULL, NULL, NULL, 0, NULL, 0},
-	{"BLOCK DROP", "PUZZLE", 0xc56bff, 64, 1, 2, "LAST WEEK", NULL, NULL, NULL, NULL, 0, NULL, 0},
-	{"NEON NINJA", "PLATFORMER", 0xff6bc1, 0, 0, 0, "NEVER", NULL, NULL, NULL, NULL, 0, NULL, 0},
-	{"SLIME FARM", "SIMULATION", 0x5ee05e, 30, 0, 1, "LAST MONTH", NULL, NULL, NULL, NULL, 0, NULL, 0},
-	{"BOLT BOTS", "ACTION", 0x3fc8ff, 0, 0, 0, "NEVER", NULL, NULL, NULL, NULL, 0, NULL, 0},
+	{"POKEMON EMERALD", "RPG", 0x5ee05e, 41, 1, 7, "TODAY", "pokemon-emerald", NULL, NULL, NULL, 0, NULL, 0, NULL},
+	{"SUPER MARIO WORLD", "PLATFORMER", 0xff4a4a, 12, 0, 5, "YESTERDAY", "super-mario-world", NULL, NULL, NULL, 0, NULL, 0, NULL},
+	{"DUNGEON DASH", "ACTION", 0xffd93d, 23, 0, 6, "TODAY", NULL, NULL, NULL, NULL, 0, NULL, 0, NULL},
+	{"MOON MINER", "PUZZLE", 0x5ee05e, 5, 1, 3, "3 DAYS AGO", NULL, NULL, NULL, NULL, 0, NULL, 0, NULL},
+	{"TINY TANKS", "STRATEGY", 0x3fc8ff, 17, 0, 4, "2 DAYS AGO", NULL, NULL, NULL, NULL, 0, NULL, 0, NULL},
+	{"SKY PIRATES", "SHOOTER", 0x6a7dff, 0, 0, 0, "NEVER", NULL, NULL, NULL, NULL, 0, NULL, 0, NULL},
+	{"BLOCK DROP", "PUZZLE", 0xc56bff, 64, 1, 2, "LAST WEEK", NULL, NULL, NULL, NULL, 0, NULL, 0, NULL},
+	{"NEON NINJA", "PLATFORMER", 0xff6bc1, 0, 0, 0, "NEVER", NULL, NULL, NULL, NULL, 0, NULL, 0, NULL},
+	{"SLIME FARM", "SIMULATION", 0x5ee05e, 30, 0, 1, "LAST MONTH", NULL, NULL, NULL, NULL, 0, NULL, 0, NULL},
+	{"BOLT BOTS", "ACTION", 0x3fc8ff, 0, 0, 0, "NEVER", NULL, NULL, NULL, NULL, 0, NULL, 0, NULL},
 };
 #define MAXLIB 512
 static game_t lib[MAXLIB];
@@ -96,6 +99,7 @@ typedef struct {
 	uint8_t *blob;   // emulator save state
 	size_t n;
 	long t;          // when it was saved (unix time)
+	char sid[24];    // id in the library ("" while only in memory: mock games)
 	uint32_t thumb[TW * TH];
 } slot_t;
 static slot_t slots[MAXLIB][NSLOTS];
@@ -439,9 +443,15 @@ static const char *inst_title(int i)
 }
 
 // Battery save of copy n of game g: "<game>.copy<n+1>.sav" next to its own save.
+// Battery save of copy n of game g. The library has no notion of copies, so
+// they live in the launcher's own data folder: <saves>/copies/<id>-copyN.sav.
 static void copy_sav_path(int g, int n, char *out, size_t sz)
 {
-	snprintf(out, sz, "%.*s.copy%d.sav", (int)strlen(lib[g].sav_out) - 4, lib[g].sav_out, n + 1);
+	const char *dir = getenv("COZ_SAVES") ? getenv("COZ_SAVES") : "saves";
+	char d[512];
+	snprintf(d, sizeof d, "%s/copies", dir);
+	mkdir(d, 0755);
+	snprintf(out, sz, "%s/%s-copy%d.sav", d, lib[g].cg ? lib[g].cg->id : lib[g].thumb, n + 1);
 }
 
 static int linked_with_cur(int i)
@@ -548,6 +558,131 @@ static void enter_game(int i, int x, int y)
 	}
 }
 
+/* ---- save states on disk (the game library) --------------------------------- */
+
+// Read a PNG written by coz_png_write (8-bit RGB, stored deflate blocks, no
+// filters) into a TW x TH thumbnail. Anything else is refused (returns -1).
+static int read_state_png(const char *path, uint32_t *thumb)
+{
+	FILE *f = fopen(path, "rb");
+	if (!f)
+		return -1;
+	unsigned char *z = NULL, hdr[8];
+	size_t zn = 0;
+	int w = 0, h = 0, ok = fread(hdr, 1, 8, f) == 8 && hdr[0] == 0x89 && hdr[1] == 'P';
+	while (ok) {
+		unsigned char ch[8];
+		if (fread(ch, 1, 8, f) != 8)
+			break;
+		uint32_t len = (uint32_t)ch[0] << 24 | ch[1] << 16 | ch[2] << 8 | ch[3];
+		if (!memcmp(ch + 4, "IHDR", 4)) {
+			unsigned char ih[13];
+			ok = len == 13 && fread(ih, 1, 13, f) == 13 && ih[8] == 8 && ih[9] == 2 && !ih[12];
+			w = ih[0] << 24 | ih[1] << 16 | ih[2] << 8 | ih[3];
+			h = ih[4] << 24 | ih[5] << 16 | ih[6] << 8 | ih[7];
+			fseek(f, 4, SEEK_CUR);
+		} else if (!memcmp(ch + 4, "IDAT", 4)) {
+			unsigned char *nz = realloc(z, zn + len);
+			ok = nz && fread(nz + zn, 1, len, f) == len;
+			z = nz, zn += len;
+			fseek(f, 4, SEEK_CUR);
+		} else if (!memcmp(ch + 4, "IEND", 4)) {
+			break;
+		} else {
+			fseek(f, (long)len + 4, SEEK_CUR);
+		}
+	}
+	fclose(f);
+	size_t rl = (size_t)h * (1 + 3 * (size_t)w);
+	unsigned char *raw = ok && w > 0 && h > 0 && w <= 1024 && h <= 1024 ? malloc(rl) : NULL;
+	size_t rp = 0, zp = 2;
+	while (raw && zp + 5 <= zn && rp < rl) { // stored blocks only
+		unsigned char bh = z[zp];
+		size_t n = (size_t)(z[zp + 1] | z[zp + 2] << 8);
+		if ((bh & 6) || zp + 5 + n > zn || rp + n > rl)
+			break;
+		memcpy(raw + rp, z + zp + 5, n);
+		rp += n, zp += 5 + n;
+		if (bh & 1)
+			break;
+	}
+	int r = -1;
+	if (raw && rp == rl) {
+		for (int y = 0; y < h; y++)
+			if (raw[(size_t)y * (1 + 3 * (size_t)w)] != 0)
+				goto out; // filtered rows: not ours
+		for (int y = 0; y < TH; y++)
+			for (int x = 0; x < TW; x++) {
+				const unsigned char *px = raw + (size_t)(y * h / TH) * (1 + 3 * (size_t)w) + 1 +
+							  3 * (size_t)(x * w / TW);
+				thumb[y * TW + x] = (uint32_t)px[0] << 16 | px[1] << 8 | px[2];
+			}
+		r = 0;
+	}
+out:
+	free(raw);
+	free(z);
+	return r;
+}
+
+// Fill game g's save states from the library (newest NSLOTS).
+static void states_load_disk(int g)
+{
+	if (!lib[g].cg)
+		return;
+	coz_state *st;
+	int n;
+	if (coz_states_list(lib[g].cg, &st, &n))
+		return;
+	for (int k = 0; k < n && k < NSLOTS; k++) {
+		slot_t *sl = &slots[g][k];
+		memset(sl, 0, sizeof *sl);
+		sl->valid = 1;
+		sl->t = (long)st[k].time;
+		snprintf(sl->sid, sizeof sl->sid, "%s", st[k].id);
+		char p[1024];
+		if (!st[k].has_thumb || coz_state_thumb_path(lib[g].cg, st[k].id, p, sizeof p) ||
+		    read_state_png(p, sl->thumb))
+			for (int i = 0; i < TW * TH; i++)
+				sl->thumb[i] = 0x202020;
+	}
+	free(st);
+}
+
+// The state's data, read from the library the first time it's needed.
+static int slot_data(int g, slot_t *sl)
+{
+	if (sl->blob)
+		return 0;
+	char p[1024];
+	if (!lib[g].cg || !sl->sid[0] || coz_state_path(lib[g].cg, sl->sid, p, sizeof p))
+		return -1;
+	FILE *f = fopen(p, "rb");
+	if (!f)
+		return -1;
+	fseek(f, 0, SEEK_END);
+	long n = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	sl->blob = n > 0 ? malloc((size_t)n) : NULL;
+	sl->n = sl->blob && fread(sl->blob, 1, (size_t)n, f) == (size_t)n ? (size_t)n : 0;
+	fclose(f);
+	if (!sl->n) {
+		free(sl->blob);
+		sl->blob = NULL;
+		return -1;
+	}
+	return 0;
+}
+
+// Forget a state, and delete it from the library.
+static void slot_delete(int g, slot_t *sl)
+{
+	if (lib[g].cg && sl->sid[0])
+		coz_state_delete(lib[g].cg, sl->sid);
+	free(sl->blob);
+	memset(sl, 0, sizeof *sl);
+}
+
 static void open_game(int game, int slot, int x, int y)
 {
 	int i = find_running(game);
@@ -576,7 +711,7 @@ static void open_game(int game, int slot, int x, int y)
 			nrun--;
 			return;
 		}
-		if (sl && sl->valid)
+		if (sl && sl->valid && slot_data(game, sl) == 0)
 			emu_load_state(run[i].eg, sl->blob, sl->n);
 	} else {
 		if (sl && sl->valid)
@@ -1370,6 +1505,16 @@ static void quick_action(int a)
 				break;
 			}
 		}
+		if (lib[in->game].cg) { // to disk: a new state (an overwritten one is replaced)
+			coz_state out;
+			if (coz_state_add(lib[in->game].cg, sl->blob, sl->n, in->frame, GW, GH, GW, &out)) {
+				toast("SAVE STATE FAILED");
+				break;
+			}
+			if (sl->sid[0])
+				coz_state_delete(lib[in->game].cg, sl->sid);
+			snprintf(sl->sid, sizeof sl->sid, "%s", out.id);
+		}
 		sl->valid = 1;
 		sl->t = (long)time(NULL);
 		sl->st = in->st;
@@ -1386,7 +1531,11 @@ static void quick_action(int a)
 			sfx_play(SFX_BUMP, 0);
 		} else {
 			if (is_emu(in->game)) {
-				emu_load_state(in->eg, sl->blob, sl->n);
+				if (slot_data(in->game, sl) || emu_load_state(in->eg, sl->blob, sl->n)) {
+					toast("COULD NOT LOAD THIS SAVE");
+					sfx_play(SFX_BUMP, 0);
+					break;
+				}
 			} else {
 				in->st = sl->st;
 				game_render(&in->st, in->game, in->frame, 1);
@@ -1627,9 +1776,7 @@ static void states_update(unsigned p, float dt)
 				quick_action(QA_SAVE);
 				SV.sel = 1;
 			} else {
-				slots[g][k].valid = 0;
-				free(slots[g][k].blob);
-				slots[g][k].blob = NULL, slots[g][k].n = 0;
+				slot_delete(g, &slots[g][k]);
 				sfx_play(SFX_TOGGLE_OFF, 0);
 				toast("SAVE DELETED");
 			}
@@ -2569,64 +2716,43 @@ static void mkdir_p(const char *dir)
 	mkdir(dir, 0755);
 }
 
-// "Legend of Zelda, The - The Minish Cap (USA).gba" -> "LEGEND OF ZELDA, THE - THE MINISH CAP"
-static char *clean_title(const char *file)
-{
-	char *t = strdup(file);
-	char *cut = strstr(t, " (");
-	if (!cut)
-		cut = strrchr(t, '.');
-	if (cut)
-		*cut = 0;
-	for (char *q = t; *q; q++)
-		*q = (char)toupper((unsigned char)*q);
-	return t;
-}
-
 static int by_title(const void *a, const void *b)
 {
 	return strcmp(((const game_t *)a)->title, ((const game_t *)b)->title);
 }
 
-// Fill lib[] from the ROM folders in $COZ_ROMS (colon separated).
+// Fill lib[] with the GBA games of the game library ($COZ_LIBRARY, else
+// /data/library). The library stays loaded: lib[].cg points into it.
+static coz_lib library;
+
 static int scan_roms(void)
 {
-	const char *env = getenv("COZ_ROMS");
-	char *dirs = strdup(env ? env : "../../backup-stock/roms/Roms/GBA");
-	const char *saves = getenv("COZ_SAVES") ? getenv("COZ_SAVES") : "saves";
-	for (char *dir = strtok(dirs, ":"); dir && nlib < MAXLIB; dir = strtok(NULL, ":")) {
-		DIR *d = opendir(dir);
-		if (!d)
+	if (coz_lib_scan(&library))
+		return 0;
+	for (int k = 0; k < library.n && nlib < MAXLIB; k++) {
+		const coz_game *cg = &library.games[k];
+		if (cg->sys != COZ_SYS_GBA)
+			continue; // GB/GBC: not yet (the screen code assumes 240x160)
+		char rom[1024], sav[1024];
+		if (coz_game_rom_path(cg, rom, sizeof rom) || coz_game_save_path(cg, sav, sizeof sav))
 			continue;
-		struct dirent *e;
-		while ((e = readdir(d)) && nlib < MAXLIB) {
-			size_t len = strlen(e->d_name);
-			if (len < 5 || strcasecmp(e->d_name + len - 4, ".gba"))
-				continue;
-			game_t *gm = &lib[nlib++];
-			memset(gm, 0, sizeof *gm);
-			char *title = clean_title(e->d_name);
-			gm->title = title;
-			gm->genre = "GBA";
-			unsigned h = 0;
-			for (const char *q = title; *q; q++)
-				h = h * 31 + (unsigned char)*q;
-			gm->col = PAL[h % 8];
-			gm->last = "NEVER";
-			size_t pn = strlen(dir) + len + 8;
-			gm->rom = malloc(pn);
-			snprintf(gm->rom, pn, "%s/%s", dir, e->d_name);
-			gm->sav_in = strdup(gm->rom);
-			strcpy(gm->sav_in + strlen(gm->sav_in) - 4, ".sav");
-			pn = strlen(saves) + len + 8;
-			gm->sav_out = malloc(pn);
-			snprintf(gm->sav_out, pn, "%s/%s", saves, e->d_name);
-			strcpy(gm->sav_out + strlen(gm->sav_out) - 4, ".sav");
-			gm->thumb = strndup(e->d_name, len - 4);
-		}
-		closedir(d);
+		game_t *gm = &lib[nlib++];
+		memset(gm, 0, sizeof *gm);
+		char *title = strdup(cg->title);
+		for (char *q = title; *q; q++)
+			*q = (char)toupper((unsigned char)*q);
+		gm->title = title;
+		gm->genre = "GBA";
+		unsigned h = 0;
+		for (const char *q = title; *q; q++)
+			h = h * 31 + (unsigned char)*q;
+		gm->col = PAL[h % 8];
+		gm->last = "NEVER";
+		gm->rom = strdup(rom);
+		gm->sav_out = strdup(sav);
+		gm->thumb = strdup(cg->name); // also the play-history key
+		gm->cg = cg;
 	}
-	free(dirs);
 	qsort(lib, (size_t)nlib, sizeof *lib, by_title);
 	return nlib;
 }
@@ -2640,6 +2766,9 @@ void games_init(void)
 		mkdir_p(getenv("COZ_SAVES") ? getenv("COZ_SAVES") : "saves");
 		scan_roms();
 		history_load();
+		for (int g = 0; g < nlib; g++)
+			if (lib[g].cg && lib[g].cg->nstates)
+				states_load_disk(g);
 	}
 	if (!nlib) { // no core or no ROMs: built-in mock games
 		nlib = (int)(sizeof mock_lib / sizeof *mock_lib);

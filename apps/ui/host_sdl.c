@@ -36,6 +36,7 @@ static unsigned read_buttons(void)
 
 int main(void)
 {
+	setenv("COZ_LIBRARY", "library", 0); // PC: ./library (see `make library`)
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
 		SDL_Log("SDL_Init: %s", SDL_GetError());
 		return 1;
