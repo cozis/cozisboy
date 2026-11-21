@@ -302,30 +302,43 @@ function wireHolds(root) {
 function paint(el) { renderPixelText(el); wireHolds(el); }
 
 // ------------------------------------------------------------ pairing
-// Pairing: over the USB cable the browser is trusted and pairs by itself;
-// over Wi-Fi the console shows the code on its screen while this page is open.
+// Pairing only works while PC LINK on the console has a pairing screen open:
+// USB (this browser on the cable pairs by itself) or Wi-Fi (type the code).
+let pairOpen = "closed";
 async function requestPair() {
 	try {
 		const r = await (await fetch("/api/pair/request", { method: "POST", headers: HDR })).json();
-		if (r.usb) {
+		pairOpen = r.open;
+		if (r.open === "usb" && r.usb) {
 			const p = await fetch("/api/pair", { method: "POST", headers: HDR, body: "usb" });
 			if (p.ok) { clearInterval(showPair.t); boot(); return true; }
 		}
-	} catch { }
+	} catch { pairOpen = "closed"; }
+	if (page === "pair") pairHint();
 	return false;
+}
+function pairHint() {
+	const h = $("pairHow"), wifi = $("pairWifi");
+	if (!h) return;
+	h.textContent = pairOpen === "wifi" ? "Enter the 6-digit code shown on your cozisboy."
+		: pairOpen === "usb" ? "Your cozisboy is waiting for a browser on the USB cable. Open this page at http://10.55.0.2, or choose Wi-Fi on the cozisboy."
+		: "On your cozisboy, open PC LINK and choose PAIR OVER USB or PAIR OVER WI-FI.";
+	wifi.classList.toggle("hidden", pairOpen !== "wifi");
 }
 async function showPair() {
 	if (page !== "pair" && await requestPair()) return;
 	clearInterval(showPair.t);
-	showPair.t = setInterval(() => { if (page === "pair") requestPair(); else clearInterval(showPair.t); }, 60000);
+	showPair.t = setInterval(() => { if (page === "pair") requestPair(); else clearInterval(showPair.t); }, 2000);
 	page = "pair";
 	$("layer").innerHTML = ""; $("trayc").innerHTML = "";
 	$("root").innerHTML = `<div class="pair"><img class="logo pix" src="/logo.png" alt="cozisboy">
 		<div class="card">${PX("Connect", 4, pal("--yellow"))}
-			<p>Your cozisboy is showing a 6-digit code on its screen now. Enter it here.</p>
+			<p id="pairHow"></p>
+			<div id="pairWifi" class="hidden">
 			<input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="······">
 			<div class="err" id="pairErr"></div>
-			<button class="pb go" id="pairBtn">${PX("Connect", 2)}</button></div></div>`;
+			<button class="pb go" id="pairBtn">${PX("Connect", 2)}</button></div></div></div>`;
+	pairHint();
 	paint($("root"));
 	const pair = async () => {
 		const code = $("code").value.replace(/\D/g, "");
@@ -334,12 +347,12 @@ async function showPair() {
 		const r = await fetch("/api/pair", { method: "POST", headers: HDR, body: code });
 		$("pairBtn").disabled = false;
 		if (r.ok) { clearInterval(showPair.t); boot(); }
-		else { $("pairErr").textContent = "That's not it. After 5 tries the console shows a new code."; $("code").select(); }
+		else { const j = await r.json().catch(() => ({})); $("pairErr").textContent = /closed/.test(j.error || "") ? "Pairing closed on the cozisboy. Choose PAIR OVER WI-FI there again." : "That's not it. After 5 tries the console shows a new code."; $("code").select(); }
 	};
 	$("pairBtn").onclick = pair;
 	$("code").oninput = e => { if (e.target.value.replace(/\D/g, "").length === 6) pair(); };
 	$("code").onkeydown = e => { if (e.key === "Enter") pair(); };
-	$("code").focus();
+	if (pairOpen === "wifi") $("code").focus();
 }
 
 // ------------------------------------------------------------ data

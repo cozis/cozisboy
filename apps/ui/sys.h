@@ -40,13 +40,18 @@ int sys_ssh_set_password(const char *pw);
 const char *sys_ssh_fingerprint(void);  // host key fingerprint
 const char *sys_usb_ip(void);           // address over the USB cable
 
-// PC link: the web app (apps/web) for managing games from a browser.
-// Over the USB cable a browser pairs by itself; over Wi-Fi it needs the code.
-int sys_web_enabled(void);
-void sys_web_enable(int on);
-const char *sys_web_code(void);     // current pairing code ("" when off)
+// PC link: the web app (apps/web) runs only while the PC LINK page is open.
+// Browsers paired before connect again then; a new one pairs from the page:
+// over USB by itself, over Wi-Fi with the code shown on the page.
+enum { WEB_PAIR_NONE, WEB_PAIR_USB, WEB_PAIR_WIFI };
+void sys_web_open(void);            // start it (entering the page)
+void sys_web_close(void);           // stop it (leaving the page)
+void sys_web_tick(int pairing);     // every frame on the page: keeps it (and pairing) open
+int sys_web_running(void);
+const char *sys_web_code(void);     // the Wi-Fi pairing code ("" until known)
 int sys_web_browsers(void);         // paired browsers
-void sys_web_new_code(void);        // the old code stops working
+int sys_web_pairs(void);            // pairings so far: goes up when a browser pairs
 void sys_web_forget_browsers(void); // every browser has to pair again
+int sys_usb_connected(void);        // the USB cable is plugged into a computer
 
 #endif

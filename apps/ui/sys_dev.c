@@ -7,6 +7,7 @@
 float ui_time(void); // ui.c (not ui_priv.h: its W/H macros)
 
 #include <arpa/inet.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
@@ -551,11 +552,10 @@ const char *sys_usb_ip(void)
 
 /* ---- PC link (the web app) ---------------------------------------------------- */
 //
-// cozisboy-web (S60web) runs unless /data/web-off exists. Its code and paired
-// browsers come from its local-only endpoints (/api/local/...).
-
-#define WEB_OFF_FLAG "/data/web-off"
-#define WEB_INIT "/etc/init.d/S60web"
+// cozisboy-web runs only while the PC LINK page is open: started on entering,
+// told to quit on leaving, and kept alive by check-ins (it exits by itself
+// ~10 s after the last one). Code, browsers and pairing go through its
+// local-only endpoints (/api/local/...).
 
 // One request to the web app on 127.0.0.1; the JSON body into out.
 static int web_local(const char *method, const char *what, char *out, size_t outlen)
@@ -567,7 +567,7 @@ static int web_local(const char *method, const char *what, char *out, size_t out
 	setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
 	setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
 	struct sockaddr_in a = {.sin_family = AF_INET, .sin_port = htons(80), .sin_addr.s_addr = htonl(0x7f000001)};
-	char req[160], buf[1024];
+	char req[200], buf[1024];
 	int n = snprintf(req, sizeof req, "%s /api/local/%s HTTP/1.0\r\nX-Cozis: 1\r\nContent-Length: 0\r\n\r\n", method, what);
 	size_t got = 0;
 	ssize_t r;
@@ -589,61 +589,110 @@ static int web_local(const char *method, const char *what, char *out, size_t out
 
 static struct {
 	char code[8];
-	int browsers;
+	int browsers, pairs, up, mode;
+	float next;
 } WEB;
 
-static void web_refresh(void)
+static void web_parse(const char *j)
 {
-	char j[256];
-	WEB.code[0] = 0, WEB.browsers = 0;
-	if (web_local("GET", "info", j, sizeof j))
-		return;
-	char *c = strstr(j, "\"code\":\""), *b = strstr(j, "\"browsers\":");
+	const char *c = strstr(j, "\"code\":\""), *b = strstr(j, "\"browsers\":"), *p = strstr(j, "\"pairs\":");
 	if (c)
 		sscanf(c + 8, "%6[0-9]", WEB.code);
 	if (b)
 		WEB.browsers = atoi(b + 11);
+	if (p)
+		WEB.pairs = atoi(p + 8);
 }
 
-int sys_web_enabled(void)
+static void web_checkin(void)
 {
-	return access(WEB_OFF_FLAG, F_OK) != 0;
+	static const char *const mode[] = {"off", "usb", "wifi"};
+	char what[40], j[256];
+	snprintf(what, sizeof what, "pairing?mode=%s", mode[WEB.mode]);
+	WEB.up = web_local("POST", what, j, sizeof j) == 0;
+	if (WEB.up)
+		web_parse(j);
 }
 
-void sys_web_enable(int on)
+void sys_web_open(void)
 {
-	touch(WEB_OFF_FLAG, !on);
-	sh(WEB_INIT, on ? "start" : "stop");
-	if (on)
-		usleep(200000);	// let it start listening
-	web_refresh();
-}
-
-const char *sys_web_code(void)
-{
-	static float last;
-	float now = ui_time();
-	if (now - last > 1.0f || now < last) {	// at most once a second
-		last = now;
-		web_refresh();
+	memset(&WEB, 0, sizeof WEB);
+	mkdir("/data/library", 0755);
+	if (web_local("GET", "info", NULL, 0) != 0) {	// not running yet: start it
+		// double fork: the server is reparented to init and never waited for
+		pid_t p = fork();
+		if (p == 0) {
+			if (fork() == 0) {
+				setsid();
+				int nul = open("/dev/null", O_RDWR);
+				int log = open("/run/cozisboy-web.log", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+				dup2(nul, 0), dup2(log >= 0 ? log : nul, 1), dup2(log >= 0 ? log : nul, 2);
+				for (int fd = 3; fd < 1024; fd++)	// not the launcher's devices (sound, ...)
+					close(fd);
+				execl("/usr/sbin/cozisboy-web", "cozisboy-web", "80", (char *)NULL);
+				_exit(127);
+			}
+			_exit(0);
+		}
+		if (p > 0)
+			waitpid(p, NULL, 0);	// the middle process exits at once
+		for (int i = 0; i < 20 && web_local("GET", "info", NULL, 0) != 0; i++)
+			usleep(50000);
 	}
-	return WEB.code;
+	web_checkin();
 }
 
-int sys_web_browsers(void)
+void sys_web_close(void)
 {
-	sys_web_code();
-	return WEB.browsers;
+	web_local("POST", "quit", NULL, 0);
+	WEB.up = 0;
 }
 
-void sys_web_new_code(void)
+void sys_web_tick(int pairing)
 {
-	web_local("POST", "newcode", NULL, 0);
-	web_refresh();
+	float now = ui_time();
+	if (pairing != WEB.mode) {	// opened/closed a pairing screen: tell it now
+		WEB.mode = pairing;
+		WEB.next = 0;
+	}
+	if (now >= WEB.next || now + 5 < WEB.next) {
+		WEB.next = now + 1.0f;	// check in every second (it gives up after ~10 s)
+		web_checkin();
+	}
 }
+
+int sys_web_running(void) { return WEB.up; }
+const char *sys_web_code(void) { return WEB.code; }
+int sys_web_browsers(void) { return WEB.browsers; }
+int sys_web_pairs(void) { return WEB.pairs; }
 
 void sys_web_forget_browsers(void)
 {
-	web_local("POST", "forget", NULL, 0);
-	web_refresh();
+	char j[256];
+	if (web_local("POST", "forget", j, sizeof j) == 0)
+		web_parse(j);
+}
+
+// The USB device controller reaches "configured" once a computer has set up
+// the link (cable in, the PC's driver bound).
+int sys_usb_connected(void)
+{
+	char st[32] = "";
+	FILE *f = NULL;
+	DIR *d = opendir("/sys/class/udc");
+	struct dirent *e;
+	while (d && (e = readdir(d)) && !f)
+		if (e->d_name[0] != '.') {
+			char p[300];
+			snprintf(p, sizeof p, "/sys/class/udc/%s/state", e->d_name);
+			f = fopen(p, "r");
+		}
+	if (d)
+		closedir(d);
+	if (f) {
+		if (!fgets(st, sizeof st, f))
+			st[0] = 0;
+		fclose(f);
+	}
+	return !strncmp(st, "configured", 10);
 }

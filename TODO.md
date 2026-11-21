@@ -123,8 +123,10 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
 - [x] Web app prototype: pairing code, cover grid, drop ROMs (covers fetched
       by the browser from libretro-thumbnails), game page with battery save
       (replace/delete keep a backup, restore), save-state gallery, zip backup.
-- [ ] Started at boot for now (S60web; code in /run/cozisboy-web.code): the
-      launcher should switch it on/off and show the pairing code.
+- [x] PC LINK (launcher home item): the web app runs only while its page is
+      open (watchdog: exits ~10 s after the last check-in). New browsers pair
+      from the page: USB (waits for the cable, pairs by itself) or Wi-Fi
+      (fresh code each time); pairing is refused otherwise.
 - [x] Launcher: uses the library (states via coz_state_add).
 - [x] Discover: Homebrew Hub catalogue (GB/GBC/GBA games) through a relay on
       the device (/api/hh/*, its JSON API isn't readable cross-origin; libcurl

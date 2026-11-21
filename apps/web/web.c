@@ -8,7 +8,8 @@
 // - Status (battery, storage, Wi-Fi, uptime), brightness, live screenshot.
 //
 // Plain HTTP on the local network, one thread per connection, no keep-alive.
-// Usage: cozisboy-web [port]   (default 80)
+// Runs only while PC LINK is open in the launcher (it starts it and checks in;
+// see ALIVE_TIMEOUT). Usage: cozisboy-web [port]   (default 80)
 
 #define _GNU_SOURCE
 #include <arpa/inet.h>
@@ -45,10 +46,6 @@
 #define ROOT "/data"
 #define WWW "/usr/share/cozisboy-web"
 #define CODE_FILE "/run/cozisboy-web.code"
-// A browser showing the pairing page writes REQUEST_FILE ("<code>\n<url>\n");
-// the launcher's front end shows that on screen until PAIRED_FILE is newer.
-#define REQUEST_FILE "/run/cozisboy-web.request"
-#define PAIRED_FILE "/run/cozisboy-web.paired"
 // Paired browsers' session tokens, kept across restarts.
 #define SESSIONS_FILE "/data/web/sessions"
 #define BACKLIGHT "/sys/class/backlight/backlight/"
@@ -61,7 +58,31 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static char pair_code[7];
 static char sessions[MAX_SESSIONS][33];
 static int next_session, failures;
-static char request_url[64];	// address of the last pairing request (caller holds lock)
+// Pairing is only possible while the launcher's PC LINK page has a pairing
+// screen open: it keeps the window open by checking in (POST
+// /api/local/pairing?mode=usb|wifi) at least every PAIR_KEEPALIVE seconds.
+// USB: a browser on the cable link pairs without a code. Wi-Fi: with the code,
+// which is new for every Wi-Fi pairing screen.
+enum { PAIR_CLOSED, PAIR_USB, PAIR_WIFI };
+#define PAIR_KEEPALIVE 8
+static int pair_mode;
+static time_t pair_until;
+static int pairs_done;	// browsers paired since start (the launcher shows PAIRED)
+
+// The server only runs while PC LINK is open on the console: the launcher
+// starts it, and checks in (/api/local/...) every couple of seconds. Without a
+// check-in for ALIVE_TIMEOUT seconds (page left, launcher gone) it exits.
+#define ALIVE_TIMEOUT 10
+static time_t alive_until;
+static int watchdog = 1;
+
+// Caller holds lock.
+static int pairing_open(void)
+{
+	if (pair_mode != PAIR_CLOSED && time(NULL) > pair_until)
+		pair_mode = PAIR_CLOSED;
+	return pair_mode;
+}
 static const char *www_dir = WWW;
 static int dev_noauth;
 
@@ -90,13 +111,6 @@ static void new_pair_code(void)
 		fclose(f);
 	}
 	fprintf(stderr, "cozisboy-web: pairing code %s\n", pair_code);
-	if (request_url[0]) {	// a browser is waiting: show the new code on the console
-		f = fopen(REQUEST_FILE, "w");
-		if (f) {
-			fprintf(f, "%s\n%s\n", pair_code, request_url);
-			fclose(f);
-		}
-	}
 }
 
 
@@ -379,9 +393,11 @@ static int sessions_count(void)
 }
 
 // /api/local/...: the launcher's PC LINK page, from the console itself only.
-//   GET  info     {"code":"123456","browsers":2}
-//   POST newcode  a new pairing code
-//   POST forget   unpair every browser
+//   GET  info                {"code":"123456","browsers":2,"pairs":5}
+//   POST pairing?mode=usb|wifi|off   open (keep open) / close the pairing window
+//   POST newcode             a new pairing code
+//   POST quit                stop the server (PC LINK closed)
+//   POST forget              unpair every browser
 static void api_local(struct req *r, const char *what)
 {
 	if (!r->from_local) {
@@ -390,8 +406,22 @@ static void api_local(struct req *r, const char *what)
 	}
 	char b[96];
 	pthread_mutex_lock(&lock);
+	alive_until = time(NULL) + ALIVE_TIMEOUT;
 	if (!strcmp(what, "newcode") && !strcmp(r->method, "POST")) {
 		new_pair_code();
+	} else if (!strcmp(what, "pairing") && !strcmp(r->method, "POST")) {
+		char m[8] = "";
+		query_param(r->query, "mode", m, sizeof m);
+		int mode = !strcmp(m, "usb") ? PAIR_USB : !strcmp(m, "wifi") ? PAIR_WIFI : PAIR_CLOSED;
+		if (mode == PAIR_WIFI && pairing_open() != PAIR_WIFI)
+			new_pair_code();	// a fresh code for every Wi-Fi pairing screen
+		pair_mode = mode;
+		pair_until = time(NULL) + PAIR_KEEPALIVE;
+	} else if (!strcmp(what, "quit") && !strcmp(r->method, "POST")) {
+		pthread_mutex_unlock(&lock);
+		respond(r->fd, 200, "application/json", NULL, "{\"ok\":true}", 11);
+		fprintf(stderr, "cozisboy-web: closed by the launcher\n");
+		exit(0);
 	} else if (!strcmp(what, "forget") && !strcmp(r->method, "POST")) {
 		memset(sessions, 0, sizeof sessions);
 		next_session = 0;
@@ -401,28 +431,22 @@ static void api_local(struct req *r, const char *what)
 		respond_error(r->fd, 404, "no such endpoint");
 		return;
 	}
-	int n = snprintf(b, sizeof b, "{\"code\":\"%s\",\"browsers\":%d}", pair_code, sessions_count());
+	int n = snprintf(b, sizeof b, "{\"code\":\"%s\",\"browsers\":%d,\"pairs\":%d}", pair_code,
+			 sessions_count(), pairs_done);
 	pthread_mutex_unlock(&lock);
 	respond(r->fd, 200, "application/json", NULL, b, n);
 }
 
-// POST /api/pair/request: the pairing page is open. Over USB the browser may
-// pair without a code; otherwise the console shows the code on its screen.
+// POST /api/pair/request: what the pairing page should say.
+//   {"usb":true|false, "open":"usb"|"wifi"|"closed"}
 static void api_pair_request(struct req *r)
 {
-	if (!r->via_usb) {
-		pthread_mutex_lock(&lock);
-		snprintf(request_url, sizeof request_url, "http://%s", r->local_ip);
-		FILE *f = fopen(REQUEST_FILE ".tmp", "w");
-		if (f) {
-			fprintf(f, "%s\n%s\n", pair_code, request_url);
-			fclose(f);
-			rename(REQUEST_FILE ".tmp", REQUEST_FILE);
-		}
-		pthread_mutex_unlock(&lock);
-	}
-	char b[64];
-	int n = snprintf(b, sizeof b, "{\"usb\":%s}", r->via_usb ? "true" : "false");
+	pthread_mutex_lock(&lock);
+	int mode = pairing_open();
+	pthread_mutex_unlock(&lock);
+	char b[80];
+	int n = snprintf(b, sizeof b, "{\"usb\":%s,\"open\":\"%s\"}", r->via_usb ? "true" : "false",
+			 mode == PAIR_USB ? "usb" : mode == PAIR_WIFI ? "wifi" : "closed");
 	respond(r->fd, 200, "application/json", NULL, b, n);
 }
 
@@ -441,7 +465,14 @@ static void api_pair(struct req *r)
 	code[n] = 0;
 
 	pthread_mutex_lock(&lock);
-	int ok = (n == 6 && !strcmp(code, pair_code)) || (r->via_usb && !strncmp(body, "usb", 3));
+	int mode = pairing_open();
+	if (mode == PAIR_CLOSED) {
+		pthread_mutex_unlock(&lock);
+		respond_error(r->fd, 403, "pairing is closed: open PC LINK on your cozisboy");
+		return;
+	}
+	int ok = (mode == PAIR_WIFI && n == 6 && !strcmp(code, pair_code)) ||
+		 (mode == PAIR_USB && r->via_usb && !strncmp(body, "usb", 3));
 	char tok[33] = "";
 	if (ok) {
 		random_hex(tok, 16);
@@ -449,12 +480,8 @@ static void api_pair(struct req *r)
 		next_session = (next_session + 1) % MAX_SESSIONS;
 		failures = 0;
 		sessions_save();
-		request_url[0] = 0;
-		unlink(REQUEST_FILE);
-		FILE *f = fopen(PAIRED_FILE, "w");	// the console hides the code
-		if (f)
-			fclose(f);
-	} else if (++failures >= MAX_FAILURES) {
+		pairs_done++;
+	} else if (mode == PAIR_WIFI && ++failures >= MAX_FAILURES) {
 		new_pair_code();
 	}
 	pthread_mutex_unlock(&lock);
@@ -1655,6 +1682,22 @@ out:
 	return NULL;
 }
 
+static void *watchdog_thread(void *arg)
+{
+	(void)arg;
+	for (;;) {
+		sleep(1);
+		pthread_mutex_lock(&lock);
+		int dead = time(NULL) > alive_until;
+		pthread_mutex_unlock(&lock);
+		if (dead) {
+			fprintf(stderr, "cozisboy-web: PC LINK closed (no check-in), exiting\n");
+			exit(0);
+		}
+	}
+	return NULL;
+}
+
 int main(int argc, char **argv)
 {
 	int port = argc > 1 ? atoi(argv[1]) : 80;
@@ -1671,7 +1714,15 @@ int main(int argc, char **argv)
 	pthread_mutex_lock(&lock);
 	sessions_load();
 	new_pair_code();
+	alive_until = time(NULL) + ALIVE_TIMEOUT;
 	pthread_mutex_unlock(&lock);
+	// COZ_WEB_NO_WATCHDOG=1: keep running without the launcher (PC development)
+	watchdog = !(getenv("COZ_WEB_NO_WATCHDOG") && !strcmp(getenv("COZ_WEB_NO_WATCHDOG"), "1"));
+	if (watchdog) {
+		pthread_t wt;
+		pthread_create(&wt, NULL, watchdog_thread, NULL);
+		pthread_detach(wt);
+	}
 
 	int s = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	int one = 1;

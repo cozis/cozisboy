@@ -10,8 +10,6 @@
 //   is kept in sync with it both ways. The Settings brightness slider drives
 //   the backlight. The power button and the lid put the console to sleep
 //   (cozisboy-sleep).
-// - Web pairing: while a browser shows the web app's pairing page over Wi-Fi,
-//   the code and address are shown on screen (from /run/cozisboy-web.request).
 // - Sound: a thread mixes UI sounds and the emulator into hw:0,0 (48 kHz).
 #include "emu.h"
 #include "gfx.h"
@@ -342,89 +340,6 @@ static void volume_draw(uint32_t *buf)
 	text(c, tx, y + 15, num, 2, WHITE);
 }
 
-/* ---- web pairing --------------------------------------------------------------- */
-//
-// The web app (apps/web) writes REQUEST ("<code>\n<url>\n") while a browser
-// shows its pairing page, and touches PAIRED once a browser has paired. The
-// code is shown until then (at most two minutes after the last request).
-
-#define PAIR_REQUEST "/run/cozisboy-web.request"
-#define PAIR_PAIRED "/run/cozisboy-web.paired"
-#define PAIR_SHOW 120
-
-static struct {
-	char code[8], url[64];
-	int on;		// showing the code
-	float done_t;	// "CONNECTED" message time left
-	float poll_t, in;
-	time_t req_mtime;
-} P;
-
-static time_t file_mtime(const char *path)
-{
-	struct stat st;
-	return stat(path, &st) ? 0 : st.st_mtime;
-}
-
-static void pair_tick(float dt)
-{
-	if (P.done_t > 0)
-		P.done_t -= dt;
-	if ((P.poll_t -= dt) <= 0) {
-		P.poll_t = 0.4f;
-		time_t req = file_mtime(PAIR_REQUEST), paired = file_mtime(PAIR_PAIRED), now = time(NULL);
-		int want = req && paired < req && now - req < PAIR_SHOW;
-		if (want && req != P.req_mtime) {	// new or refreshed request: (re)read it
-			FILE *f = fopen(PAIR_REQUEST, "r");
-			if (f) {
-				if (fscanf(f, "%7s %63s", P.code, P.url) != 2)
-					P.code[0] = 0;
-				fclose(f);
-			}
-			P.req_mtime = req;
-		}
-		if (want && P.code[0] && !P.on) {
-			P.on = 1;
-			sfx_play(SFX_POP, 0);
-		} else if (!want && P.on) {
-			P.on = 0;
-			if (paired >= P.req_mtime && paired) {	// the browser paired
-				P.done_t = 1.6f;
-				sfx_play(SFX_CONFIRM, 0);
-			}
-		}
-	}
-	float target = P.on || P.done_t > 0 ? 1.0f : 0.0f;
-	P.in += (target - P.in) * (1 - expf(-dt * 14));
-	if (P.in < 0.002f)
-		P.in = 0;
-}
-
-static void pair_draw(uint32_t *buf)
-{
-	if (P.in <= 0)
-		return;
-	canvas cv = {buf, UI_W, UI_H, UI_W}, *c = &cv;
-	const int w = 480, h = P.on ? 236 : 110;
-	int x = (UI_W - w) / 2, y = (UI_H - h) / 2 + (int)((1 - P.in) * 40);
-	darken(c, 0, 0, UI_W, UI_H, 0.55f * P.in);
-	rrect(c, x - 3, y - 3, w + 6, h + 6, 5, BLACK);
-	rrect(c, x, y, w, h, 4, BAR);
-	if (!P.on) {	// paired
-		const char *t = "CONNECTED";
-		text_arcade(c, (UI_W - text_width(t, 4)) / 2, y + 38, t, 4, PAL[3]);
-		return;
-	}
-	const char *title = "CONNECT A BROWSER";
-	text(c, (UI_W - text_width(title, 2)) / 2, y + 22, title, 2, PAL[2]);
-	char code[16];
-	snprintf(code, sizeof code, "%.3s %.3s", P.code, P.code + 3);
-	text_arcade(c, (UI_W - text_width(code, 7)) / 2, y + 62, code, 7, WHITE);
-	const char *l1 = "ENTER THIS CODE AT";
-	text(c, (UI_W - text_width(l1, 2)) / 2, y + 150, l1, 2, GREY);
-	text(c, (UI_W - text_width(P.url, 2)) / 2, y + 180, P.url, 2, PAL[4]);
-}
-
 /* ---- input -------------------------------------------------------------------- */
 
 static int pad_fd = -1, vol_fd = -1, pek_fd = -1, lid_fd = -1;
@@ -614,8 +529,6 @@ int main(void)
 		brightness_sync(dt);
 		volume_tick(dt);
 		volume_draw(buf);
-		pair_tick(dt);
-		pair_draw(buf);
 		__u32 crtc = 0;
 		if (ioctl(fb, FBIO_WAITFORVSYNC, &crtc) < 0) {
 			double left = 1.0 / 60 - (now() - t);	// no vblank wait: pace by time

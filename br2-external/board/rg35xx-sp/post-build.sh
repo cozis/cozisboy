@@ -18,6 +18,9 @@ rm -f "$TARGET_DIR/boot/Image"
 rm -f "$TARGET_DIR"/etc/init.d/S01seedrng "$TARGET_DIR"/etc/init.d/S01syslogd \
 	"$TARGET_DIR"/etc/init.d/S02klogd "$TARGET_DIR"/etc/init.d/S50crond
 
+# The web app runs only while PC LINK is open (the launcher starts it)
+rm -f "$TARGET_DIR"/etc/init.d/S60web
+
 # OpenSSH is only here for sftp-server (dropbear serves SSH)
 rm -f "$TARGET_DIR"/etc/init.d/S50sshd "$TARGET_DIR"/usr/sbin/sshd \
 	"$TARGET_DIR"/usr/libexec/sshd-session "$TARGET_DIR"/usr/libexec/sshd-auth \

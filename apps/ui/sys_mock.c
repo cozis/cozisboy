@@ -167,12 +167,37 @@ const char *sys_usb_ip(void)
 	return "10.55.0.2";
 }
 
-/* ---- PC link (fake) ---- */
-static int web_on = 1, web_browsers = 1;
+/* ---- PC link (fake): USB "plugs in" 2 s after USB pairing starts, a browser
+ * pairs 3 s after a pairing screen is ready ---- */
+static int web_up, web_browsers = 1, web_pairs, web_mode;
+static float web_t;
 static char web_code[8] = "482913";
-int sys_web_enabled(void) { return web_on; }
-void sys_web_enable(int on) { web_on = on; }
-const char *sys_web_code(void) { return web_on ? web_code : ""; }
-int sys_web_browsers(void) { return web_on ? web_browsers : 0; }
-void sys_web_new_code(void) { snprintf(web_code, sizeof web_code, "%06d", (int)(ui_time() * 7919) % 1000000); }
+void sys_web_open(void) { web_up = 1, web_mode = 0; }
+void sys_web_close(void) { web_up = 0; }
+void sys_web_tick(int pairing)
+{
+	static float last;
+	float now = ui_time(), dt = now - last;
+	last = now;
+	if (pairing != web_mode)
+		web_mode = pairing, web_t = 0;
+	if (pairing) {
+		web_t += dt > 0.1f ? 0.1f : dt;
+		if (web_t > (pairing == 1 ? 5.0f : 3.0f))
+			web_pairs++, web_browsers++, web_t = -1000;
+	}
+}
+int sys_web_running(void) { return web_up; }
+const char *sys_web_code(void) { return web_up ? web_code : ""; }
+int sys_web_browsers(void) { return web_browsers; }
+int sys_web_pairs(void) { return web_pairs; }
 void sys_web_forget_browsers(void) { web_browsers = 0; }
+int sys_usb_connected(void)	// "plugged in" 2 s after something starts waiting for it
+{
+	static float first, lastcall = -10;
+	float now = ui_time();
+	if (now - lastcall > 0.5f)
+		first = now;
+	lastcall = now;
+	return now - first > 2.0f;
+}
