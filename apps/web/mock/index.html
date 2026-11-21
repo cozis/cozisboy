@@ -425,6 +425,31 @@ footer a { cursor: pointer; text-decoration: underline; }
 .hhd .shots img:first-child { grid-column: 1 / -1; aspect-ratio: auto; }
 .hhd .desc { color: #c9c9d1; font-size: 14px; margin: 14px 0; max-height: 260px; overflow-y: auto; }
 
+
+/* ======================================================== flat (console views) */
+.flat .pb, .flat .pb::after { box-shadow: none !important; }
+.flat .pb:hover { transform: none; filter: brightness(1.08); }
+.flat .pb:active { transform: none; filter: brightness(.92); }
+.flat .cg .fr { border: 0; box-shadow: none; outline: 2px solid transparent; outline-offset: 3px; transition: outline-color .12s; }
+.flat .cg .it:hover .fr, .flat .cg .it:focus-visible .fr { transform: none; box-shadow: none; outline-color: #fff; }
+.flat .cg .fr .sys { border: 0; }
+.flat .pill { border: 0; background: #ffffff0d; }
+.flat .pxsearch { border: 0; outline: 2px solid transparent; background: #1c1c20; }
+.flat .pxsearch:focus { outline-color: var(--yellow); }
+.flat .chip { background: #1c1c20; }
+.flat .chip.on { background: #fff; }
+.flat .tray { border: 0; box-shadow: none; background: #1a1a1e; }
+.flat .modal { border: 0; box-shadow: none; }
+.flat .modal .mh, .flat .modal .side { border: 0; }
+.flat .modal .mh { background: #1a1a1e; }
+.flat .modal .side .ic { border: 0; box-shadow: none; }
+.flat .dropzone { border-width: 3px; }
+.flat .sech .ln { height: 2px; background: #2a2a30; }
+.flat.cv .cov .box { border: 0; box-shadow: none; }
+.flat.cv .cov.sel .box { box-shadow: 0 0 0 3px #fff; }
+.flat.cv .pill { border: 0; }
+.flat .bar { background: #0e0e10; }
+
 /* style switcher (mock only) */
 #switch { position: fixed; left: 14px; bottom: 14px; z-index: 50; display: flex; gap: 6px; align-items: center;
 	background: #000; color: #fff; padding: 6px 8px; border-radius: 10px; font: 600 12px system-ui; box-shadow: 0 4px 16px rgba(0,0,0,.4); }
@@ -833,7 +858,8 @@ document.addEventListener("keydown", ev => {
 
 // ---------------------------------------------------------------- console view
 let shelf = "mine", cvSel = { mine: 0, get: 0 }, cvStates = false, cvDrop = false, cvBusy = {};
-const PX = (t, sc = 2, look = "shadow", col = "#ffffff") => `<span class="px" data-scale="${sc}" data-look="${look}" data-color="${col}">${esc(String(t).toUpperCase())}</span>`;
+const FLAT = true;	// flat design: pixel text without outline / drop shadow
+const PX = (t, sc = 2, look = "shadow", col = "#ffffff") => `<span class="px" data-scale="${sc}" data-look="${FLAT ? "plain" : look}" data-color="${col}">${esc(String(t).toUpperCase())}</span>`;
 const pal = k => getComputedStyle(document.documentElement).getPropertyValue(k).trim();
 function cvItems() {
 	if (shelf === "mine") return [...MOCK_GAMES].sort((a, b) => (b.save ? b.save.time : b.added) - (a.save ? a.save.time : a.added));
@@ -887,14 +913,10 @@ function pageConsole() {
 	}
 	const states = mine && cvStates ? `<div class="states">` + it.states.map(st => `<div class="st"><div class="im"><img src="${esc(st.thumb)}" alt=""></div><b>${ago(st.time)}</b><span>Load on console · Download</span></div>`).join("") + `</div>` : "";
 	const nMine = MOCK_GAMES.length, nGet = MOCK_HH.length;
-	return `<div class="cv" style="--art:url('${esc(art || "")}');--glow-c:var(--sys-${k})">
+	return `<div class="cv flat" style="--art:url('${esc(art || "")}');--glow-c:var(--sys-${k})">
 		<div class="bg"></div>
 		<div class="top">
 			<img class="logo pix" src="../logo.png" alt="cozisboy">
-			<div class="nav">
-				<button class="${mine ? "on" : ""}" onclick="go('all')">${PX("My games " + nMine, 2, "shadow")}</button>
-				<button onclick="view='all';openAdd()">${PX("+ Add games", 2, "shadow")}</button>
-			</div>
 			<div class="grow"></div>
 			<div class="pill notch">${PX(MOCK_STATUS.battery.capacity + "%", 2, "plain", pal("--green"))}${PX(size(MOCK_STATUS.storage.free) + " free", 2, "plain", "#cccccc")}</div>
 		</div>
@@ -973,11 +995,8 @@ const SRC = {
 	link: { key: "link", name: "From a link",   col: "--green",  line: "Paste a direct link to a ROM or ZIP and the console downloads it.", meta: "https://…/game.gba" },
 };
 function navHTML() {
-	const tab = (v, t) => v === "add" ? `<button class="${addOpen ? "on" : ""}" onclick="openAdd()">${PX(t, 2, "shadow")}</button>`
-		: `<button class="${!addOpen ? "on" : ""}" onclick="closeAdd();go('all')">${PX(t, 2, "shadow")}</button>`;
-	return `<div class="bar"><img class="logo pix" src="../logo.png" alt="cozisboy" onclick="go('all')">
-		<div class="nav">${tab("all", "My games " + MOCK_GAMES.length)}${tab("add", "+ Add games")}</div><div class="grow"></div>
-		<div class="pill notch">${PX(MOCK_STATUS.battery.capacity + "%", 2, "plain", pal("--green"))}${PX(size(MOCK_STATUS.storage.free) + " free", 2, "plain", "#cccccc")}</div></div>`;
+	return `<div class="bar"><img class="logo pix" src="../logo.png" alt="cozisboy" onclick="closeAdd();go('all')"><div class="grow"></div>
+		<div class="pill">${PX(MOCK_STATUS.battery.capacity + "%", 2, "plain", pal("--green"))}${PX(size(MOCK_STATUS.storage.free) + " free", 2, "plain", "#cccccc")}</div></div>`;
 }
 function go(v) { view = v; cvStates = false; render(); scrollTo(0, 0); }
 function trayHTML() {
@@ -1048,7 +1067,7 @@ function pageAll() {
 		if (sortBy === "az" || true) xs.sort((a, b) => a.title.localeCompare(b.title));
 		body += `<div class="sech">${PX(SYS[k][1], 3, "arcade", pal(`--sys-${k}`))}${PX(String(xs.length), 2, "plain", "#666666")}<span class="ln"></span></div><div class="cg">${xs.map(g => gridItem(g, "mine")).join("")}</div>`;
 	}
-	return `<div class="ap" style="--glow-c:var(--blue)"><div class="bgx"></div>${navHTML()}<main>
+	return `<div class="ap flat" style="--glow-c:var(--blue)"><div class="bgx"></div>${navHTML()}<main>
 		<div class="ctl"><input class="pxsearch notch" placeholder="Search your games" value="${esc(q)}" oninput="q=this.value.toLowerCase();render();this.focus();this.setSelectionRange(this.value.length,this.value.length)">
 			<div class="chips"><button class="chip notch ${sortBy === "recent" ? "on" : ""}" onclick="sortBy='recent';render()">${PX("Recent", 2, "plain", sortBy === "recent" ? "#000000" : "#cccccc")}</button>
 			<button class="chip notch ${sortBy === "az" ? "on" : ""}" onclick="sortBy='az';render()">${PX("A-Z", 2, "plain", sortBy === "az" ? "#000000" : "#cccccc")}</button></div>
