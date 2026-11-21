@@ -528,6 +528,81 @@ static struct {
 	uint32_t tint; // background glow colour, follows the selection
 } S;
 
+/* ---- saved settings ------------------------------------------------------
+ * Everything the launcher owns is kept in <saves>/settings (key=value) and
+ * written about a second after it changes. Volume and brightness are the
+ * device front end's (host_dev.c keeps them with the hardware). */
+
+#define MAXPREFS 24
+static pref_t prefs[MAXPREFS];
+static int nprefs;
+static unsigned prefs_sig;
+static float prefs_dirty = -1; // seconds until the save, -1: nothing to save
+
+static const char *prefs_path(void)
+{
+	static char path[300];
+	snprintf(path, sizeof path, "%s/settings", getenv("COZ_SAVES") ? getenv("COZ_SAVES") : "saves");
+	return path;
+}
+
+static unsigned prefs_signature(void)
+{
+	unsigned h = 2166136261u;
+	for (int i = 0; i < nprefs; i++)
+		h = (h ^ (unsigned)*prefs[i].val) * 16777619u;
+	return h;
+}
+
+static void prefs_load(void)
+{
+	nprefs = 0;
+	prefs[nprefs++] = (pref_t){"sleep_after", &settings_items[SET_SLEEP].val, 3};
+	prefs[nprefs++] = (pref_t){"games_layout", &look_items[SET_HUB].val, 3};
+	prefs[nprefs++] = (pref_t){"control_center", &look_items[SET_CC].val, 3};
+	prefs[nprefs++] = (pref_t){"widget_style", &look_items[SET_WIDGETS].val, 4};
+	prefs[nprefs++] = (pref_t){"transition", &look_items[SET_TRANS].val, NTR};
+	nprefs += games_prefs(prefs + nprefs);
+	FILE *f = fopen(prefs_path(), "r");
+	if (f) {
+		char line[128], key[64];
+		int v;
+		while (fgets(line, sizeof line, f))
+			if (sscanf(line, "%63[^=]=%d", key, &v) == 2)
+				for (int i = 0; i < nprefs; i++)
+					if (!strcmp(key, prefs[i].key) && v >= 0 && v < prefs[i].n)
+						*prefs[i].val = v;
+		fclose(f);
+	}
+	wstyle = look_items[SET_WIDGETS].val;
+	games_set_style(look_items[SET_HUB].val, look_items[SET_CC].val);
+	games_prefs_apply();
+	prefs_sig = prefs_signature();
+}
+
+static void prefs_save(void)
+{
+	char tmp[320];
+	snprintf(tmp, sizeof tmp, "%s.tmp", prefs_path());
+	FILE *f = fopen(tmp, "w");
+	if (!f)
+		return;
+	for (int i = 0; i < nprefs; i++)
+		fprintf(f, "%s=%d\n", prefs[i].key, *prefs[i].val);
+	if (fclose(f) == 0)
+		rename(tmp, prefs_path());
+}
+
+// Each frame: save a second after the last change.
+static void prefs_tick(float dt)
+{
+	unsigned sig = prefs_signature();
+	if (sig != prefs_sig)
+		prefs_sig = sig, prefs_dirty = 1.0f;
+	if (prefs_dirty >= 0 && (prefs_dirty -= dt) < 0)
+		prefs_save();
+}
+
 void ui_init(void)
 {
 	memset(&S, 0, sizeof S);
@@ -540,6 +615,7 @@ void ui_init(void)
 	sfx_set_volume(settings_items[SET_VOLUME].val / 10.0f);
 	emu_set_volume(settings_items[SET_VOLUME].val / 10.0f);
 	games_set_style(look_items[SET_HUB].val, look_items[SET_CC].val);
+	prefs_load();
 }
 
 float ui_time(void)
@@ -1644,6 +1720,7 @@ void ui_frame(uint32_t *buf, int stride, float dt, unsigned held)
 {
 	canvas cv = {buf, W, H, stride}, *c = &cv;
 	update(pressed(held, dt), held, dt);
+	prefs_tick(dt);
 	if (S.snap_pending) { // the switch just happened: buf still shows the old screen
 		for (int y = 0; y < H; y++)
 			memcpy(snap + (size_t)y * W, buf + (size_t)y * stride, W * 4);

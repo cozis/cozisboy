@@ -53,6 +53,15 @@ void draw_background(canvas *c);
 void draw_tile(canvas *c, int app, int x, int y, int size, int scale, int dim);
 void draw_header(canvas *c, int app, const char *title);
 void ui_page_anim(int back); // animate a page change just made (Look > TRANSITION)
+
+/* ---- saved settings: <saves>/settings, "key=value" lines ---- */
+typedef struct {
+	const char *key;
+	int *val;
+	int n; // number of values (0..n-1)
+} pref_t;
+int games_prefs(pref_t *out);    // the in-game settings to save; returns how many
+void games_prefs_apply(void);    // after loading them
 void draw_hint(canvas *c, int *x, const char *btn, const char *label, uint32_t col);
 void draw_hintbar(canvas *c); // background of the bottom bar; hints start at x=16
 

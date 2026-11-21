@@ -194,6 +194,18 @@ static item_t input_items[] = {
 static list_t av_list = {av_items, 4, 0, 0, 0};
 static list_t input_list = {input_items, 3, 0, 0, 0};
 
+int games_prefs(pref_t *p)
+{
+	int n = 0;
+	p[n++] = (pref_t){"screen", &av_items[AV_SCREEN].val, 3};
+	p[n++] = (pref_t){"filter", &av_items[AV_FILTER].val, 3};
+	p[n++] = (pref_t){"color_fix", &av_items[AV_COLOR].val, 2};
+	p[n++] = (pref_t){"swap_ab", &input_items[IN_SWAP].val, 2};
+	p[n++] = (pref_t){"turbo_a", &input_items[IN_TURBO_A].val, 2};
+	p[n++] = (pref_t){"turbo_b", &input_items[IN_TURBO_B].val, 2};
+	return n;
+}
+
 static struct {
 	int hub_style, cc_style;
 	// hub
@@ -2916,4 +2928,11 @@ void games_ref_draw_bg(canvas *c, int ref)
 	else
 		fill(c, 0, 0, W, H, mix(lib[g].col, BLACK, 0.6f));
 	darken(c, 0, 0, W, H, 0.7f);
+}
+
+void games_prefs_apply(void)
+{
+	G.screen_mode = av_items[AV_SCREEN].val;
+	G.filter = av_items[AV_FILTER].val;
+	emu_set_color_fix(av_items[AV_COLOR].val);
 }
