@@ -92,7 +92,9 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
       and rsync. ~8.7 MB/s over USB, ~2.5 MB/s over Wi-Fi.
 - [ ] Wi-Fi throughput only ~2.5 MB/s at 72 Mbit/s link (rtw88 SDIO): check
       SDIO clock/bus width, 5 GHz.
-- [ ] Grow `/data` to the rest of the card on first boot (ROMs, saves, settings).
+- [x] `/data` grows to the whole card on first boot (S03data: sfdisk keeps the
+      GPT at 1008K, resizepart, online resize2fs in the background, ~4 min
+      for 58 GB). Image's data.ext4 uses 4 KiB blocks.
 - [ ] U-Boot USB disk mode (Menu at power-on -> `ums`) never triggered.
 - [ ] `tools/deploy.sh` causes ext4 orphan recovery on the next boot (replaces
       running binaries); stop services first or reboot into a maintenance mode.

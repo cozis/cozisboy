@@ -27,6 +27,8 @@ ls -l "$BINARIES_DIR/fastboot.itb"
 
 # Empty writable data partition (mounted at /data)
 rm -f "$BINARIES_DIR/data.ext4"
-"$HOST_DIR/sbin/mkfs.ext4" -q -L data -O ^metadata_csum "$BINARIES_DIR/data.ext4" 64M
+# 4 KiB blocks and 1 inode per 64 KiB: the partition is grown to the whole
+# card on first boot (S03data) and holds mostly large files (games)
+"$HOST_DIR/sbin/mkfs.ext4" -q -L data -b 4096 -i 65536 -O ^metadata_csum "$BINARIES_DIR/data.ext4" 64M
 
 exec support/scripts/genimage.sh -c "$BINARIES_DIR/genimage.cfg"

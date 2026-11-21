@@ -1,10 +1,41 @@
 #!/bin/sh
-# Writable data partition (the root filesystem is read-only): SSH host keys
-# now, settings and saves later.
+# Writable data partition (the root filesystem is read-only): SSH host keys,
+# Wi-Fi, games and saves. On the first boot of a new card, the partition and
+# its filesystem are grown to fill the card (the image ships a small one).
+DISK=/dev/mmcblk0
+PART=${DISK}p2
+
+grow_partition() {
+	local disk_sectors start size end
+	disk_sectors=$(cat /sys/class/block/mmcblk0/size)
+	start=$(cat /sys/class/block/mmcblk0p2/start)
+	size=$(cat /sys/class/block/mmcblk0p2/size)
+	end=$((start + size))
+	# GPT keeps 33 sectors at the end for its backup copy; grow if more is free
+	[ $((disk_sectors - end)) -gt 2048 ] || return 1
+	echo "data: growing partition 2 to the end of the card"
+	# sfdisk keeps the partition table where it is (1008 KiB, clear of the
+	# SPL at 8 KiB) and writes the backup GPT at the end of the card
+	echo ", +" | sfdisk --no-reread -N 2 $DISK >/dev/null 2>&1
+	# tell the running kernel the new size (the disk is in use)
+	size=$(sfdisk -d $DISK 2>/dev/null | sed -n 's/.*p2 : start= *[0-9]*, size= *\([0-9]*\).*/\1/p')
+	[ -n "$size" ] && resizepart $DISK 2 $size 2>/dev/null
+	return 0
+}
+
 case "$1" in
 start)
 	mkdir -p /data
-	mount -t ext4 -o noatime /dev/mmcblk0p2 /data || exit 0
+	grow_partition
+	mount -t ext4 -o noatime $PART /data || exit 0
+	# online grow: also finishes a grow that was interrupted earlier
+	fs_blocks=$(dumpe2fs -h $PART 2>/dev/null | sed -n 's/^Block count: *//p')
+	fs_bsize=$(dumpe2fs -h $PART 2>/dev/null | sed -n 's/^Block size: *//p')
+	part_bytes=$(( $(cat /sys/class/block/mmcblk0p2/size) * 512 ))
+	if [ -n "$fs_blocks" ] && [ $((fs_blocks * fs_bsize + 64 * 1048576)) -lt $part_bytes ]; then
+		echo "data: growing the filesystem"
+		resize2fs $PART >/dev/null 2>&1 &
+	fi
 	mkdir -p /data/dropbear
 	;;
 stop)
