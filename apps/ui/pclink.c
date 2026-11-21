@@ -252,15 +252,19 @@ static void big_icon(canvas *c, const char *const *rows, int x, int y, int scale
 	draw_icon(c, &ic, x, y, scale, WHITE, detail, BLACK);
 }
 
-// The choice widget: a big card with an icon, a title and a line under it.
-// Exactly one card is selected (filled with the page colour).
+// The choice widget: a big card with an icon, a title and two lines.
+// Exactly one card is selected (page colour, white border); the other is a
+// plain dark card.
 static void choice_card(canvas *c, int y, int h, const char *const *icon, const char *title,
 			const char *line, const char *status, uint32_t scol, int sel)
 {
 	uint32_t col = PAL[APP_PCLINK];
 	uint32_t fillc = sel ? col : 0x222222;
-	wbox(c, PX0, y, PW, h, fillc, sel ? W_SEL : W_NORMAL);
-	uint32_t ink = sel ? wink(fillc, W_SEL) : WHITE;
+	// its own clean frame (not wbox's outline + ring): selected = a white border
+	if (sel)
+		rrect(c, PX0 - 4, y - 4, PW + 8, h + 8, 12, WHITE);
+	rrect(c, PX0, y, PW, h, 9, fillc);
+	uint32_t ink = sel ? 0x2a1800 : WHITE;
 	int is = 3, isz = 24 * is;
 	big_icon(c, icon, PX0 + 24, y + (h - isz) / 2, is, sel ? mix(col, BLACK, 0.45f) : 0x444444);
 	int tx = PX0 + 24 + isz + 24, ty = y + (h - 76) / 2;
