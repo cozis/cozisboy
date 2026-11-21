@@ -415,6 +415,21 @@ int emu_linked(emu_game *g)
 	return g->grp ? g->grp->n : 1;
 }
 
+int emu_same_group(emu_game *a, emu_game *b)
+{
+	return a && b && a != b && a->grp && a->grp == b->grp;
+}
+
+void emu_unlink(emu_game *g)
+{
+	unlink_game(g);
+}
+
+const uint32_t *emu_frame_peek(emu_game *g)
+{
+	return g->out;
+}
+
 /* ---- running ----------------------------------------------------------------------- */
 
 static unsigned gba_keys(unsigned b)
@@ -464,6 +479,10 @@ static void run_group_frame(struct group *gr)
 void emu_run(emu_game *g, unsigned buttons, int frames)
 {
 	g->core->setKeys(g->core, gba_keys(buttons));
+	if (g->grp) // the other linked games get no input while you play this one
+		for (int i = 0; i < g->grp->n; i++)
+			if (g->grp->g[i] != g)
+				g->grp->g[i]->core->setKeys(g->grp->g[i]->core, 0);
 	for (int f = 0; f < frames; f++) {
 		if (g->grp)
 			run_group_frame(g->grp);

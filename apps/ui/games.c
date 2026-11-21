@@ -73,6 +73,7 @@ typedef struct {
 
 typedef struct {
 	int game;
+	int copy;              // 0: the game itself, n: linked copy shown as "#n+1"
 	int last_used;
 	gstate_t st;           // mock scene state
 	emu_game *eg;          // the emulator running this game (NULL: mock scene)
@@ -417,6 +418,29 @@ static int find_running(int game)
 static int is_emu(int g)
 {
 	return lib[g].rom != NULL;
+}
+
+// Title of an open game; copies get "#2", "#3"...
+static const char *inst_title(int i)
+{
+	static char buf[4][80];
+	static int k;
+	if (!run[i].copy)
+		return lib[run[i].game].title;
+	char *b = buf[k++ & 3];
+	snprintf(b, 80, "%s #%d", lib[run[i].game].title, run[i].copy + 1);
+	return b;
+}
+
+// Battery save of copy n of game g: "<game>.copy<n+1>.sav" next to its own save.
+static void copy_sav_path(int g, int n, char *out, size_t sz)
+{
+	snprintf(out, sz, "%.*s.copy%d.sav", (int)strlen(lib[g].sav_out) - 4, lib[g].sav_out, n + 1);
+}
+
+static int linked_with_cur(int i)
+{
+	return cur >= 0 && i != cur && emu_same_group(run[i].eg, run[cur].eg);
 }
 
 static void close_running(int i)
@@ -1086,7 +1110,7 @@ static void draw_game_view(canvas *c, inst_t *in)
 	rrect(c, sx - 6, sy - 6, 492, 332, 6, WHITE);
 	rrect(c, sx - 3, sy - 3, 486, 326, 4, BLACK);
 	blit_game(c, in->frame, GW, GH, sx, sy, 480, 320, G.filter);
-	text(c, sx, 40, lib[in->game].title, 2, 0xbbbbbb);
+	text(c, sx, 40, inst_title(cur), 2, 0xbbbbbb);
 	fill(c, sx + 480 - 30, 44, 8, 8, PAL[3]);
 	static const char word[] = "COZISBOY";
 	for (int i = 0; word[i]; i++) {
@@ -1121,6 +1145,9 @@ static void game_update(unsigned p, unsigned held, float dt)
 	if (is_emu(in->game)) {
 		emu_run(in->eg, map_buttons(held), steps);
 		memcpy(in->frame, emu_frame(in->eg), sizeof in->frame);
+		for (int k = 0; k < nrun; k++) // linked games ran too: keep their pictures live
+			if (linked_with_cur(k))
+				memcpy(run[k].frame, emu_frame(run[k].eg), sizeof run[k].frame);
 		return;
 	}
 	for (int k = 0; k < steps; k++)
@@ -1298,8 +1325,8 @@ static void activate_card(int sel, int x, int y)
  * all games), VIDEO, AUDIO, CONTROLS. A preview of the game sits on the right. */
 
 enum { E_HEADER, E_ACTION, E_OPTION, E_CARD };
-enum { ACT_RESUME, ACT_STATES, ACT_SETTINGS, ACT_RESET, ACT_CLOSE, NACT };
-static const char *const ACT_NAMES[NACT] = {"RESUME", "SAVE STATES", "SETTINGS", "RESET",
+enum { ACT_RESUME, ACT_STATES, ACT_SETTINGS, ACT_LINK, ACT_RESET, ACT_CLOSE, NACT };
+static const char *const ACT_NAMES[NACT] = {"RESUME", "SAVE STATES", "SETTINGS", "LINK CABLE", "RESET",
 					    "CLOSE GAME"};
 
 typedef struct {
@@ -1315,7 +1342,10 @@ static struct {
 	int col;        // 0: this game's actions, 1: open games / home / all games
 	int sel[2];
 	float sel_y[2];
-	int page;       // 0: main, 1: settings
+	int page;       // 0: main, 1: settings, 2: link cable
+	int lsel;       // link page selection
+	float lhold;    // hold-to-confirm progress on the link page
+	int larmed;
 	int ssel;       // settings page selection (index into ents)
 	float ssel_y;
 } M2;
@@ -1632,10 +1662,187 @@ static void settings_update(unsigned p, float dt)
 	apply_options();
 }
 
+/* ---- link cable page ---------------------------------------------------------- */
+
+static void ingame_hints(canvas *c, const char *const *b, const char *const *l, int n);
+
+enum { L_COPY_OWN, L_COPY_MINE, L_WITH, L_UNLINK };
+typedef struct {
+	int kind, target; // target: open game index for L_WITH
+	char label[80];
+} lrow_t;
+
+// Next free copy number for the current game (1..3), or 0 if none.
+static int next_copy(void)
+{
+	int used[4] = {0};
+	for (int i = 0; i < nrun; i++)
+		if (run[i].game == run[cur].game && run[i].copy < 4)
+			used[run[i].copy] = 1;
+	for (int n = 1; n < 4; n++)
+		if (!used[n])
+			return n;
+	return 0;
+}
+
+static int link_rows(lrow_t *r)
+{
+	int n = 0, full = emu_linked(run[cur].eg) >= 4 || nrun >= MAXRUN || !next_copy();
+	if (!full) {
+		r[n++] = (lrow_t){L_COPY_OWN, 0, "LINKED COPY - ITS OWN SAVE"};
+		r[n++] = (lrow_t){L_COPY_MINE, 0, "LINKED COPY - COPY OF MY SAVE"};
+	}
+	for (int i = 0; i < nrun && n < 12; i++)
+		if (i != cur && run[i].eg && emu_linked(run[i].eg) == 1 && emu_linked(run[cur].eg) < 4) {
+			r[n] = (lrow_t){L_WITH, i, ""};
+			snprintf(r[n].label, sizeof r[n].label, "LINK WITH %s", inst_title(i));
+			n++;
+		}
+	if (emu_linked(run[cur].eg) > 1)
+		r[n++] = (lrow_t){L_UNLINK, 0, "UNLINK THIS GAME"};
+	return n;
+}
+
+// Open a linked copy of the current game. from_mine: its save starts as a
+// copy of the current one (replacing the copy's own save).
+static void open_linked_copy(int from_mine)
+{
+	int g = run[cur].game, n = next_copy(), orig = cur;
+	char path[600];
+	copy_sav_path(g, n, path, sizeof path);
+	if (from_mine)
+		unlink(path);
+	emu_game *eg = emu_open(lib[g].rom, from_mine ? lib[g].sav_out : NULL, path);
+	if (!eg) {
+		toast("COULD NOT OPEN A COPY");
+		sfx_play(SFX_BUMP, 0);
+		return;
+	}
+	int i = nrun++;
+	memset(&run[i], 0, sizeof run[i]);
+	run[i].game = g, run[i].copy = n, run[i].eg = eg;
+	emu_link(run[orig].eg, eg);
+	G.cc = 0;
+	enter_game(i, W / 2, H / 2);
+	toast("LINKED - DOUBLE-TAP MENU TO SWITCH");
+}
+
+static void link_update(unsigned p, float dt)
+{
+	lrow_t r[16];
+	int n = link_rows(r);
+	if (M2.lsel >= n)
+		M2.lsel = n ? n - 1 : 0;
+	int a_down = (ui_held() & BTN_A) != 0;
+	if (!a_down)
+		M2.larmed = 1;
+	if (p & BTN_B) {
+		M2.page = 0;
+		sfx_play(SFX_BACK, 0);
+		return;
+	}
+	int d = (p & BTN_DOWN) ? 1 : (p & BTN_UP) ? -1 : 0;
+	if (d && n) {
+		if (M2.lsel + d >= 0 && M2.lsel + d < n)
+			M2.lsel += d, M2.lhold = 0, sfx_play(SFX_TICK, 0);
+		else
+			sfx_play(SFX_BUMP, 0);
+	}
+	if (!n)
+		return;
+	lrow_t *row = &r[M2.lsel];
+	// replacing a copy's existing save is irreversible: hold A
+	char path[600];
+	copy_sav_path(run[cur].game, next_copy(), path, sizeof path);
+	int needs_hold = row->kind == L_COPY_MINE && access(path, F_OK) == 0;
+	if (needs_hold) {
+		M2.lhold = M2.larmed && a_down ? M2.lhold + dt : 0;
+		if (M2.lhold < 0.9f)
+			return;
+		M2.lhold = 0;
+	} else if (!(p & BTN_A)) {
+		return;
+	}
+	switch (row->kind) {
+	case L_COPY_OWN: open_linked_copy(0); break;
+	case L_COPY_MINE: open_linked_copy(1); break;
+	case L_WITH:
+		if (emu_link(run[cur].eg, run[row->target].eg) == 0) {
+			snprintf(toast_buf, sizeof toast_buf, "LINKED WITH %s", inst_title(row->target));
+			sfx_play(SFX_CONFIRM, 0);
+			toast(toast_buf);
+		}
+		break;
+	case L_UNLINK:
+		emu_unlink(run[cur].eg);
+		sfx_play(SFX_TOGGLE_OFF, 0);
+		toast("UNLINKED");
+		break;
+	}
+}
+
+static void link_draw(canvas *c)
+{
+	uint32_t col = PAL[APP_GAMES], ink = wink(col, W_NORMAL);
+	const int lx = 60, lw = 520;
+	text_arcade(c, lx, 34, "LINK CABLE", 3, col);
+	text(c, lx, 66, inst_title(cur), 2, GREY);
+
+	// status
+	rrect(c, lx, 92, lw, 64, 6, 0x1c1c1c);
+	int linked = emu_linked(run[cur].eg) > 1;
+	fill(c, lx + 16, 105, 8, 8, linked ? PAL[4] : GREY);
+	text(c, lx + 32, 102, linked ? "CONNECTED TO" : "NOT CONNECTED", 2, linked ? WHITE : GREY);
+	if (linked) {
+		char who[160] = "";
+		for (int i = 0; i < nrun; i++)
+			if (linked_with_cur(i)) {
+				if (who[0])
+					strncat(who, ", ", sizeof who - strlen(who) - 1);
+				strncat(who, inst_title(i), sizeof who - strlen(who) - 1);
+			}
+		int ws = text_width(who, 2) <= lw - 50 ? 2 : 1;
+		text(c, lx + 32, 126, who, ws, PAL[4]);
+	} else {
+		text(c, lx + 32, 126, "PLAY A LINKED COPY OR LINK AN OPEN GAME", 1, GREY);
+	}
+
+	// options
+	lrow_t r[16];
+	int n = link_rows(r);
+	const int top = 178, rh = 40;
+	char path[600];
+	copy_sav_path(run[cur].game, next_copy(), path, sizeof path);
+	for (int i = 0; i < n; i++) {
+		int y = top + i * rh, sel = i == M2.lsel;
+		int hold = r[i].kind == L_COPY_MINE && access(path, F_OK) == 0;
+		if (sel) {
+			if (hold) { // fills while A is held
+				rrect(c, lx, y, lw, rh - 6, 4, mix(col, BLACK, 0.55f));
+				int fw = (int)(lw * clampf(M2.lhold / 0.9f, 0, 1));
+				if (fw > 0)
+					rrect(c, lx, y, fw, rh - 6, 4, col);
+			} else {
+				wbox(c, lx, y, lw, rh - 6, col, W_NORMAL);
+			}
+		}
+		text(c, lx + 16, y + 10, r[i].label, 2, sel ? (hold ? WHITE : ink) : 0xdddddd);
+		if (hold)
+			text(c, lx + lw - 16 - text_width("HOLD A", 2), y + 10, "HOLD A", 2,
+			     sel ? WHITE : GREY);
+	}
+	static const char *const b[] = {"^V", "A", "B"}, *const l[] = {"MOVE", "OK", "BACK"};
+	ingame_hints(c, b, l, 3);
+}
+
 static void ingame_update(unsigned p, float dt)
 {
 	if (SV.on) {
 		states_update(p, dt);
+		return;
+	}
+	if (M2.page == 2) {
+		link_update(p, dt);
 		return;
 	}
 	if (M2.page) {
@@ -1678,6 +1885,15 @@ static void ingame_update(unsigned p, float dt)
 	case ACT_SETTINGS:
 		M2.page = 1, M2.ssel = 1, M2.ssel_y = 1;
 		sfx_play(SFX_OPEN, APP_SETTINGS);
+		break;
+	case ACT_LINK:
+		if (!run[cur].eg) {
+			toast("NO LINK CABLE IN THIS GAME");
+			sfx_play(SFX_BUMP, 0);
+			break;
+		}
+		M2.page = 2, M2.lsel = 0, M2.lhold = 0, M2.larmed = 0;
+		sfx_play(SFX_OPEN, APP_GAMES);
 		break;
 	case ACT_RESET: quick_action(QA_RESET); break;
 	case ACT_CLOSE: quick_action(QA_CLOSE); break;
@@ -1773,6 +1989,10 @@ static void ingame_draw(canvas *c, float a)
 		return;
 	}
 	darken(c, 0, 0, W, H, 0.85f * a); // the game stays visible: the menu belongs to it
+	if (M2.page == 2) {
+		link_draw(c);
+		return;
+	}
 	if (M2.page) {
 		settings_draw(c);
 		return;
@@ -1784,7 +2004,7 @@ static void ingame_draw(canvas *c, float a)
 	// left: this game
 	const int lx = 34 + slide, lw = 250, top = 120, rh = 46;
 	// title: big if it fits, else smaller, else wrapped onto two lines
-	const char *title = lib[in->game].title;
+	const char *title = inst_title(cur);
 	int ty0 = 34, py0;
 	if (text_width(title, 3) <= lw) {
 		text_arcade(c, lx, ty0 + 6, title, 3, lib[in->game].col);
@@ -1810,7 +2030,7 @@ static void ingame_draw(canvas *c, float a)
 		py0 = ty0 + 50;
 	}
 	fill(c, lx, py0 + 3, 8, 8, PAL[3]);
-	text(c, lx + 14, py0, "PLAYING", 2, PAL[3]);
+	text(c, lx + 14, py0, emu_linked(in->eg) > 1 ? "PLAYING - LINKED" : "PLAYING", 2, PAL[3]);
 	if (M2.col == 0)
 		wbox(c, lx, top + (int)lrintf(M2.sel_y[0] * rh), lw, rh - 8, col, W_NORMAL);
 	for (int i = 0; i < NACT; i++) {
@@ -1823,6 +2043,10 @@ static void ingame_draw(canvas *c, float a)
 			text(c, lx + lw - 16 - text_width(nb, 2), y + 12, nb, 2, sel ? ink : GREY);
 		} else if (i == ACT_SETTINGS) {
 			text(c, lx + lw - 28, y + 12, ">", 2, sel ? ink : GREY);
+		} else if (i == ACT_LINK) {
+			int on = emu_linked(in->eg) > 1;
+			text(c, lx + lw - 16 - text_width(on ? "ON >" : ">", 2), y + 12, on ? "ON >" : ">", 2,
+			     sel ? ink : on ? PAL[4] : GREY);
 		}
 	}
 
@@ -1862,10 +2086,11 @@ static void ingame_draw(canvas *c, float a)
 				fill(c, rx - 5, y - 5, tw + 10, th + 10, WHITE);
 			fill(c, rx - 2, y - 2, tw + 4, th + 4, PAL[3]);
 			blit_game(c, run[sv[i]].frame, GW, GH, rx, y, tw, th, 0);
-			const char *t = lib[run[sv[i]].game].title;
+			const char *t = inst_title(sv[i]);
 			int lines = text_wrap2(c, rx + tw + 14, y, t, rw - tw - 14, sel ? WHITE : 0xcccccc);
 			if (lines == 1)
-				text(c, rx + tw + 14, y + 22, "PAUSED", 2, PAL[3]);
+				text(c, rx + tw + 14, y + 22, linked_with_cur(sv[i]) ? "LINKED" : "PAUSED", 2,
+				     linked_with_cur(sv[i]) ? PAL[4] : PAL[3]);
 		} else { // home / all games
 			if (sel)
 				wbox(c, rx, y, rw, 32, col, W_NORMAL);
@@ -2003,7 +2228,7 @@ static const char *draw_cc_card(canvas *c, int sel_id, int x, int y, int cw, int
 		rrect(c, x + 4, y + 4, 40, 14, 2, PAL[3]);
 		text(c, x + 8, y + 7, "NOW", 1, BLACK);
 	}
-	return lib[in->game].title;
+	return inst_title(sel_id);
 }
 
 static void action_chips(canvas *c, int y)
@@ -2366,7 +2591,7 @@ void games_ref_tile(canvas *c, int ref, int x, int y, int size, int dim)
 
 const char *games_ref_title(int ref)
 {
-	return lib[ref_game(ref)].title;
+	return ref >= 0 ? inst_title(ref) : lib[ref_game(ref)].title;
 }
 
 uint32_t games_ref_col(int ref)
@@ -2378,7 +2603,7 @@ void games_ref_status(int ref, char *buf, int n)
 {
 	int g = ref_game(ref);
 	if (ref >= 0)
-		snprintf(buf, (size_t)n, "OPEN - PAUSED");
+		snprintf(buf, (size_t)n, emu_linked(run[ref].eg) > 1 ? "OPEN - LINKED" : "OPEN - PAUSED");
 	else
 		snprintf(buf, (size_t)n, "LAST PLAYED %s", last_text(g));
 }
