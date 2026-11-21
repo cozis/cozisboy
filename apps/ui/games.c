@@ -86,6 +86,7 @@ typedef struct {
 static inst_t run[MAXRUN];
 static int nrun, cur = -1, use_counter;
 static int nplayed; // played games that aren't open (counted by hub_order)
+static int nopen;   // open games, each counted once even with copies (hub_order)
 
 #define NSLOTS 8 // save states per game
 #define TW (GW / 2)
@@ -725,10 +726,13 @@ static int hub_order(int *v)
 				break;
 			v[j - 1] = b, v[j] = a;
 		}
-	nplayed = 0;
-	for (int g = 0; g < NGAMES; g++)
-		if (lib[g].recent && find_running(g) < 0)
+	nplayed = nopen = 0;
+	for (int g = 0; g < NGAMES; g++) {
+		if (find_running(g) >= 0)
+			nopen++;
+		else if (lib[g].recent)
 			nplayed++;
+	}
 	return n;
 }
 
@@ -750,9 +754,9 @@ static int index_of(const int *v, int n, int g)
 static float cover_pos(int i)
 {
 	float x = (float)(i * COVER_SP);
-	if (nrun && i >= nrun)
+	if (nopen && i >= nopen)
 		x += COVER_GAP;
-	if (nplayed && i >= nrun + nplayed)
+	if (nplayed && i >= nopen + nplayed)
 		x += COVER_GAP;
 	return x;
 }
@@ -1041,31 +1045,31 @@ static void hub_draw_covers(canvas *c, const int *v, int n)
 	// group labels above each group's first cover
 	int top = cy - big / 2 - 30;
 	char lbl[24];
-	if (nrun) {
+	if (nopen) {
 		int x = W / 2 + (int)lrintf(cover_pos(0) - G.camx) - small / 2;
-		snprintf(lbl, sizeof lbl, "OPEN (%d)", nrun);
+		snprintf(lbl, sizeof lbl, "OPEN (%d)", nopen);
 		fill(c, x, top + 4, 10, 10, PAL[3]);
 		text(c, x + 16, top + 2, lbl, 2, PAL[3]);
 		// divider between the groups
-		if (nrun < n) {
-			int dx = W / 2 + (int)lrintf(cover_pos(nrun) - G.camx) - COVER_GAP / 2 - small / 2 - 30;
+		if (nopen < n) {
+			int dx = W / 2 + (int)lrintf(cover_pos(nopen) - G.camx) - COVER_GAP / 2 - small / 2 - 30;
 			for (int yy = top; yy < cy + big / 2; yy += 10)
 				fill(c, dx, yy, 3, 6, 0x666666);
 		}
 	}
 	if (nplayed) {
-		int x = W / 2 + (int)lrintf(cover_pos(nrun) - G.camx) - small / 2;
+		int x = W / 2 + (int)lrintf(cover_pos(nopen) - G.camx) - small / 2;
 		text(c, x, top + 2, "RECENT", 2, 0xdddddd);
-		if (nrun + nplayed < n) {
-			int dx = W / 2 + (int)lrintf(cover_pos(nrun + nplayed) - G.camx) - COVER_GAP / 2 -
+		if (nopen + nplayed < n) {
+			int dx = W / 2 + (int)lrintf(cover_pos(nopen + nplayed) - G.camx) - COVER_GAP / 2 -
 				 small / 2 - 30;
 			for (int yy = top; yy < cy + big / 2; yy += 10)
 				fill(c, dx, yy, 3, 6, 0x666666);
 		}
 	}
-	if (nrun + nplayed < n) {
-		int x = W / 2 + (int)lrintf(cover_pos(nrun + nplayed) - G.camx) - small / 2;
-		text(c, x, top + 2, nrun + nplayed ? "NOT PLAYED" : "ALL GAMES", 2, 0xaaaaaa);
+	if (nopen + nplayed < n) {
+		int x = W / 2 + (int)lrintf(cover_pos(nopen + nplayed) - G.camx) - small / 2;
+		text(c, x, top + 2, nopen + nplayed ? "NOT PLAYED" : "ALL GAMES", 2, 0xaaaaaa);
 	}
 
 	for (int pass = 0; pass < 2; pass++) // neighbours first, selection on top
@@ -1100,12 +1104,14 @@ static void hub_draw_covers(canvas *c, const int *v, int n)
 	text_arcade(c, (W - tw) / 2, 254 + (4 - ts) * 7, lib[g].title, ts, lib[g].col);
 	char buf[64];
 	if (ri >= 0) { // status pill: open
-		const char *st = "OPEN - PAUSED";
+		int lk = is_linked(ri);
+		const char *st = lk ? "OPEN - LINKED" : "OPEN - PAUSED";
+		uint32_t sc = lk ? LINK_COL : PAL[3];
 		int w = text_width(st, 2) + 34;
 		int x = (W - w) / 2;
-		rrect(c, x, 296, w, 26, 4, mix(PAL[3], BLACK, 0.6f));
-		fill(c, x + 10, 305, 8, 8, PAL[3]);
-		text(c, x + 24, 302, st, 2, PAL[3]);
+		rrect(c, x, 296, w, 26, 4, mix(sc, BLACK, 0.6f));
+		fill(c, x + 10, 305, 8, 8, sc);
+		text(c, x + 24, 302, st, 2, sc);
 	} else {
 		if (lib[g].recent)
 			snprintf(buf, sizeof buf, "LAST PLAYED %s", last_text(g));
