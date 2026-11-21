@@ -40,6 +40,8 @@
 
 #include "library.h"
 
+#include <curl/curl.h>
+
 #define ROOT "/data"
 #define WWW "/usr/share/cozisboy-web"
 #define CODE_FILE "/run/cozisboy-web.code"
@@ -961,6 +963,140 @@ out:
 	free(z);
 }
 
+// ------------------------------------------------------- Homebrew Hub relay
+//
+// Its JSON API isn't readable cross-origin, so the page asks us and we ask
+// hh3.gbdev.io. Only two request shapes are forwarded, to that host only:
+//   /api/hh/search?<query>        -> https://hh3.gbdev.io/api/search?<query>
+//   /api/hh/entry/<slug>.json     -> https://hh3.gbdev.io/api/entry/<slug>.json
+// Answers are cached for an hour. ROMs and images are fetched by the browser
+// directly (those files allow it).
+
+#define HH_API "https://hh3.gbdev.io/api/"
+#define HH_TTL 3600
+#define HH_CACHE 512
+#define HH_MAX_BODY (4 << 20)
+
+static struct {
+	char url[512];
+	time_t t;
+	char *body;
+	size_t len;
+} hh_cache[HH_CACHE];
+static int hh_next;
+static pthread_mutex_t hh_lock = PTHREAD_MUTEX_INITIALIZER;
+
+struct membuf {
+	char *p;
+	size_t len;
+};
+
+static size_t membuf_write(char *data, size_t sz, size_t n, void *arg)
+{
+	struct membuf *m = arg;
+	size_t add = sz * n;
+	if (m->len + add > HH_MAX_BODY)
+		return 0;	// abort the transfer
+	char *np = realloc(m->p, m->len + add + 1);
+	if (!np)
+		return 0;
+	memcpy(np + m->len, data, add);
+	m->p = np;
+	m->len += add;
+	m->p[m->len] = 0;
+	return add;
+}
+
+static int only_chars(const char *s, const char *allowed)
+{
+	for (; *s; s++)
+		if (!isalnum((unsigned char)*s) && !strchr(allowed, *s))
+			return 0;
+	return 1;
+}
+
+static void api_hh(struct req *r, const char *rest)
+{
+	char url[512];
+	if (!strcmp(rest, "search")) {
+		if (strlen(r->query) > 300 || !only_chars(r->query, "=&_.,%+-")) {
+			respond_error(r->fd, 400, "bad query");
+			return;
+		}
+		snprintf(url, sizeof url, HH_API "search?%s", r->query);
+	} else if (!strncmp(rest, "entry/", 6)) {
+		const char *slug = rest + 6;
+		size_t l = strlen(slug);
+		if (l < 6 || l > 200 || strcmp(slug + l - 5, ".json") || slug[0] == '.' ||
+		    !only_chars(slug, "_.-") || strstr(slug, "..")) {
+			respond_error(r->fd, 400, "bad entry");
+			return;
+		}
+		snprintf(url, sizeof url, HH_API "entry/%s", slug);
+	} else {
+		respond_error(r->fd, 404, "no such endpoint");
+		return;
+	}
+
+	time_t now = time(NULL);
+	pthread_mutex_lock(&hh_lock);
+	for (int i = 0; i < HH_CACHE; i++)
+		if (hh_cache[i].body && !strcmp(hh_cache[i].url, url) && now - hh_cache[i].t < HH_TTL) {
+			char *copy = malloc(hh_cache[i].len);
+			size_t len = hh_cache[i].len;
+			if (copy)
+				memcpy(copy, hh_cache[i].body, len);
+			pthread_mutex_unlock(&hh_lock);
+			if (copy)
+				respond(r->fd, 200, "application/json", NULL, copy, len);
+			else
+				respond_error(r->fd, 500, "out of memory");
+			free(copy);
+			return;
+		}
+	pthread_mutex_unlock(&hh_lock);
+
+	struct membuf m = { 0 };
+	CURL *c = curl_easy_init();
+	if (!c) {
+		respond_error(r->fd, 500, "curl init failed");
+		return;
+	}
+	long status = 0;
+	curl_easy_setopt(c, CURLOPT_URL, url);
+	curl_easy_setopt(c, CURLOPT_PROTOCOLS_STR, "https");
+	curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 0L);
+	curl_easy_setopt(c, CURLOPT_TIMEOUT, 20L);
+	curl_easy_setopt(c, CURLOPT_CONNECTTIMEOUT, 8L);
+	curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);
+	curl_easy_setopt(c, CURLOPT_USERAGENT, "cozisboy-web");
+	curl_easy_setopt(c, CURLOPT_ACCEPT_ENCODING, "");	// gzip if offered
+	curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, membuf_write);
+	curl_easy_setopt(c, CURLOPT_WRITEDATA, &m);
+	CURLcode rc = curl_easy_perform(c);
+	curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &status);
+	curl_easy_cleanup(c);
+	if (rc != CURLE_OK || status != 200 || !m.len) {
+		char msg[160];
+		snprintf(msg, sizeof msg, "Homebrew Hub unreachable (%s)",
+			 rc != CURLE_OK ? curl_easy_strerror(rc) : status == 404 ? "not found" : "bad response");
+		respond_error(r->fd, status == 404 ? 404 : 502, msg);
+		free(m.p);
+		return;
+	}
+	respond(r->fd, 200, "application/json", NULL, m.p, m.len);
+
+	pthread_mutex_lock(&hh_lock);
+	int slot = hh_next;
+	hh_next = (hh_next + 1) % HH_CACHE;
+	free(hh_cache[slot].body);
+	snprintf(hh_cache[slot].url, sizeof hh_cache[slot].url, "%s", url);
+	hh_cache[slot].t = now;
+	hh_cache[slot].body = m.p;
+	hh_cache[slot].len = m.len;
+	pthread_mutex_unlock(&hh_lock);
+}
+
 // /api/games/<id>[/<a>[/<b>[/<c>]]]
 static void api_game(struct req *r, const char *rest)
 {
@@ -1194,6 +1330,8 @@ static void route(struct req *r)
 		api_game_add(r);
 	else if (!strncmp(ep, "games/", 6))
 		api_game(r, ep + 6);
+	else if (get && !strncmp(ep, "hh/", 3))
+		api_hh(r, ep + 3);
 	else if (get && !strcmp(ep, "backup"))
 		api_backup(r);
 	else if (post && !strcmp(ep, "brightness"))
@@ -1289,6 +1427,7 @@ int main(int argc, char **argv)
 	if (w)
 		www_dir = w;
 	signal(SIGPIPE, SIG_IGN);
+	curl_global_init(CURL_GLOBAL_DEFAULT);
 	dev_noauth = getenv("COZ_WEB_INSECURE_DEV") && !strcmp(getenv("COZ_WEB_INSECURE_DEV"), "1");
 	if (dev_noauth)
 		fprintf(stderr, "cozisboy-web: WARNING: pairing disabled (COZ_WEB_INSECURE_DEV=1)\n");

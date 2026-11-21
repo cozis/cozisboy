@@ -90,6 +90,12 @@ BR2_PACKAGE_TINYALSA=y
 BR2_PACKAGE_TINYALSA_TOOLS=y
 BR2_PACKAGE_COZISBOY_SPLASH=y
 BR2_PACKAGE_COZISBOY_WEB=y
+# HTTPS client for the web app's Homebrew Hub relay (OpenSSL is already there
+# for SSH), with the CA bundle for certificate checks
+BR2_PACKAGE_LIBCURL=y
+BR2_PACKAGE_LIBCURL_OPENSSL=y
+BR2_PACKAGE_LIBCURL_CURL=y
+BR2_PACKAGE_CA_CERTIFICATES=y
 
 # --- Host tools for the SD image
 BR2_PACKAGE_HOST_GENIMAGE=y

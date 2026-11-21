@@ -114,6 +114,12 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
       launcher should switch it on/off and show the pairing code.
 - [ ] Launcher: move to the library (rescan when active, states via
       coz_state_add).
+- [x] Discover: Homebrew Hub catalogue (GB/GBC/GBA games) through a relay on
+      the device (/api/hh/*, its JSON API isn't readable cross-origin; libcurl
+      + CA bundle, cached 1 h), install = browser downloads ROM + cover.
+- [ ] Recognise ROMs by checksum (libretro-database No-Intro DATs): proper
+      names, covers, year/genre/players.
+- [ ] Launcher: browse/install from Homebrew Hub on the device itself.
 - [ ] Live screen over WebSocket (JPEG), remote input.
 
 ## Games

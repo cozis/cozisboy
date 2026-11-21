@@ -7,11 +7,12 @@
 COZISBOY_WEB_VERSION = local
 COZISBOY_WEB_SITE = $(BR2_EXTERNAL_AMBERNIC_PATH)/../apps
 COZISBOY_WEB_SITE_METHOD = local
+COZISBOY_WEB_DEPENDENCIES = libcurl
 
 define COZISBOY_WEB_BUILD_CMDS
 	$(TARGET_CC) $(TARGET_CFLAGS) -O2 -Wall -Wextra -std=gnu11 -I$(@D)/common \
 		-o $(@D)/cozisboy-web $(@D)/web/web.c $(@D)/common/library.c \
-		$(TARGET_LDFLAGS) -lpthread
+		$(TARGET_LDFLAGS) -lpthread -lcurl
 	$(TARGET_CC) $(TARGET_CFLAGS) -O2 -Wall -Wextra -std=gnu11 -I$(@D)/common \
 		-o $(@D)/coz-lib $(@D)/common/coz-lib.c $(@D)/common/library.c \
 		$(TARGET_LDFLAGS)

@@ -1,5 +1,7 @@
 config BR2_PACKAGE_COZISBOY_WEB
 	bool "cozisboy-web"
+	select BR2_PACKAGE_LIBCURL
+	select BR2_PACKAGE_CA_CERTIFICATES
 	help
 	  cozisboy web app: manage games, battery saves and save states from a
 	  browser (built on the game library in apps/common), plus coz-lib, the

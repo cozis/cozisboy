@@ -36,6 +36,7 @@ header .grow { flex: 1; }
 .pill { display: flex; gap: 14px; align-items: center; color: var(--dim); font-size: 13px;
 	background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; }
 .pill b { color: var(--text); font-weight: 600; }
+.pill:empty { display: none; }
 .batt { display: inline-block; width: 22px; height: 11px; border: 2px solid var(--dim); border-radius: 2px;
 	position: relative; vertical-align: -1px; margin-right: 6px; }
 .batt::after { content: ""; position: absolute; right: -5px; top: 2px; width: 2px; height: 3px; background: var(--dim); }
@@ -131,6 +132,36 @@ header .grow { flex: 1; }
 .danger-zone p { flex: 1; min-width: 220px; margin: 0; color: var(--dim); font-size: 14px; }
 .sep { height: 1px; background: var(--line); margin: 18px 0; }
 
+
+/* ---- tabs */
+.tabs { display: flex; gap: 6px; margin: 0 0 24px; border-bottom: 2px solid var(--line); }
+.tabs a { padding: 10px 16px; font-weight: 700; color: var(--dim); text-decoration: none; cursor: pointer;
+	border-bottom: 3px solid transparent; margin-bottom: -2px; }
+.tabs a:hover { color: var(--text); }
+.tabs a.on { color: var(--text); border-bottom-color: var(--yellow); }
+.tabs a .n { color: var(--faint); font-weight: 500; margin-left: 4px; }
+
+/* ---- discover */
+.seg { display: inline-flex; border: 2px solid #000; border-radius: 8px; overflow: hidden; box-shadow: 3px 3px 0 #000; }
+.seg button { background: var(--panel2); border: 0; padding: 8px 14px; font-weight: 700; cursor: pointer; color: var(--dim); }
+.seg button + button { border-left: 2px solid #000; }
+.seg button.on { background: var(--c, var(--yellow)); color: #000; }
+.check { display: inline-flex; gap: 8px; align-items: center; color: var(--dim); font-size: 14px; cursor: pointer; }
+.check input { accent-color: var(--yellow); width: 16px; height: 16px; }
+.hh-note { color: var(--faint); font-size: 13px; margin: -8px 0 20px; }
+.hh-note a { color: var(--dim); }
+.cover.shot img { object-fit: cover; image-rendering: pixelated; }
+.tag.ok { background: var(--green); color: #000; }
+.tag.wip { background: var(--orange); color: #000; }
+.loading { color: var(--dim); padding: 30px 0; }
+.shots { display: flex; gap: 14px; overflow-x: auto; padding: 4px 4px 12px; margin: 0 -4px 20px; }
+.shots img { height: 200px; border: 2px solid #000; border-radius: 6px; box-shadow: 3px 3px 0 #000;
+	image-rendering: pixelated; flex: none; background: #000; }
+.desc { white-space: pre-wrap; line-height: 1.6; color: #d8d8de; max-width: 75ch; }
+.tagrow { display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 0 18px; }
+.tagrow .tag { background: var(--panel2); border: 1px solid var(--line); color: var(--dim); }
+.btn.big { padding: 12px 26px; font-size: 17px; }
+
 /* ---- pairing */
 #pair { max-width: 420px; margin: 10vh auto 0; text-align: center; }
 #pair .logo { height: 56px; margin-bottom: 30px; }
@@ -199,6 +230,11 @@ footer a { cursor: pointer; text-decoration: underline; }
 		<div class="pill" id="pill"></div>
 	</header>
 
+	<nav class="tabs">
+		<a id="tabLib" href="#/">On this cozisboy<span class="n" id="libN"></span></a>
+		<a id="tabHh" href="#/discover">Discover</a>
+	</nav>
+
 	<!-- library -->
 	<main id="libView">
 		<div class="toolbar">
@@ -219,6 +255,18 @@ footer a { cursor: pointer; text-decoration: underline; }
 
 	<!-- game -->
 	<main id="gameView" class="hidden"></main>
+
+	<!-- discover: homebrew from Homebrew Hub -->
+	<main id="hhView" class="hidden">
+		<div class="toolbar">
+			<input class="search" id="hhSearch" type="search" placeholder="Search free games">
+			<div class="seg" id="hhSys"></div>
+			<label class="check"><input type="checkbox" id="hhWip"> Include unfinished</label>
+		</div>
+		<p class="hh-note">Free homebrew games made by the community, from <a href="https://hh.gbdev.io" target="_blank" rel="noopener">Homebrew Hub</a>. Install puts them in your library.</p>
+		<div id="hhList"></div>
+	</main>
+	<main id="hhGameView" class="hidden"></main>
 </div>
 
 <input type="file" id="romIn" multiple accept=".gba,.gbc,.gb" hidden>
@@ -327,8 +375,9 @@ function renderLib() {
 	const shown = games.filter(g => !q || g.name.toLowerCase().includes(q));
 	const lib = $("lib");
 	$("libCount").textContent = games.length ? `${games.length} game${games.length === 1 ? "" : "s"}` : "";
+	$("libN").textContent = games.length ? games.length : "";
 	if (!games.length) {
-		lib.innerHTML = `<div class="empty"><h3>No games yet</h3><p>Drag your .gba, .gbc and .gb files anywhere on this page,<br>or pick them from your computer.</p><button class="btn go" onclick="$('romIn').click()">Choose files</button></div>`;
+		lib.innerHTML = `<div class="empty"><h3>No games yet</h3><p>Drag your .gba, .gbc and .gb files anywhere on this page,<br>or pick them from your computer.</p><button class="btn go" onclick="$('romIn').click()">Choose files</button> <a class="btn" href="#/discover">Discover free games</a></div>`;
 		return;
 	}
 	if (!shown.length) { lib.innerHTML = `<p class="muted">No game matches “${esc(q)}”.</p>`; return; }
@@ -575,13 +624,166 @@ async function setCover(file) {
 $("saveIn").onchange = e => { if (e.target.files[0]) replaceSave(e.target.files[0]); e.target.value = ""; };
 $("coverIn").onchange = e => { if (e.target.files[0]) setCover(e.target.files[0]); e.target.value = ""; };
 
+
+// ------------------------------------------------------------ discover (Homebrew Hub)
+// The catalogue comes through the device (/api/hh/..., the API isn't readable
+// cross-origin); ROMs and images are fetched from hh3.gbdev.io directly.
+const HH_STATIC = "https://hh3.gbdev.io/static";
+const HH_SYS = [["GBA", "gba"], ["GBC", "gbc"], ["GB", "gb"]];
+const hhCache = {};	// "GBA:0" -> entries
+let hhSys = "GBA";
+const hhFile = (e, f) => `${HH_STATIC}/${e.basepath}/entries/${encodeURIComponent(e.slug)}/${f.split("/").map(encodeURIComponent).join("/")}`;
+const hhCover = e => e.screenshots && e.screenshots.length ? hhFile(e, e.screenshots[0]) : "";
+// Library name for a homebrew game: its title, made safe for the library.
+const hhName = e => e.title.replace(/[\/\\\x00-\x1f\x7f]/g, "-").replace(/^[.\s]+|\s+$/g, "").slice(0, 200) || e.slug;
+const installed = e => games.some(g => g.name === hhName(e));
+// developer: a string, a list of strings, or a list of {name: ...}
+const devName = d => (Array.isArray(d) ? d : d ? [d] : []).map(x => typeof x === "string" ? x : (x && x.name) || "").filter(Boolean).join(", ");
+function hhRom(e) {
+	const roms = (e.files || []).filter(f => ROM_EXT.test(f.filename));
+	return roms.find(f => f.default) || roms.find(f => f.playable) || roms[0];
+}
+
+function renderHhTabs() {
+	$("hhSys").innerHTML = HH_SYS.map(([k, key]) =>
+		`<button data-k="${k}" class="${k === hhSys ? "on" : ""}" style="--c:var(--sys-${key})">${k}</button>`).join("");
+	$("hhSys").querySelectorAll("button").forEach(b => b.onclick = () => { hhSys = b.dataset.k; renderHhTabs(); loadHh(); });
+}
+
+async function loadHh() {
+	const wip = $("hhWip").checked, key = hhSys + ":" + (wip ? 1 : 0);
+	if (hhCache[key]) return renderHh();
+	$("hhList").innerHTML = `<div class="loading">Loading ${hhSys} games…</div>`;
+	const q = p => `hh/search?platform=${hhSys}&typetag=game&sort=title&order=asc&page=${p}`;
+	try {
+		const first = await api("GET", q(1));
+		let entries = first.entries, pages = [];
+		for (let p = 2; p <= first.page_total; p++) pages.push(p);
+		// a few requests at a time through the device
+		while (pages.length) {
+			const batch = pages.splice(0, 6);
+			const res = await Promise.all(batch.map(p => api("GET", q(p))));
+			res.forEach(r => entries = entries.concat(r.entries));
+			$("hhList").innerHTML = `<div class="loading">Loading ${hhSys} games… ${entries.length} of ${first.results}</div>`;
+		}
+		hhCache[hhSys + ":1"] = entries;
+		hhCache[hhSys + ":0"] = entries.filter(e => !e.wip);
+		renderHh();
+	} catch (err) {
+		$("hhList").innerHTML = `<div class="loading">Couldn't reach Homebrew Hub: ${esc(err.message)}. Is the cozisboy online?</div>`;
+	}
+}
+
+function renderHh() {
+	const all = hhCache[hhSys + ":" + ($("hhWip").checked ? 1 : 0)];
+	if (!all) return;
+	const q = $("hhSearch").value.trim().toLowerCase();
+	const list = all.filter(e => !q || e.title.toLowerCase().includes(q) ||
+		devName(e.developer).toLowerCase().includes(q) || (e.tags || []).join(" ").toLowerCase().includes(q));
+	if (!list.length) { $("hhList").innerHTML = `<p class="muted">No game matches.</p>`; return; }
+	$("hhList").innerHTML = `<div class="grid">` + list.map(e => {
+		const dev = devName(e.developer);
+		const tags = (installed(e) ? `<span class="tag ok">INSTALLED</span>` : "") + (e.wip ? `<span class="tag wip">UNFINISHED</span>` : "");
+		const img = hhCover(e);
+		return `<div class="game" tabindex="0" data-slug="${esc(e.slug)}">
+			<div class="cover shot">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : `<div class="ph" style="--c:var(--sys-${e.platform.toLowerCase()})"><b>${esc(initials(e.title))}</b></div>`}<div class="tags">${tags}</div></div>
+			<div class="t">${esc(e.title)}</div><div class="r">${esc(dev)}</div></div>`;
+	}).join("") + `</div>`;
+	$("hhList").querySelectorAll(".game").forEach(el => {
+		el.onclick = () => location.hash = "#/discover/" + encodeURIComponent(el.dataset.slug);
+		el.onkeydown = ev => { if (ev.key === "Enter") el.click(); };
+	});
+}
+$("hhSearch").addEventListener("input", renderHh);
+$("hhWip").addEventListener("change", loadHh);
+
+async function showHhGame(slug) {
+	const v = $("hhGameView");
+	v.innerHTML = `<div class="loading">Loading…</div>`;
+	let e;
+	try { e = await api("GET", `hh/entry/${encodeURIComponent(slug)}.json`); }
+	catch (err) { v.innerHTML = `<div class="loading">${esc(err.message)}</div>`; return; }
+	const dev = devName(e.developer) || "unknown";
+	const rom = hhRom(e), sysKey = e.platform.toLowerCase();
+	const shots = (e.screenshots || []).map(f => `<img src="${esc(hhFile(e, f))}" alt="" loading="lazy">`).join("");
+	const site = e.website ? `<a class="btn" href="${esc(e.website)}" target="_blank" rel="noopener">Website</a>` : "";
+	v.innerHTML = `
+		<button class="btn ghost back" onclick="history.back()">← Discover</button>
+		<div class="hero">
+			<div class="cover shot">${hhCover(e) ? `<img src="${esc(hhCover(e))}" alt="">` : ""}</div>
+			<div class="info">
+				<span class="sysbadge" style="--c:var(--sys-${sysKey})">${esc(e.platform)}</span>
+				<h1>${esc(e.title)}</h1>
+				<div class="sub">by ${esc(dev)}${e.date ? " · " + esc(String(e.date).slice(0, 4)) : ""}</div>
+				<div class="tagrow">${(e.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join("")}${e.wip ? `<span class="tag wip">UNFINISHED</span>` : ""}</div>
+				<div class="row-btns" id="hhInstall"></div>
+				<p class="muted" style="font-size:13px;margin-top:14px">${rom ? `${esc(rom.filename.split("/").pop())}${rom.version ? " · version " + esc(rom.version) : ""}` : "No playable game file for this console."}</p>
+			</div>
+		</div>
+		${shots ? `<div class="shots">${shots}</div>` : ""}
+		${e.description ? `<div class="section"><h2>About</h2><div class="desc">${esc(e.description)}</div></div>` : ""}
+		<div class="row-btns">${site}<a class="btn ghost" href="https://hh.gbdev.io/game/${encodeURIComponent(e.slug)}" target="_blank" rel="noopener">View on Homebrew Hub</a></div>`;
+	renderInstall(e, rom);
+}
+
+function renderInstall(e, rom) {
+	const box = $("hhInstall");
+	if (!box) return;
+	const have = games.find(g => g.name === hhName(e));
+	if (have) {
+		box.innerHTML = `<span class="tag ok" style="padding:8px 12px;font-size:13px">INSTALLED</span> <a class="btn" href="#/game/${have.id}">Open in library</a>`;
+		return;
+	}
+	const b = document.createElement("button");
+	b.className = "btn go big"; b.textContent = "Install";
+	b.disabled = !rom;
+	b.onclick = async () => {
+		b.disabled = true;
+		try { await installHh(e, rom, msg => b.textContent = msg); renderInstall(e, rom); toast(`${e.title} is in your library.`); }
+		catch (err) { toast("Install failed: " + err.message); b.textContent = "Install"; b.disabled = false; }
+	};
+	box.append(b);
+}
+
+// Download the ROM (and cover) in the browser, then send them to the device.
+async function installHh(e, rom, progress) {
+	progress("Downloading…");
+	const r = await fetch(hhFile(e, rom.filename));
+	if (!r.ok) throw new Error("download failed (" + r.status + ")");
+	const data = await r.blob();
+	const ext = rom.filename.match(ROM_EXT)[1].toLowerCase();
+	progress("Installing…");
+	const res = await fetch(`/api/games?filename=${encodeURIComponent(hhName(e) + "." + ext)}`, { method: "PUT", headers: HDR, body: data });
+	const g = await res.json();
+	if (!res.ok) throw new Error(g.error || res.statusText);
+	const img = hhCover(e);
+	if (img) {
+		try {	// any image format -> PNG for the library
+			const bmp = await createImageBitmap(await (await fetch(img)).blob());
+			const c = document.createElement("canvas");
+			c.width = bmp.width; c.height = bmp.height;
+			c.getContext("2d").drawImage(bmp, 0, 0);
+			const png = await new Promise(ok => c.toBlob(ok, "image/png"));
+			await api("PUT", `games/${g.id}/cover`, png);
+		} catch { /* no cover is fine */ }
+	}
+	await loadGames();
+}
+
 // ------------------------------------------------------------ routing
 function route() {
-	const m = location.hash.match(/^#\/game\/([0-9a-f]{16})$/);
-	$("libView").classList.toggle("hidden", !!m);
-	$("gameView").classList.toggle("hidden", !m);
-	if (m) showGame(m[1]);
-	else { current = null; renderLib(); }
+	const h = location.hash;
+	const game = h.match(/^#\/game\/([0-9a-f]{16})$/);
+	const hhGame = h.match(/^#\/discover\/(.+)$/);
+	const view = game ? "gameView" : hhGame ? "hhGameView" : h === "#/discover" ? "hhView" : "libView";
+	for (const v of ["libView", "gameView", "hhView", "hhGameView"]) $(v).classList.toggle("hidden", v !== view);
+	$("tabLib").classList.toggle("on", view === "libView" || view === "gameView");
+	$("tabHh").classList.toggle("on", view === "hhView" || view === "hhGameView");
+	current = null;
+	if (game) showGame(game[1]);
+	else if (hhGame) showHhGame(decodeURIComponent(hhGame[1]));
+	else if (view === "hhView") { renderHhTabs(); loadHh(); }
+	else renderLib();
 	window.scrollTo(0, 0);
 }
 window.addEventListener("hashchange", route);
