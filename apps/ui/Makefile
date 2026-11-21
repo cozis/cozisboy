@@ -1,8 +1,11 @@
-# PC builds of the cozisboy UI.
+# Builds of the cozisboy UI, for the PC and for the console.
 #   make run     open the preview window (SDL2)
 #   make cozisboy-shot    headless screenshot tool (see host_shot.c)
 #   make sounds.wav   render every sound effect to a WAV file
 #   make frames  freeze frames of the UI states in frames.txt (art/frames/)
+#   make device  the console build (cozisboy-ui), cross-compiled with the
+#                Buildroot toolchain (build the image once first: libmgba, ALSA)
+#   make deploy  device build -> copied to the console over SSH and restarted
 CFLAGS ?= -O2 -g
 CFLAGS += -Wall -Wextra -std=c11 -D_DEFAULT_SOURCE -I../common
 CORE = ui.c games.c net.c sys_mock.c emu.c gfx.c ../common/sfx.c
@@ -34,7 +37,31 @@ icons: cozisboy-shot
 run: cozisboy-preview
 	./cozisboy-preview
 
-clean:
-	rm -f cozisboy-preview cozisboy-shot sfx-demo sounds.wav
+# ---- console (RG35XX SP) ----------------------------------------------------
+# Same UI code; the device front end (framebuffer, evdev, ALSA) and the real
+# Wi-Fi/SSH backend replace SDL and the mock. Buildroot's package builds this
+# target too (with its own DEV_CC / DEV_EXTRA_CFLAGS).
+BR_OUT ?= ../../output
+DEV_CC ?= $(BR_OUT)/host/bin/aarch64-linux-gcc
+DEV_CFLAGS = -O2 -Wall -Wextra -std=c11 -D_DEFAULT_SOURCE -I../common $(DEV_EXTRA_CFLAGS)
+DEV_SRCS = host_dev.c sys_dev.c $(filter-out sys_mock.c,$(CORE))
+DEVICE ?= root@10.55.0.2
+SSH_OPTS ?= -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
 
-.PHONY: all run clean frames icons
+device: cozisboy-ui
+
+cozisboy-ui: $(DEV_SRCS) $(HDRS)
+	$(DEV_CC) $(DEV_CFLAGS) -o $@ $(DEV_SRCS) $(DEV_LDFLAGS) -lmgba -lasound -lpthread -lm
+
+# Replace the launcher on the console (root is read-only: remount for the copy);
+# init restarts it.
+deploy: cozisboy-ui
+	ssh $(SSH_OPTS) $(DEVICE) 'mount -o remount,rw / && cat > /usr/bin/cozisboy-ui.new && \
+		chmod 755 /usr/bin/cozisboy-ui.new && mv /usr/bin/cozisboy-ui.new /usr/bin/cozisboy-ui && \
+		sync; mount -o remount,ro / 2>/dev/null; killall cozisboy-ui; true' < cozisboy-ui
+	@echo "deployed to $(DEVICE)"
+
+clean:
+	rm -f cozisboy-preview cozisboy-shot sfx-demo sounds.wav cozisboy-ui
+
+.PHONY: all run clean frames icons device deploy
