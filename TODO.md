@@ -61,9 +61,12 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
 
 ## Hardware
 
-- [ ] Wi-Fi (RTL8821CS on mmc1): missing `pwrseq` reset control.
-- [ ] GPU (Panfrost): probe fails with -110 (deferred probe timeout) -> needed
-      for emulators.
+- [x] Wi-Fi (RTL8821CS on mmc1): works (scan OK). Fix: CONFIG_RESET_GPIO must
+      be OFF (its reset-gpios fallback only supports 2-cell GPIOs; sunxi has 3).
+- [ ] Wi-Fi: connect (wpa_supplicant config on /data), DHCP, start in background.
+- [x] GPU (Panfrost): kernel side works (Mali-G31, /dev/dri/renderD128). Fix:
+      CONFIG_SUN50I_H6_PRCM_PPU (GPU power domain) was missing.
+- [ ] GPU userspace: Mesa (panfrost gallium, GLES) for emulators/UI.
 - [ ] Battery / charging readout (AXP717), low-battery handling.
 - [ ] Suspend to RAM (instant on), lid switch.
 - [ ] TF2 slot (`mmc2`?) not described in the mainline device tree.

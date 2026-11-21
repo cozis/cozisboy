@@ -198,3 +198,10 @@ CONFIG_SND=y
 CONFIG_SND_SOC=y
 CONFIG_SND_SUN4I_CODEC=y
 CONFIG_DMA_SUN6I=y
+# GPU power domain (PRCM PPU) - without it Panfrost never gets its power domain
+CONFIG_SUN50I_H6_PRCM_PPU=y
+# Wi-Fi pwrseq: with RESET_GPIO enabled (=m or =y) pwrseq_simple routes its
+# single reset-gpios through the reset framework, whose GPIO fallback only
+# supports #gpio-cells = 2 and fails with -ENOENT on Allwinner's 3-cell GPIOs.
+# Disabled, pwrseq_simple drives the GPIO directly.
+# CONFIG_RESET_GPIO is not set
