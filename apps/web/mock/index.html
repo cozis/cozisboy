@@ -239,6 +239,7 @@ footer a { cursor: pointer; text-decoration: underline; }
 
 /* ======================================================== three columns: lists + detail */
 .wrap.wide { max-width: 1760px; }
+.wrap.full { max-width: none; padding: 0; }
 .trio .li .meta .mini:not(.sys) { display: none; }	/* save/state tags: icons instead */
 .trio .li .ic { font-size: 12px; color: var(--dim); white-space: nowrap; }
 .trio { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(420px, 1.35fr) minmax(300px, 1fr); gap: 22px; align-items: start; }
@@ -321,13 +322,13 @@ footer a { cursor: pointer; text-decoration: underline; }
 .cv .info .t { min-height: 48px; display: flex; justify-content: center; }
 .cv .info .s { margin-top: 10px; color: #cfcfd6; }
 .cv .acts { display: flex; gap: 14px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
-.cv .pb { background: #fff; color: #000; border: 0; padding: 12px 18px; cursor: pointer; position: relative; }
-.cv .pb::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 -4px 0 rgba(0,0,0,.22); pointer-events: none; }
-.cv .pb:hover { transform: translateY(-2px); }
-.cv .pb:active { transform: translateY(2px); }
-.cv .pb.go { background: var(--yellow); }
-.cv .pb.red { background: var(--red); }
-.cv .pb.dim { background: #2a2a2e; }
+.pb { background: #fff; color: #000; border: 0; padding: 12px 18px; cursor: pointer; position: relative; }
+.pb::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 -4px 0 rgba(0,0,0,.22); pointer-events: none; }
+.pb:hover { transform: translateY(-2px); }
+.pb:active { transform: translateY(2px); }
+.pb.go { background: var(--yellow); }
+.pb.red { background: var(--red); }
+.pb.dim { background: #2a2a2e; }
 .cv .states { display: flex; gap: 18px; justify-content: center; margin-top: 26px; }
 .cv .st { width: 200px; cursor: zoom-in; text-align: left; }
 .cv .st .im { aspect-ratio: 3/2; border: 4px solid #000; background: #000; box-shadow: 6px 6px 0 rgba(0,0,0,.6); }
@@ -340,6 +341,65 @@ footer a { cursor: pointer; text-decoration: underline; }
 .cv .drop { position: absolute; inset: 0; z-index: 10; background: rgba(8,8,12,.86); display: grid; place-items: center; }
 .cv .drop .frame { border: 6px dashed var(--yellow); padding: 60px 90px; text-align: center; }
 .cv .count { position: absolute; left: 50%; transform: translateX(-50%); top: calc(13vh - 10px); z-index: 3; }
+
+
+/* ======================================================== app view: all games / add games (console look) */
+.ap { min-height: 100vh; color: #fff; background: #0e0e10; position: relative; }
+.ap .bgx { position: fixed; inset: 0; background: radial-gradient(1100px 520px at 50% -8%, color-mix(in srgb, var(--glow-c, var(--blue)) 26%, transparent), transparent 70%), #0e0e10; pointer-events: none; }
+.ap .bar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 22px; padding: 18px 34px; background: linear-gradient(#0e0e10 70%, #0e0e1000); }
+.ap .bar .logo { height: 34px; cursor: pointer; }
+.nav { display: flex; gap: 6px; }
+.nav button { background: transparent; border: 0; padding: 8px 12px; cursor: pointer; opacity: .5; }
+.nav button.on { opacity: 1; background: #ffffff10; }
+.nav button:hover { opacity: .85; }
+.ap .grow { flex: 1; }
+.ap .pill { display: flex; gap: 16px; align-items: center; background: #000a; border: 2px solid #000; padding: 6px 14px; }
+.ap main { position: relative; max-width: 1500px; margin: 0 auto; padding: 8px 34px 120px; }
+.ctl { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 6px 0 8px; }
+.pxsearch { flex: 1; min-width: 220px; max-width: 520px; background: #000; border: 3px solid #000; outline: 3px solid #2a2a2e; color: #fff; padding: 11px 14px; font: 600 15px system-ui; }
+.pxsearch:focus { outline-color: var(--yellow); }
+.chips { display: flex; gap: 8px; }
+.chip { background: #232327; border: 0; padding: 8px 12px; cursor: pointer; }
+.chip.on { background: #fff; }
+.sech { display: flex; align-items: center; gap: 14px; margin: 34px 0 18px; }
+.sech .ln { flex: 1; height: 3px; background: repeating-linear-gradient(90deg, #333 0 8px, transparent 8px 14px); }
+.cg { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 30px 24px; }
+.cg .it { cursor: pointer; outline: none; }
+.cg .fr { aspect-ratio: 1; background: #000; border: 4px solid #000; box-shadow: 0 0 0 3px #fff0, 7px 7px 0 rgba(0,0,0,.55); position: relative; overflow: hidden; transition: transform .14s, box-shadow .14s; }
+.cg .it:hover .fr, .cg .it:focus-visible .fr { transform: translateY(-6px); box-shadow: 0 0 0 3px #fff, 9px 13px 0 rgba(0,0,0,.55); }
+.cg .fr img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cg .fr.shot img { image-rendering: pixelated; }
+.cg .fr .ph { width: 100%; height: 100%; display: grid; place-items: center; background: var(--c); }
+.cg .fr .tg { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 5px; }
+.cg .fr .tg span { background: #000; padding: 3px 6px; }
+.cg .fr .tg span.ok { background: var(--green); }
+.cg .fr .act { position: absolute; inset: auto 8px 8px auto; opacity: 0; transition: opacity .14s; }
+.cg .it:hover .fr .act { opacity: 1; }
+.cg .nm { margin-top: 12px; font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cg .sb { color: #8a8a94; font-size: 12px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg .fr .sys { position: absolute; right: 8px; top: 8px; width: 12px; height: 12px; background: var(--c); border: 2px solid #000; }
+/* sources */
+.srcs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 26px; margin-top: 26px; }
+.src { position: relative; cursor: pointer; background: #17171a; border: 4px solid #000; box-shadow: 8px 8px 0 rgba(0,0,0,.6); padding: 24px; min-height: 230px; display: flex; flex-direction: column; gap: 12px; transition: transform .14s; overflow: hidden; }
+.src:hover { transform: translateY(-5px); }
+.src .ico { width: 64px; height: 64px; display: grid; place-items: center; background: var(--c); border: 4px solid #000; box-shadow: 4px 4px 0 #000; }
+.src p { color: #b9b9c2; margin: 0; flex: 1; }
+.src .meta { color: #77777f; font-size: 12px; }
+.src::after { content: ""; position: absolute; right: -40px; top: -40px; width: 160px; height: 160px; background: var(--c); opacity: .08; transform: rotate(45deg); }
+.dropzone { margin-top: 26px; border: 5px dashed #3a3a40; padding: 46px 20px; text-align: center; background: #ffffff05; transition: border-color .15s, background .15s; }
+.dropzone.hot { border-color: var(--yellow); background: #ffd93d12; }
+.dropzone p { color: #9a9aa4; margin: 14px 0 22px; }
+.note { margin-top: 18px; color: #9a9aa4; font-size: 14px; max-width: 70ch; }
+.linkrow { display: flex; gap: 12px; margin-top: 26px; flex-wrap: wrap; }
+/* upload tray */
+.tray { position: fixed; right: 22px; bottom: 22px; width: 380px; z-index: 30; background: #111; border: 4px solid #000; box-shadow: 8px 8px 0 rgba(0,0,0,.6); padding: 16px 18px; }
+.tray .row { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; font-size: 13px; }
+.tray .row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tray .row span:last-child { color: #9a9aa4; white-space: nowrap; }
+.segs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; margin-top: 6px; }
+.segs i { height: 8px; background: #2a2a2e; }
+.segs i.on { background: var(--c); }
+.backlink { position: absolute; left: 34px; top: 86px; z-index: 4; }
 
 /* style switcher (mock only) */
 #switch { position: fixed; left: 14px; bottom: 14px; z-index: 50; display: flex; gap: 6px; align-items: center;
@@ -359,6 +419,7 @@ footer a { cursor: pointer; text-decoration: underline; }
 <script src="font5x7.js"></script>
 <script src="pixel.js"></script>
 <script src="data.js"></script>
+<script src="itch-data.js" onerror=""></script>
 </head>
 <body>
 <div class="wrap" id="root"></div>
@@ -797,7 +858,7 @@ function pageConsole() {
 		const have = installedNames().has(it.title);
 		sub = [it.platform, "by " + (it.developer || "unknown"), it.date ? it.date.slice(0, 4) : ""].filter(Boolean).join("  ·  ");
 		acts = have ? `<button class="pb notch dim">${PX("On your console", 2, "shadow", pal("--green"))}</button>`
-			: `<button class="pb notch go" onclick="cvInstall('${it.slug}')">${PX("+ Install", 3)}</button>`;
+			: `<button class="pb notch go" onclick="hhInstall('${it.slug}')">${PX("+ Install", 3)}</button>`;
 		acts += `<button class="pb notch dim">${PX("About", 2, "shadow", "#cccccc")}</button>`;
 	}
 	const states = mine && cvStates ? `<div class="states">` + it.states.map(st => `<div class="st"><div class="im"><img src="${esc(st.thumb)}" alt=""></div><b>${ago(st.time)}</b><span>Load on console · Download</span></div>`).join("") + `</div>` : "";
@@ -806,9 +867,9 @@ function pageConsole() {
 		<div class="bg"></div>
 		<div class="top">
 			<img class="logo pix" src="../logo.png" alt="cozisboy">
-			<div class="shelves">
-				<button class="${mine ? "on" : ""}" onclick="cvShelf('mine')">${PX("My games " + nMine, 2, "shadow")}</button>
-				<button class="${mine ? "" : "on"}" onclick="cvShelf('get')">${PX("Get games " + nGet, 2, "shadow")}</button>
+			<div class="nav">
+				<button class="${mine ? "on" : ""}" onclick="go('all')">${PX("My games " + nMine, 2, "shadow")}</button>
+				<button class="${mine ? "" : "on"}" onclick="go('add')">${PX("+ Add games", 2, "shadow")}</button>
 			</div>
 			<div class="grow"></div>
 			<div class="pill notch">${PX(MOCK_STATUS.battery.capacity + "%", 2, "plain", pal("--green"))}${PX(size(MOCK_STATUS.storage.free) + " free", 2, "plain", "#cccccc")}</div>
@@ -823,9 +884,9 @@ function pageConsole() {
 		</div>
 		<div class="hints">
 			<span class="hint"><span class="key notch">${PX("<>", 2, "plain", "#000000")}</span>${PX("Move")}</span>
-			<span class="hint"><span class="key notch">${PX("TAB", 2, "plain", "#000000")}</span>${PX(mine ? "Get games" : "My games")}</span>
+			<span class="hint" style="cursor:pointer" onclick="go(shelf === 'mine' ? 'all' : 'src:hh')"><span class="key notch">${PX("ESC", 2, "plain", "#000000")}</span>${PX(mine ? "All games" : "Back")}</span>
 			<span class="hint"><span class="key notch" style="background:${pal("--yellow")}">${PX("+", 2, "plain", "#000000")}</span>${PX("Drop files to add")}</span>
-			<span class="hint" style="cursor:pointer" onclick="cvSimDrop()"><span class="key notch" style="background:#555">${PX("?", 2, "plain", "#ffffff")}</span>${PX("Try a drop", 2, "shadow", "#888888")}</span>
+			<span class="hint" style="cursor:pointer" onclick="fakeUpload(['Dropped Game.gba'])"><span class="key notch" style="background:#555">${PX("?", 2, "plain", "#ffffff")}</span>${PX("Try a drop", 2, "shadow", "#888888")}</span>
 		</div>
 		${cvDrop ? `<div class="drop"><div class="frame notch">${PX("Drop to add", 6, "arcade", pal("--yellow"))}<p style="color:#bbb;margin:18px 0 0">.gba  .gbc  .gb  ·  saves (.sav) go to the selected game</p></div></div>` : ""}
 	</div>`;
@@ -853,15 +914,15 @@ function cvSimDrop() {	// mock: show the drop overlay, then add a game
 	}, 1100);
 }
 document.addEventListener("keydown", ev => {
-	if (layout !== "console" || ev.target.tagName === "INPUT" || zoomI >= 0) return;
+	if (layout !== "console" || view !== "focus" || ev.target.tagName === "INPUT" || zoomI >= 0) return;
 	if (ev.key === "ArrowRight") { cvMove(1); ev.preventDefault(); }
 	if (ev.key === "ArrowLeft") { cvMove(-1); ev.preventDefault(); }
-	if (ev.key === "Tab") { cvShelf(shelf === "mine" ? "get" : "mine"); ev.preventDefault(); }
+	if (ev.key === "Escape") go(shelf === "mine" ? "all" : "src:hh");
 	if (ev.key === "Enter" && shelf === "mine") { cvStates = !cvStates; render(); }
 });
 let wheelT = 0;
 document.addEventListener("wheel", ev => {
-	if (layout !== "console") return;
+	if (layout !== "console" || view !== "focus") return;
 	const now = performance.now();
 	if (now - wheelT < 140) return;
 	const d = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
@@ -870,7 +931,140 @@ document.addEventListener("wheel", ev => {
 }, { passive: true });
 ["dragenter", "dragover"].forEach(t => document.addEventListener(t, ev => { if (layout === "console") { ev.preventDefault(); if (!cvDrop) { cvDrop = true; render(); } } }));
 document.addEventListener("dragleave", ev => { if (layout === "console" && !ev.relatedTarget) { cvDrop = false; render(); } });
-document.addEventListener("drop", ev => { if (layout === "console") { ev.preventDefault(); cvSimDrop(); } });
+document.addEventListener("drop", ev => {
+	if (layout !== "console") return;
+	ev.preventDefault(); cvDrop = false;
+	const names = [...(ev.dataTransfer?.files || [])].map(f => f.name);
+	fakeUpload(names.length ? names : ["Dropped Game.gba"]);
+});
+
+
+// ---------------------------------------------------------------- app view: all games, add games, sources
+let view = "all", sortBy = "recent", q = "", uploads = [], srcFilter = "ALL";
+const ITCH = window.MOCK_ITCH || [];
+const SRC = {
+	pc:   { key: "pc",   name: "Your computer", col: "--yellow", line: "Drop ROMs, saves or ZIPs, or pick them from a folder." , meta: ".gba .gbc .gb .sav .zip" },
+	hh:   { key: "hh",   name: "Homebrew Hub",  col: "--cyan",   line: "The Game Boy community's archive of free homebrew. One-click install.", meta: "by gbdev · 1,624 games" },
+	itch: { key: "itch", name: "itch.io",       col: "--pink",   line: "Indie Game Boy and GBA games. Get them on itch.io, then drop the download here.", meta: "free games tagged Game Boy / GBA" },
+	link: { key: "link", name: "From a link",   col: "--green",  line: "Paste a direct link to a ROM or ZIP and the console downloads it.", meta: "https://…/game.gba" },
+};
+function navHTML() {
+	const tab = (v, t) => `<button class="${(v === "all" ? ["all", "focus"] : ["add", "src"]).some(x => view.startsWith(x)) ? "on" : ""}" onclick="go('${v}')">${PX(t, 2, "shadow")}</button>`;
+	return `<div class="bar"><img class="logo pix" src="../logo.png" alt="cozisboy" onclick="go('all')">
+		<div class="nav">${tab("all", "My games " + MOCK_GAMES.length)}${tab("add", "+ Add games")}</div><div class="grow"></div>
+		<div class="pill notch">${PX(MOCK_STATUS.battery.capacity + "%", 2, "plain", pal("--green"))}${PX(size(MOCK_STATUS.storage.free) + " free", 2, "plain", "#cccccc")}</div></div>`;
+}
+function go(v) { view = v; cvStates = false; render(); scrollTo(0, 0); }
+function trayHTML() {
+	if (!uploads.length) return "";
+	return `<div class="tray notch"><div style="display:flex;justify-content:space-between">${PX("Adding " + uploads.length, 2, "shadow")}<a style="cursor:pointer;color:#888" onclick="uploads=[];render()">✕</a></div>` +
+		uploads.map(u => `<div class="row"><span>${esc(u.name)}</span><span>${u.p >= 1 ? "added" : Math.round(u.p * 100) + "%"}</span></div>
+			<div class="segs" style="--c:${u.p >= 1 ? "var(--green)" : "var(--yellow)"}">${Array.from({ length: 8 }, (_, i) => `<i class="${u.p * 8 > i ? "on" : ""}"></i>`).join("")}</div>`).join("") + `</div>`;
+}
+function fakeUpload(names) {	// mock: progress, then the games appear
+	const now = performance.now();
+	names.forEach((n, i) => uploads.push({ name: n, p: 0, t0: now + i * 500 }));
+	const tick = () => {
+		let live = false;
+		for (const u of uploads) {
+			const p = Math.max(0, Math.min(1, (performance.now() - u.t0) / 1400));
+			if (u.p < 1 && p >= 1) {
+				const title = u.name.replace(/\.(gba|gbc|gb|zip)$/i, "").replace(/ \(.*$/, "");
+				MOCK_GAMES.push({ id: "u" + Math.random(), sys: /gbc$/i.test(u.name) ? "gbc" : /gb$/i.test(u.name) ? "gb" : "gba", name: u.name, title, region: "", cover: null, rom_size: 4 << 20, added: MOCK_NOW, save: null, states: [] });
+			}
+			u.p = p; if (p < 1) live = true;
+		}
+		render();
+		if (live) requestAnimationFrame(tick); else setTimeout(() => { uploads = []; render(); }, 2500);
+	};
+	requestAnimationFrame(tick);
+}
+
+function gridItem(it, kind, i) {
+	const mine = kind === "mine", k = mine ? it.sys : (it.platform || "GBA").toLowerCase();
+	const img = mine ? it.cover : kind === "hh" ? hhImg(it, it.screenshots[0]) : it.img;
+	const fallback = `<div class=ph style=--c:var(--sys-${k})></div>`;
+	const inner = img ? `<img src="${esc(img)}" alt="" loading="lazy" onerror="this.outerHTML='${fallback}'">` : `<div class="ph" style="--c:var(--sys-${k})">${PX(initials(it.title), 7, "arcade", "#ffffff")}</div>`;
+	let tags = "", act = "", sub, click;
+	if (mine) {
+		tags = (it.save ? `<span>${PX("Save", 1.5, "plain")}</span>` : "") + (it.states.length ? `<span>${PX(it.states.length + " st", 1.5, "plain")}</span>` : "");
+		sub = [SYS[k][0], it.save ? "saved " + ago(it.save.time) : "not played yet"].join(" · ");
+		click = `focusGame('${it.id}')`;
+	} else if (kind === "hh") {
+		const have = installedNames().has(it.title);
+		tags = have ? `<span class="ok">${PX("On console", 1.5, "plain", "#000000")}</span>` : "";
+		act = have ? "" : `<button class="pb go notch act" onclick="event.stopPropagation();hhInstall('${it.slug}')">${PX("Install", 2)}</button>`;
+		sub = `${it.platform} · ${it.developer || "unknown"}`;
+		click = `hhFocus(${i})`;
+	} else {
+		act = `<button class="pb notch act" onclick="event.stopPropagation()">${PX("Get on itch", 2)}</button>`;
+		sub = `${it.author || ""}${it.price ? " · " + it.price : " · free"}`;
+		click = "";
+	}
+	return `<div class="it" tabindex="0" onclick="${click}"><div class="fr ${mine ? "" : "shot"}" style="--c:var(--sys-${k})">${inner}<span class="sys"></span><div class="tg">${tags}</div>${act}</div>
+		<div class="nm">${esc(it.title)}</div><div class="sb">${esc(sub)}</div></div>`;
+}
+function focusGame(id) { shelf = "mine"; cvSel.mine = cvItems().findIndex(x => x.id === id); view = "focus"; render(); }
+function hhFocus(i) { shelf = "get"; cvSel.get = i; view = "focus"; render(); }
+function hhInstall(slug) { const e = MOCK_HH.find(x => x.slug === slug); fakeUpload([e.title + "." + e.platform.toLowerCase()]); }
+
+function pageAll() {
+	let gs = MOCK_GAMES.filter(g => !q || g.title.toLowerCase().includes(q));
+	gs.sort(sortBy === "az" ? (a, b) => a.title.localeCompare(b.title) : (a, b) => (b.save ? b.save.time : b.added) - (a.save ? a.save.time : a.added));
+	let body = "";
+	if (sortBy === "recent") {
+		const recent = gs.filter(g => g.save).slice(0, 6), rest = gs.filter(g => !recent.includes(g));
+		if (recent.length) body += `<div class="sech">${PX("Recently played", 3, "arcade", pal("--yellow"))}<span class="ln"></span></div><div class="cg">${recent.map(g => gridItem(g, "mine")).join("")}</div>`;
+		gs = rest;
+	}
+	for (const k of ["gba", "gbc", "gb"]) {
+		const xs = gs.filter(g => g.sys === k);
+		if (!xs.length) continue;
+		if (sortBy === "az" || true) xs.sort((a, b) => a.title.localeCompare(b.title));
+		body += `<div class="sech">${PX(SYS[k][1], 3, "arcade", pal(`--sys-${k}`))}${PX(String(xs.length), 2, "plain", "#666666")}<span class="ln"></span></div><div class="cg">${xs.map(g => gridItem(g, "mine")).join("")}</div>`;
+	}
+	return `<div class="ap" style="--glow-c:var(--blue)"><div class="bgx"></div>${navHTML()}<main>
+		<div class="ctl"><input class="pxsearch notch" placeholder="Search your games" value="${esc(q)}" oninput="q=this.value.toLowerCase();render();this.focus();this.setSelectionRange(this.value.length,this.value.length)">
+			<div class="chips"><button class="chip notch ${sortBy === "recent" ? "on" : ""}" onclick="sortBy='recent';render()">${PX("Recent", 2, "plain", sortBy === "recent" ? "#000000" : "#cccccc")}</button>
+			<button class="chip notch ${sortBy === "az" ? "on" : ""}" onclick="sortBy='az';render()">${PX("A-Z", 2, "plain", sortBy === "az" ? "#000000" : "#cccccc")}</button></div>
+			<div class="grow" style="flex:1"></div>
+			<button class="pb go notch" onclick="go('add')">${PX("+ Add games", 2)}</button></div>
+		${body || `<p class="note">No game matches.</p>`}
+	</main>${trayHTML()}</div>`;
+}
+
+function pageAdd() {
+	return `<div class="ap" style="--glow-c:var(--yellow)"><div class="bgx"></div>${navHTML()}<main>
+		${PX("Add games", 5, "arcade", pal("--yellow"))}
+		<p class="note">Drop files anywhere on this page, or pick where to get games from.</p>
+		<div class="dropzone notch" id="dz">${PX("Drop files here", 4, "arcade", "#ffffff")}
+			<p>.gba  .gbc  .gb  ·  .sav saves  ·  .zip (unpacked for you)</p>
+			<button class="pb go notch" onclick="fakeUpload(['Alien Hominid (USA).gba','Tetris DX (World).gbc'])">${PX("Choose files", 2)}</button></div>
+		<div class="srcs">${["hh", "itch", "link"].map(k => { const x = SRC[k]; return `<div class="src notch" style="--c:var(${x.col})" onclick="go('src:${k}')">
+			<div class="ico notch">${PX(x.name[0], 5, "arcade", "#ffffff")}</div>${PX(x.name, 3, "shadow")}<p>${esc(x.line)}</p><div class="meta">${esc(x.meta)}</div></div>`; }).join("")}</div>
+	</main>${trayHTML()}</div>`;
+}
+
+function pageSrc(k) {
+	const x = SRC[k];
+	let body = "";
+	if (k === "hh") {
+		const list = MOCK_HH.filter(e => (srcFilter === "ALL" || e.platform === srcFilter) && (!q || e.title.toLowerCase().includes(q)));
+		body = `<div class="ctl"><input class="pxsearch notch" placeholder="Search Homebrew Hub" value="${esc(q)}" oninput="q=this.value.toLowerCase();render();this.focus();this.setSelectionRange(this.value.length,this.value.length)">
+			<div class="chips">${["ALL", "GBA", "GBC", "GB"].map(f => `<button class="chip notch ${srcFilter === f ? "on" : ""}" onclick="srcFilter='${f}';render()">${PX(f, 2, "plain", srcFilter === f ? "#000000" : "#cccccc")}</button>`).join("")}</div></div>
+			<div class="cg" style="margin-top:26px">${list.map(e => gridItem(e, "hh", MOCK_HH.indexOf(e))).join("")}</div>`;
+	} else if (k === "itch") {
+		body = `<p class="note">itch.io has no download API: <b>Get on itch</b> opens the game's page in a new tab. Download it there (often a .zip), then drop the file anywhere on this page.</p>
+			<div class="cg" style="margin-top:26px">${ITCH.length ? ITCH.map(e => gridItem(e, "itch")).join("") : `<p class="note">(mock: no itch.io data loaded yet)</p>`}</div>`;
+	} else if (k === "link") {
+		body = `<p class="note">A direct link to a .gba, .gbc, .gb or .zip file. The console downloads it itself, so it works for files on your own server or cloud storage links.</p>
+			<div class="linkrow"><input class="pxsearch notch" style="max-width:720px" placeholder="https://example.com/my-game.gba"><button class="pb go notch" onclick="fakeUpload(['my-game.gba'])">${PX("Download to console", 2)}</button></div>`;
+	}
+	return `<div class="ap" style="--glow-c:var(${x.col})"><div class="bgx"></div>${navHTML()}<main>
+		<button class="pb dim notch" onclick="go('add')" style="margin-bottom:18px">${PX("< All sources", 2, "plain", "#cccccc")}</button><br>
+		${PX(x.name, 5, "arcade", pal(x.col))}<p class="note">${esc(x.line)}</p>${body}
+	</main>${trayHTML()}</div>`;
+}
 
 // ---------------------------------------------------------------- shell
 function glow(sys) { document.documentElement.style.setProperty("--glow", `var(--sys-${sys})`); }
@@ -879,11 +1073,12 @@ function render() {
 	let m;
 	const scrolls = [...document.querySelectorAll(".pane-list")].map(el => el.scrollTop);
 	$("root").classList.toggle("wide", layout === "trio" && !/^#\/(game|discover|pair)/.test(h));
+	$("root").classList.toggle("full", layout === "console" && h !== "#/pair");
 	$("root").innerHTML =
 		(m = h.match(/^#\/game\/(.+)/)) ? pageGame(m[1]) :
 		(m = h.match(/^#\/discover\/(.+)/)) ? pageHhGame(m[1]) :
 		h === "#/discover" ? pageDiscover() :
-		h === "#/pair" ? pagePair() : layout === "console" ? pageConsole() : layout === "trio" ? pageTrio() : layout === "split" ? pageSplit() : pageLibrary();
+		h === "#/pair" ? pagePair() : layout === "console" ? (view === "focus" ? pageConsole() + trayHTML() : view === "add" ? pageAdd() : view.startsWith("src:") ? pageSrc(view.slice(4)) : pageAll()) : layout === "trio" ? pageTrio() : layout === "split" ? pageSplit() : pageLibrary();
 	renderPixelText($("root"));
 	document.querySelectorAll(".pane-list").forEach((el, i) => { if (scrolls[i]) el.scrollTop = scrolls[i]; });
 	document.querySelectorAll("#switch [data-s]").forEach(b => b.classList.toggle("on", b.dataset.s === style()));
@@ -904,7 +1099,7 @@ document.querySelectorAll("#switch [data-l]").forEach(b => b.onclick = () => {
 	location.hash = "#/"; render();
 });
 try { layout = localStorage.getItem("mock-layout") || layout; } catch {}
-{ const l = new URLSearchParams(location.search).get("layout"); if (l) layout = l; }
+{ const sp = new URLSearchParams(location.search); if (sp.get("layout")) layout = sp.get("layout"); if (sp.get("view")) view = sp.get("view"); }
 window.addEventListener("hashchange", () => { render(); scrollTo(0, 0); });
 let initial = new URLSearchParams(location.search).get("style");
 try { initial = initial || localStorage.getItem("mock-style"); } catch {}
