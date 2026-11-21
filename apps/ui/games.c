@@ -1420,20 +1420,19 @@ static void game_update(unsigned p, unsigned held, float dt)
 		emu_run(in->eg, map_buttons(held), steps);
 		memcpy(in->frame, emu_frame(in->eg), sizeof in->frame);
 		if (in->boot > 0) {
-			// A starting game blanks its screen (white on a GBA), sometimes with
-			// a stray line: while 90% of it is one colour, show black, then
-			// fade the first real picture in.
-			uint32_t ref[3] = {in->frame[0], in->frame[GW * GH / 2 + GW / 2], in->frame[GW * GH - 1]};
-			int best = 0, total = 0;
-			for (int r = 0; r < 3; r++) {
-				int same = 0;
-				total = 0;
-				for (int k = 0; k < GW * GH; k += 7, total++)
-					same += in->frame[k] == ref[r];
-				if (same > best)
-					best = same;
+			// A starting game blanks its screen (white on a GBA), or shows flat
+			// colour blocks: until a frame has some detail (4+ colours), show
+			// black, then fade the first real picture in.
+			uint32_t seen[4];
+			int nseen = 0;
+			for (int k = 0; k < GW * GH && nseen < 4; k += 3) {
+				int known = 0;
+				for (int q = 0; q < nseen && !known; q++)
+					known = seen[q] == in->frame[k];
+				if (!known)
+					seen[nseen++] = in->frame[k];
 			}
-			if (best * 10 >= total * 9) {
+			if (nseen < 4) {
 				memset(in->frame, 0, sizeof in->frame);
 				in->boot -= steps, in->fade = 0;
 			} else {

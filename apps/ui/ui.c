@@ -725,6 +725,15 @@ static unsigned pressed(unsigned held, float dt)
 	return p;
 }
 
+static void switch_screen(void)
+{
+	if (S.trans_to == SCR_HOME && S.screen == SCR_GAME)
+		S.sel = 0, S.cam = 0; // back from a game: focus its tile
+	S.screen = S.trans_to;
+	S.hop = 0;
+	S.snap_pending = 1; // the buffer still holds the old screen
+}
+
 void go(int to, uint32_t col, int x, int y)
 {
 	S.trans = 1;
@@ -736,6 +745,11 @@ void go(int to, uint32_t col, int x, int y)
 	S.trans_col = col;
 	S.trans_x = x;
 	S.trans_y = y;
+	S.trans_page = 0;
+	if (TR_TIME[S.trans_style][0] <= 0) { // nothing covers the old screen: switch now,
+		switch_screen();                // so the snapshot is the screen as it was left
+		S.trans = 2;
+	}
 	sfx_play(SFX_WHOOSH, 0);
 }
 
@@ -934,13 +948,8 @@ static void update(unsigned p, unsigned held, float dt)
 		}
 		S.trans_t += dt;
 		if (S.trans == 1 && S.trans_t >= TR_TIME[S.trans_style][0]) {
-			if (!S.trans_page) {
-				if (S.trans_to == SCR_HOME && S.screen == SCR_GAME)
-					S.sel = 0, S.cam = 0; // back from a game: focus its tile
-				S.screen = S.trans_to;
-				S.hop = 0;
-				S.snap_pending = 1; // the buffer still holds the old screen
-			}
+			if (!S.trans_page)
+				switch_screen();
 			S.trans = 2;
 			S.trans_t = 0;
 		} else if (S.trans == 2 && S.trans_t >= TR_TIME[S.trans_style][1]) {
