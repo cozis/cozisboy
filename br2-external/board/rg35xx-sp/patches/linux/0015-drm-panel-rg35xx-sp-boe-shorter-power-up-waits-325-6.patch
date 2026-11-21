@@ -1,0 +1,84 @@
+From c0559548230212cd67a99f3fdb4f40ed94d8dc22 Mon Sep 17 00:00:00 2001
+From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
+Date: Sat, 21 Nov 2026 02:00:58 +0100
+Subject: [PATCH 15/15] drm/panel: rg35xx-sp-boe: shorter power-up waits (325
+ -> 61 ms), runtime tunable
+
+Measured on hardware: clean picture at 5/1/1/20/20/0 ms, garbled below; use
+5/1/5/25/25/0 for margin. Display-on time 370 -> ~105 ms.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HAivEfkKvP8urtyVqdwu3J
+---
+ .../drm/panel/panel-anbernic-rg35xx-sp-boe.c  | 32 +++++++++++++++----
+ 1 file changed, 26 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/panel/panel-anbernic-rg35xx-sp-boe.c b/drivers/gpu/drm/panel/panel-anbernic-rg35xx-sp-boe.c
+index 9bfa89100..09f55d785 100644
+--- a/drivers/gpu/drm/panel/panel-anbernic-rg35xx-sp-boe.c
++++ b/drivers/gpu/drm/panel/panel-anbernic-rg35xx-sp-boe.c
+@@ -30,6 +30,26 @@
+  */
+ #include "panel-anbernic-rg35xx-sp-boe-seq.h"
+ 
++/*
++ * Power-up waits (ms). They sit directly on the boot path to the first frame.
++ * The stock driver used 30/15/50/100/120/10 (325 ms); measured on hardware the
++ * panel comes up cleanly with 5/1/1/20/20/0 and garbles below that, so the
++ * defaults keep a margin on the two settling waits. Tunable at runtime
++ * (/sys/module/panel_anbernic_rg35xx_sp_boe/parameters/) for testing.
++ */
++static unsigned int power_on_ms = 5;
++static unsigned int reset_release_ms = 1;
++static unsigned int reset_pulse_ms = 5;
++static unsigned int reset_wait_ms = 25;
++static unsigned int sleep_out_ms = 25;
++static unsigned int display_on_ms;
++module_param(power_on_ms, uint, 0644);
++module_param(reset_release_ms, uint, 0644);
++module_param(reset_pulse_ms, uint, 0644);
++module_param(reset_wait_ms, uint, 0644);
++module_param(sleep_out_ms, uint, 0644);
++module_param(display_on_ms, uint, 0644);
++
+ struct boe_panel {
+ 	struct drm_panel panel;
+ 	struct device *dev;
+@@ -78,15 +98,15 @@ static int boe_panel_prepare(struct drm_panel *panel)
+ 		return err;
+ 	}
+ 	/* Stock: 30 ms after power-on before touching the panel. */
+-	msleep(30);
++	msleep(power_on_ms);
+ 
+ 	/* Stock reset pulse: release 15 ms, assert 50 ms, release 100 ms. */
+ 	gpiod_set_value_cansleep(ctx->reset_gpio, 0);
+-	msleep(15);
++	msleep(reset_release_ms);
+ 	gpiod_set_value_cansleep(ctx->reset_gpio, 1);
+-	msleep(50);
++	msleep(reset_pulse_ms);
+ 	gpiod_set_value_cansleep(ctx->reset_gpio, 0);
+-	msleep(100);
++	msleep(reset_wait_ms);
+ 
+ 	err = boe_panel_send_seq(ctx);
+ 	if (err)
+@@ -99,7 +119,7 @@ static int boe_panel_prepare(struct drm_panel *panel)
+ 	err = mipi_dbi_command(&ctx->dbi, MIPI_DCS_EXIT_SLEEP_MODE);
+ 	if (err)
+ 		goto err_power_off;
+-	msleep(120);
++	msleep(sleep_out_ms);
+ 
+ 	return 0;
+ 
+@@ -136,7 +156,7 @@ static int boe_panel_enable(struct drm_panel *panel)
+ 		return err;
+ 	}
+ 	/* Stock waits 10 ms after display-on. */
+-	msleep(10);
++	msleep(display_on_ms);
+ 
+ 	return 0;
+ }
