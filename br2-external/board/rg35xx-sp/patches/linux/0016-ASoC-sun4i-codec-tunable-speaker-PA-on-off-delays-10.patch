@@ -1,0 +1,60 @@
+From 573851c05684e2fd3e2244b619354d14600781b9 Mon Sep 17 00:00:00 2001
+From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
+Date: Sat, 21 Nov 2026 11:40:13 +0100
+Subject: [PATCH 16/16] ASoC: sun4i-codec: tunable speaker PA on/off delays
+ (100/200 ms)
+
+The fixed 700 ms PA-on wait delayed every sound (and the boot jingle vs the
+splash); disabling the PA without a pause before the line output shut down
+caused an audible pop. Defaults 100/200 ms as in the vendor driver, verified on
+the RG35XX SP. Tunable via /sys/module/sun4i_codec/parameters/.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HAivEfkKvP8urtyVqdwu3J
+---
+ sound/soc/sunxi/sun4i-codec.c | 25 +++++++++++++++++--------
+ 1 file changed, 17 insertions(+), 8 deletions(-)
+
+diff --git a/sound/soc/sunxi/sun4i-codec.c b/sound/soc/sunxi/sun4i-codec.c
+index ff56700a9..7acdea5d9 100644
+--- a/sound/soc/sunxi/sun4i-codec.c
++++ b/sound/soc/sunxi/sun4i-codec.c
+@@ -1660,6 +1660,19 @@ static struct snd_soc_dai_link *sun4i_codec_create_link(struct device *dev,
+ 	return link;
+ };
+ 
++/*
++ * Speaker amplifier timing (ms). pa_on_delay: wait after enabling the PA before
++ * audio flows (700 is the historical compromise; the H616 vendor driver uses
++ * 100). pa_off_delay: keep the codec output up after disabling the PA, so the
++ * amplifier is already off when the line output shuts down (avoids a pop; the
++ * vendor driver waits 2 x 100 ms).
++ */
++/* RG35XX SP: 100/200 ms verified by ear (no pop, jingle in sync) */
++static unsigned int pa_on_delay_ms = 100;
++static unsigned int pa_off_delay_ms = 200;
++module_param(pa_on_delay_ms, uint, 0644);
++module_param(pa_off_delay_ms, uint, 0644);
++
+ static int sun4i_codec_spk_event(struct snd_soc_dapm_widget *w,
+ 				 struct snd_kcontrol *k, int event)
+ {
+@@ -1669,14 +1682,10 @@ static int sun4i_codec_spk_event(struct snd_soc_dapm_widget *w,
+ 	gpiod_set_value_cansleep(scodec->gpio_pa,
+ 				 !!SND_SOC_DAPM_EVENT_ON(event));
+ 
+-	if (SND_SOC_DAPM_EVENT_ON(event)) {
+-		/*
+-		 * Need a delay to wait for DAC to push the data. 700ms seems
+-		 * to be the best compromise not to feel this delay while
+-		 * playing a sound.
+-		 */
+-		msleep(700);
+-	}
++	if (SND_SOC_DAPM_EVENT_ON(event))
++		msleep(pa_on_delay_ms);
++	else
++		msleep(pa_off_delay_ms);
+ 
+ 	return 0;
+ }
