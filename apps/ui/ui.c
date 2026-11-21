@@ -465,7 +465,7 @@ static item_t settings_items[] = {
 	{"VOLUME", IT_SLIDER, 5, 10, NULL, NULL, NULL},
 	{"SLEEP AFTER", IT_CHOICE, 1, 3, SLEEPS, NULL, NULL},
 	{"LOOK", IT_ACTION, 0, 0, NULL, NULL, NULL},
-	{"ABOUT", IT_ACTION, 0, 0, NULL, "COZISBOY 0.1 - MAINLINE LINUX", NULL},
+	{"ABOUT", IT_ACTION, 0, 0, NULL, NULL, NULL},
 };
 // "Look": the design variations still being compared
 enum { SET_HUB, SET_CC, SET_WIDGETS };
@@ -683,57 +683,20 @@ int list_update(list_t *l, unsigned p, float dt)
 	return -1;
 }
 
+// A list of settings rows (the kit's rows), from y. x/w/rh are kept for the
+// callers but every list uses the kit's margins and row pitch.
 void list_draw(canvas *c, const list_t *l, int x, int y, int w, int rh, uint32_t col)
 {
-	int ts = rh >= 44 ? 3 : 2;          // text scale
-	int ty = (rh - 6 - 7 * ts) / 2;     // text offset inside the bar
-	int by = y + (int)lrintf(l->y * rh);
-	wbox(c, x, by, w, rh - 6, l->flash > 0 ? WHITE : col, W_NORMAL);
-	uint32_t ink = wink(col, W_NORMAL);
-
+	(void)x, (void)w, (void)rh;
 	for (int i = 0; i < l->n; i++) {
 		const item_t *it = &l->it[i];
-		int ry = y + i * rh;
-		int sel = i == l->sel;
-		uint32_t tc = sel ? ink : 0xdddddd;
-		if (sel && fmodf(S.t, 0.6f) < 0.4f)
-			text(c, x + 12, ry + ty, ">", ts, ink);
-		text(c, x + 12 + 8 * ts, ry + ty, it->label, ts, tc);
-		int xr = x + w - 16;
-		int mid = ry + (rh - 6) / 2;
+		int ry = y + i * UI_ROW, sel = i == l->sel;
+		ui_row(c, ry, it->label, sel, l->flash > 0 && sel ? WHITE : col);
 		switch (it->type) {
-		case IT_TOGGLE: {
-			int on = it->val;
-			if (sel)
-				rrect(c, xr - 62, mid - 14, 64, 28, 5, BLACK);
-			rrect(c, xr - 60, mid - 12, 60, 24, 4, on ? PAL[3] : 0x444444);
-			fill(c, on ? xr - 26 : xr - 56, mid - 8, 22, 16, WHITE);
-			if (on)
-				text(c, xr - 54, mid - 7, "ON", 2, BLACK);
-			break;
-		}
-		case IT_SLIDER: {
-			int bw = 10, gap = 3, n = it->max;
-			int sx = xr - n * (bw + gap) + gap;
-			for (int k = 0; k < n; k++) {
-				uint32_t bc = k < it->val ? (sel ? WHITE : col)
-							  : (sel ? mix(col, BLACK, 0.45f) : 0x333333);
-				fill(c, sx + k * (bw + gap), mid - 10, bw, 20, bc);
-			}
-			break;
-		}
-		case IT_CHOICE: {
-			char buf[32];
-			snprintf(buf, sizeof buf, sel ? "< %s >" : "%s", it->choices[it->val]);
-			text(c, xr - text_width(buf, ts), ry + ty, buf, ts, sel ? ink : col);
-			break;
-		}
-		case IT_ACTION:
-			text(c, xr - text_width(">", ts), ry + ty, ">", ts, sel ? ink : GREY);
-			if (it->note)
-				text(c, xr - text_width(">", ts) - 12 - text_width(it->note, 2),
-				     ry + (rh - 6 - 14) / 2, it->note, 2, sel ? ink : col);
-			break;
+		case IT_TOGGLE: ui_row_toggle(c, ry, it->val, sel); break;
+		case IT_SLIDER: ui_row_slider(c, ry, it->val, it->max, sel, col); break;
+		case IT_CHOICE: ui_row_choice(c, ry, it->choices[it->val], sel, col); break;
+		case IT_ACTION: ui_row_value(c, ry, it->note, 1, sel, col, col); break;
 		}
 	}
 }
@@ -912,7 +875,9 @@ static void update(unsigned p, unsigned held, float dt)
 				S.page = PAGE_MAIN;
 			break;
 		}
-		list_t *l = S.app == APP_SETTINGS && S.page == PAGE_LOOK ? &look_list : app_list(S.app);
+		list_t *l = S.app == APP_SETTINGS && S.page == PAGE_LOOK    ? &look_list
+			    : S.app == APP_SETTINGS && S.page == PAGE_ABOUT ? NULL
+									    : app_list(S.app);
 		if (p & BTN_B) {
 			sfx_play(SFX_BACK, 0);
 			if (S.page != PAGE_MAIN)
@@ -928,12 +893,12 @@ static void update(unsigned p, unsigned held, float dt)
 			settings_items[SET_SSH].note = net_ssh_note();
 		}
 		int a = list_update(l, p, dt);
-		if (l == &settings_list && (a == SET_WIFI || a == SET_SSH || a == SET_LOOK)) {
+		if (l == &settings_list && (a == SET_WIFI || a == SET_SSH || a == SET_LOOK || a == SET_ABOUT)) {
 			sfx_play(SFX_OPEN, APP_SETTINGS);
-			S.page = a == SET_WIFI ? PAGE_WIFI : a == SET_SSH ? PAGE_SSH : PAGE_LOOK;
+			S.page = a == SET_WIFI ? PAGE_WIFI : a == SET_SSH ? PAGE_SSH : a == SET_LOOK ? PAGE_LOOK : PAGE_ABOUT;
 			if (S.page == PAGE_LOOK)
 				look_list.sel = 0, look_list.y = 0;
-			else
+			else if (S.page != PAGE_ABOUT)
 				net_open(S.page);
 		} else if (a >= 0) {
 			sfx_play(SFX_CONFIRM, 0);
@@ -1213,7 +1178,7 @@ static void bottom_hints(canvas *c, int *xp)
 			net_hints(c, S.page, &x);
 			break;
 		}
-		if (app_list(S.app)) {
+		if (app_list(S.app) && S.page != PAGE_ABOUT) {
 			draw_hint(c, &x, "^V", "MOVE", 0xdddddd);
 			draw_hint(c, &x, "<>", "CHANGE", 0xdddddd);
 			draw_hint(c, &x, "A", "OK", PAL[3]);
@@ -1262,10 +1227,103 @@ void draw_tile(canvas *c, int app, int x, int y, int size, int scale, int dim)
 		      dim ? 0.5f : 0, f);
 }
 
+/* ---- the widget kit: every page is built from these ------------------------ *
+ * Page: header (icon + title [+ subtitle]), then sections of rows. Rows are
+ * UI_ROW tall, text scale 2, the selected one a filled bar in the page colour;
+ * values sit right-aligned at the same inset. Info rows (not selectable) are
+ * a grey label with a white value. Popups are a panel with an accent title. */
+
+int ui_page_header(canvas *c, int app, const char *title, const char *sub)
+{
+	draw_tile(c, app, UI_MX, 14, 44, 2, 0);
+	text_arcade(c, UI_MX + 58, 23, title, 3, PAL[app]);
+	if (!sub)
+		return UI_TOP;
+	text(c, UI_MX, 68, sub, 2, GREY);
+	return UI_TOP + 24;
+}
+
 void draw_header(canvas *c, int app, const char *title)
 {
-	draw_tile(c, app, 24, 54, 60, 3, 0);
-	text_arcade(c, 104, 64, title, 4, PAL[app]);
+	ui_page_header(c, app, title, NULL);
+}
+
+int ui_section(canvas *c, int y, const char *title)
+{
+	text(c, UI_MX + 2, y + 6, title, 2, 0x8a8a8a);
+	int lx = UI_MX + text_width(title, 2) + 12;
+	fill(c, lx, y + 12, W - UI_MX - lx, 2, 0x2a2a2a);
+	return y + 28;
+}
+
+// Background bar of a row (selected) and its label. Returns the label colour.
+uint32_t ui_row(canvas *c, int y, const char *label, int sel, uint32_t col)
+{
+	if (sel)
+		wbox(c, UI_MX, y, W - 2 * UI_MX, UI_ROW - 6, col, W_NORMAL);
+	uint32_t ink = sel ? wink(col, W_NORMAL) : 0xdddddd;
+	text(c, UI_MX + 14, y + 8, label, 2, ink);
+	return ink;
+}
+
+// Right-aligned text value (+ an arrow when it opens something).
+void ui_row_value(canvas *c, int y, const char *value, int arrow, int sel, uint32_t col, uint32_t vcol)
+{
+	int xr = W - UI_MX - 14;
+	uint32_t ink = wink(col, W_NORMAL);
+	if (arrow) {
+		text(c, xr - 10, y + 8, ">", 2, sel ? ink : GREY);
+		xr -= 24;
+	}
+	if (value)
+		text(c, xr - text_width(value, 2), y + 8, value, 2, sel ? ink : vcol);
+}
+
+void ui_row_toggle(canvas *c, int y, int on, int sel)
+{
+	int xr = W - UI_MX - 10, mid = y + (UI_ROW - 6) / 2;
+	if (sel)
+		rrect(c, xr - 54, mid - 12, 56, 24, 5, BLACK);
+	rrect(c, xr - 52, mid - 10, 52, 20, 4, on ? PAL[3] : 0x444444);
+	fill(c, on ? xr - 22 : xr - 48, mid - 6, 18, 12, WHITE);
+	if (on)
+		text(c, xr - 47, mid - 7, "ON", 2, BLACK);
+}
+
+void ui_row_slider(canvas *c, int y, int val, int max, int sel, uint32_t col)
+{
+	int bw = 10, gap = 3, xr = W - UI_MX - 14, mid = y + (UI_ROW - 6) / 2;
+	int sx = xr - max * (bw + gap) + gap;
+	for (int k = 0; k < max; k++)
+		fill(c, sx + k * (bw + gap), mid - 8, bw, 16,
+		     k < val ? (sel ? WHITE : col) : (sel ? mix(col, BLACK, 0.45f) : 0x333333));
+}
+
+void ui_row_choice(canvas *c, int y, const char *value, int sel, uint32_t col)
+{
+	char buf[48];
+	snprintf(buf, sizeof buf, sel ? "< %s >" : "%s", value);
+	int xr = W - UI_MX - 14;
+	text(c, xr - text_width(buf, 2), y + 8, buf, 2, sel ? wink(col, W_NORMAL) : col);
+}
+
+// Not selectable: grey label, white value (shrinks to fit).
+void ui_info(canvas *c, int y, const char *label, const char *value)
+{
+	text(c, UI_MX + 14, y, label, 2, 0x8a8a8a);
+	int xr = W - UI_MX - 14, room = xr - (UI_MX + 14 + text_width(label, 2) + 16);
+	int vs = text_width(value, 2) <= room ? 2 : 1;
+	text(c, xr - text_width(value, vs), y + (vs == 1 ? 4 : 0), value, vs, 0xdddddd);
+}
+
+// Popup panel with a title; returns the y where its rows start.
+int ui_panel(canvas *c, int x, int y, int w, int h, const char *title, uint32_t col)
+{
+	darken(c, 0, 0, W, H, 0.6f);
+	rrect(c, x - 3, y - 3, w + 6, h + 6, 8, BLACK);
+	rrect(c, x, y, w, h, 6, 0x181818);
+	text_arcade(c, x + 16, y + 14, title, 2, col);
+	return y + 44;
 }
 
 static void brackets(canvas *c, int x, int y, int w, int h, int g)
@@ -1355,6 +1413,23 @@ static void draw_home(canvas *c)
 		text(c, (W - text_width(desc, 2)) / 2, 368, desc, 2, GREY);
 }
 
+// About: what this is and how to reach it. Read-only.
+static void draw_about(canvas *c)
+{
+	int y = ui_page_header(c, APP_SETTINGS, "ABOUT", NULL);
+	y = ui_section(c, y, "SYSTEM");
+	ui_info(c, y + 4, "VERSION", "COZISBOY 0.1");
+	ui_info(c, y + 4 + UI_INFO, "SYSTEM", "MAINLINE LINUX");
+	y = ui_section(c, y + 4 + 2 * UI_INFO + 6, "NETWORK");
+	const char *ip;
+	int wst = sys_wifi_status(NULL, &ip);
+	ui_info(c, y + 4, "WI-FI ADDRESS", wst == WIFI_CONNECTED ? ip : "NOT CONNECTED");
+	ui_info(c, y + 4 + UI_INFO, "USB ADDRESS", sys_usb_ip());
+	y = ui_section(c, y + 4 + 2 * UI_INFO + 6, "SSH HOST KEY");
+	text(c, UI_MX + 14, y + 4, sys_ssh_fingerprint(), text_width(sys_ssh_fingerprint(), 2) <= W - 2 * UI_MX - 28 ? 2 : 1,
+	     0xdddddd);
+}
+
 static void draw_app(canvas *c)
 {
 	if (S.app == APP_SETTINGS && (S.page == PAGE_WIFI || S.page == PAGE_SSH)) {
@@ -1362,14 +1437,18 @@ static void draw_app(canvas *c)
 		return;
 	}
 	if (S.app == APP_SETTINGS && S.page == PAGE_LOOK) {
-		draw_header(c, APP_SETTINGS, "LOOK");
-		list_draw(c, &look_list, 20, 136, W - 40, 46, PAL[APP_SETTINGS]);
+		int y = ui_page_header(c, APP_SETTINGS, "LOOK", NULL);
+		list_draw(c, &look_list, 0, y, 0, 0, PAL[APP_SETTINGS]);
 		return;
 	}
-	draw_header(c, S.app, APP_NAME[S.app]);
+	if (S.app == APP_SETTINGS && S.page == PAGE_ABOUT) {
+		draw_about(c);
+		return;
+	}
+	int y = ui_page_header(c, S.app, APP_NAME[S.app], NULL);
 	list_t *l = app_list(S.app);
 	if (l) {
-		list_draw(c, l, 20, 136, W - 40, l->n > 6 ? 38 : 46, PAL[S.app]);
+		list_draw(c, l, 0, y, 0, 0, PAL[S.app]);
 		return;
 	}
 	// placeholder for apps that don't exist yet

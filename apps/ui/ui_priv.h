@@ -21,7 +21,7 @@ extern const uint32_t PAL[8];
 
 enum { SCR_HOME, SCR_APP, SCR_LIBRARY, SCR_GAME };
 // pages inside Settings
-enum { PAGE_MAIN, PAGE_WIFI, PAGE_SSH, PAGE_LOOK };
+enum { PAGE_MAIN, PAGE_WIFI, PAGE_SSH, PAGE_LOOK, PAGE_ABOUT };
 enum { APP_BROWSER, APP_FILES, APP_TERM, APP_MUSIC, APP_GAMES, APP_WIFI,
        APP_SETTINGS, APP_POWER, NAPPS };
 
@@ -73,6 +73,21 @@ typedef struct {
 // IT_ACTION item activated with A, or -1.
 int list_update(list_t *l, unsigned pressed, float dt);
 void list_draw(canvas *c, const list_t *l, int x, int y, int w, int rh, uint32_t col);
+
+/* ---- widget kit (ui.c): the building blocks of every page ---- */
+#define UI_MX 20   // side margin
+#define UI_TOP 72  // content top under a page header
+#define UI_ROW 36  // selectable row pitch
+#define UI_INFO 26 // info row pitch
+int ui_page_header(canvas *c, int app, const char *title, const char *sub); // returns content top
+int ui_section(canvas *c, int y, const char *title);                       // returns y below it
+uint32_t ui_row(canvas *c, int y, const char *label, int sel, uint32_t col);
+void ui_row_value(canvas *c, int y, const char *value, int arrow, int sel, uint32_t col, uint32_t vcol);
+void ui_row_toggle(canvas *c, int y, int on, int sel);
+void ui_row_slider(canvas *c, int y, int val, int max, int sel, uint32_t col);
+void ui_row_choice(canvas *c, int y, const char *value, int sel, uint32_t col);
+void ui_info(canvas *c, int y, const char *label, const char *value);
+int ui_panel(canvas *c, int x, int y, int w, int h, const char *title, uint32_t col);
 
 /* ---- games.c: games hub, running games, Control Center ---- */
 void games_init(void);

@@ -62,13 +62,12 @@ static void build_rows(int page)
 		for (int i = 0; i < nnets && nrows < MAXROWS; i++)
 			add(R_NET, i, nets[i].ssid);
 	} else {
-		// only the switches are rows; connection details are drawn as info text
-		row_t *r = add(R_TOGGLE, A_SSH, "SSH SERVER");
+		// two rows; how to connect is drawn as info. Password login is on
+		// exactly when a password is set (keys always work).
+		row_t *r = add(R_TOGGLE, A_SSH, "SSH");
 		r->on = sys_ssh_enabled();
-		r = add(R_TOGGLE, A_SSHPW, "PASSWORD LOGIN");
-		r->on = sys_ssh_password_login();
-		r = add(R_ACTION, A_ROOTPW, "ROOT PASSWORD");
-		snprintf(r->value, sizeof r->value, "%s", sys_ssh_has_password() ? "SET - CHANGE" : "NOT SET");
+		r = add(R_ACTION, A_ROOTPW, "PASSWORD");
+		snprintf(r->value, sizeof r->value, "%s", sys_ssh_has_password() ? "SET" : "NOT SET");
 	}
 }
 
@@ -167,6 +166,7 @@ static void set_root_password(const char *pw, int generated)
 		sfx_play(SFX_BUMP, 0);
 		return;
 	}
+	sys_ssh_set_password_login(1); // a password is for logging in with
 	if (generated) {
 		snprintf(P.pw, sizeof P.pw, "%s", pw);
 		P.show = 1;
@@ -420,8 +420,9 @@ int net_update(int page, unsigned p, float dt)
 			P.choose = 0;
 			if (P.sel == 2) { // remove
 				sys_ssh_set_password(NULL);
+				sys_ssh_set_password_login(0);
 				sfx_play(SFX_TOGGLE_OFF, 0);
-				toast("PASSWORD REMOVED - PASSWORD LOGIN OFF");
+				toast("PASSWORD REMOVED");
 			} else if (P.sel == 0) {
 				osk_open(OSK_ROOTPW, NULL);
 			} else {
@@ -582,86 +583,61 @@ static void draw_wifi(canvas *c)
 // SSH page: a settings card with the switches, then read-only connection info.
 static void draw_ssh(canvas *c)
 {
-	uint32_t col = PAL[APP_TERM], ink = wink(col, W_NORMAL);
-	draw_header(c, APP_TERM, "SSH");
+	uint32_t col = PAL[APP_TERM];
+	int y = ui_page_header(c, APP_TERM, "SSH", NULL);
+	int on = sys_ssh_enabled(), has = sys_ssh_has_password(), keys = sys_ssh_keys();
 
-	// settings card: the only selectable things on the page
-	const int cx = 20, cy = 126, cw = W - 40, rh = 36;
-	rrect(c, cx, cy, cw, 3 * rh + 12, 6, 0x1c1c1c);
-	wbox(c, cx + 6, cy + 6 + (int)lrintf(N.sel_y * rh), cw - 12, rh - 6, col, W_NORMAL);
-	for (int i = 0; i < nrows && i < 3; i++) {
-		int y = cy + 6 + i * rh, sel = i == N.sel;
-		text(c, cx + 18, y + 8, rows[i].label, 2, sel ? ink : 0xdddddd);
-		if (rows[i].kind == R_TOGGLE) {
-			draw_toggle(c, cx + cw - 18, y + 15, rows[i].on, sel);
-		} else {
-			text(c, cx + cw - 30, y + 8, ">", 2, sel ? ink : GREY);
-			text(c, cx + cw - 42 - text_width(rows[i].value, 2), y + 8, rows[i].value, 2,
-			     sel ? ink : sys_ssh_has_password() ? PAL[3] : PAL[2]);
-		}
-	}
+	// the settings: two rows
+	ui_row(c, y, "SSH", N.sel == 0, col);
+	ui_row_toggle(c, y, on, N.sel == 0);
+	ui_row(c, y + UI_ROW, "PASSWORD", N.sel == 1, col);
+	ui_row_value(c, y + UI_ROW, has ? "SET" : "NOT SET", 1, N.sel == 1, col, has ? PAL[3] : PAL[2]);
 
-	// section header
-	const int hy = 262;
-	text(c, 24, hy, "HOW TO CONNECT", 2, GREY);
-	int lx = 24 + text_width("HOW TO CONNECT", 2) + 12;
-	fill(c, lx, hy + 6, W - 24 - lx, 2, 0x2a2a2a);
-
-	// command
+	// how to connect
+	y = ui_section(c, y + 2 * UI_ROW + 8, "CONNECT");
 	const char *ip;
-	int on = sys_ssh_enabled(), wst = sys_wifi_status(NULL, &ip);
-	char cmd[64];
-	if (on)
-		snprintf(cmd, sizeof cmd, "ssh root@%s", wst == WIFI_CONNECTED ? ip : sys_usb_ip());
-	else
-		snprintf(cmd, sizeof cmd, "SSH IS OFF");
-	rrect(c, 24, 284, W - 48, 30, 5, 0x0c0c0c);
-	text(c, 40, 292, on ? "$" : "", 2, GREY);
-	text(c, 60, 292, cmd, 2, on ? PAL[3] : GREY);
-
-	// details: plain two-column text, no rows
-	const char *labels[5] = {"WI-FI ADDRESS", "USB ADDRESS", "USER", "AUTHORIZED KEYS", "HOST KEY"};
-	char vals[5][64];
-	snprintf(vals[0], 64, "%s", wst == WIFI_CONNECTED ? ip : "not connected");
-	snprintf(vals[1], 64, "%s", sys_usb_ip());
-	snprintf(vals[2], 64, "root");
-	snprintf(vals[3], 64, "%d", sys_ssh_keys());
-	snprintf(vals[4], 64, "%s", sys_ssh_fingerprint());
-	for (int i = 0; i < 5; i++) {
-		int y = 326 + i * 22;
-		text(c, 32, y, labels[i], 2, 0x777777);
-		int vs = text_width(vals[i], 2) <= W - 260 ? 2 : 1;
-		text(c, 240, y + (vs == 1 ? 4 : 0), vals[i], vs, on || i > 1 ? 0xdddddd : 0x777777);
+	int wifi = sys_wifi_status(NULL, &ip) == WIFI_CONNECTED;
+	if (!on) {
+		text(c, UI_MX + 14, y + 6, "SSH IS OFF", 2, GREY);
+	} else {
+		char cmd[64];
+		snprintf(cmd, sizeof cmd, "ssh root@%s", wifi ? ip : sys_usb_ip());
+		rrect(c, UI_MX, y + 2, W - 2 * UI_MX, 34, 5, 0x0c0c0c);
+		text(c, UI_MX + 14, y + 12, "$", 2, GREY);
+		text(c, UI_MX + 38, y + 12, cmd, 2, PAL[3]);
+		text(c, W - UI_MX - 14 - text_width(wifi ? "WI-FI" : "USB", 1), y + 15, wifi ? "WI-FI" : "USB", 1, GREY);
+		y += 44;
+		char usb[64];
+		snprintf(usb, sizeof usb, "ssh root@%s", sys_usb_ip());
+		if (wifi)
+			ui_info(c, y, "OVER USB", usb), y += UI_INFO;
+		char with[64];
+		if (keys && has)
+			snprintf(with, sizeof with, "PASSWORD OR %d KEY%s", keys, keys > 1 ? "S" : "");
+		else if (keys)
+			snprintf(with, sizeof with, "%d KEY%s", keys, keys > 1 ? "S" : "");
+		else
+			snprintf(with, sizeof with, has ? "PASSWORD" : "NOTHING YET");
+		ui_info(c, y, "LOG IN WITH", with);
+		if (!keys && !has)
+			text(c, UI_MX + 14, y + UI_INFO, "SET A PASSWORD OR ADD A KEY TO LOG IN", 1, PAL[2]);
 	}
 
-	if (P.choose || P.show) {
-		const int pw = 460, ph = P.show ? 192 : P.choose && sys_ssh_has_password() ? 214 : 170;
-		int px = (W - pw) / 2, py = (H - ph) / 2 - 10;
-		darken(c, 0, 0, W, H, 0.55f);
-		rrect(c, px - 3, py - 3, pw + 6, ph + 6, 8, BLACK);
-		rrect(c, px, py, pw, ph, 6, 0x161616);
-		if (P.choose) {
-			text_arcade(c, px + 20, py + 16, "ROOT PASSWORD", 3, col);
-			int has = sys_ssh_has_password();
-			const char *opts[3] = {has ? "TYPE A NEW PASSWORD" : "TYPE A PASSWORD",
-					       has ? "GENERATE A NEW ONE" : "GENERATE A RANDOM ONE",
-					       "REMOVE PASSWORD"};
-			for (int i = 0; i < (has ? 3 : 2); i++) {
-				int y = py + 64 + i * 44;
-				if (P.sel == i)
-					wbox(c, px + 16, y, pw - 32, 34, col, W_NORMAL);
-				text(c, px + 32, y + 10, opts[i], 2, P.sel == i ? ink : 0xdddddd);
-			}
-		} else {
-			text_arcade(c, px + 20, py + 16, "NEW ROOT PASSWORD", 3, col);
-			int tw = text_width(P.pw, 3);
-			rrect(c, px + 16, py + 60, pw - 32, 50, 5, 0x0c0c0c);
-			text(c, px + (pw - tw) / 2, py + 74, P.pw, 3, PAL[3]);
-			text(c, px + 20, py + 124, "WRITE IT DOWN: IT WON'T BE", 2, 0xdddddd);
-			text(c, px + 20, py + 144, "SHOWN AGAIN.", 2, 0xdddddd);
-			if (!sys_ssh_password_login())
-				text(c, px + 20, py + 168, "TURN ON PASSWORD LOGIN TO USE IT OVER SSH", 1, GREY);
-		}
+	// password popup: a sheet with the same rows
+	if (P.choose) {
+		const char *opts[3] = {has ? "TYPE A NEW PASSWORD" : "TYPE A PASSWORD",
+				       has ? "GENERATE A NEW ONE" : "GENERATE A RANDOM ONE", "REMOVE PASSWORD"};
+		int n = has ? 3 : 2, ph = 56 + n * UI_ROW, py = H - 50 - ph;
+		int ry = ui_panel(c, UI_MX - 10, py, W - 2 * UI_MX + 20, ph, "ROOT PASSWORD", col);
+		for (int i = 0; i < n; i++)
+			ui_row(c, ry + i * UI_ROW, opts[i], P.sel == i, i == 2 ? PAL[0] : col);
+	} else if (P.show) {
+		int ph = 170, py = H - 50 - ph;
+		int ry = ui_panel(c, UI_MX - 10, py, W - 2 * UI_MX + 20, ph, "NEW ROOT PASSWORD", col);
+		rrect(c, UI_MX, ry, W - 2 * UI_MX, 50, 5, 0x0c0c0c);
+		text(c, (W - text_width(P.pw, 3)) / 2, ry + 14, P.pw, 3, PAL[3]);
+		text(c, UI_MX + 14, ry + 66, "WRITE IT DOWN: IT WON'T BE SHOWN AGAIN.", 2, 0xdddddd);
+		text(c, UI_MX + 14, ry + 92, "A OR B: DONE", 1, GREY);
 	}
 	if (K.on)
 		osk_draw(c);
