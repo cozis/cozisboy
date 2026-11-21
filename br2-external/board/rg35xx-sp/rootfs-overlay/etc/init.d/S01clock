@@ -1,0 +1,13 @@
+#!/bin/sh
+# System time from the battery-backed PCF8563 (the SoC's own RTC loses its time
+# when the device is off). NTP corrects both once Wi-Fi is up (S45wifi).
+case "$1" in
+start)
+	for r in /sys/class/rtc/rtc*; do
+		if [ "$(cat $r/name 2>/dev/null | cut -d' ' -f1)" = rtc-pcf8563 ]; then
+			hwclock -s -u -f /dev/${r##*/} 2>/dev/null
+			echo /dev/${r##*/} > /run/rtc-device
+		fi
+	done
+	;;
+esac

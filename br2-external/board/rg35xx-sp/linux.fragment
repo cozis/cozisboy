@@ -217,3 +217,5 @@ CONFIG_PWM=y
 CONFIG_PWM_SUN50I_H616=y
 CONFIG_BACKLIGHT_PWM=y
 # CONFIG_BACKLIGHT_GPIO is not set
+# Battery-backed RTC (PCF8563 on i2c): built in so S01clock can read it early
+CONFIG_RTC_DRV_PCF8563=y

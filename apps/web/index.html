@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cozisboy</title>
+<link rel="icon" href="/favicon.png">
+<style>
+:root {
+	--bg: #101012;
+	--panel: #1a1a1e;
+	--panel2: #232329;
+	--line: #2f2f37;
+	--text: #f4f4f4;
+	--dim: #9d9daa;
+	--faint: #62626e;
+	--red: #ff4a4a; --orange: #ff9a2e; --yellow: #ffd93d; --green: #59d65a;
+	--cyan: #3dc6ff; --blue: #6a7dff; --purple: #c56bff; --pink: #ff6bc1;
+	--sys-gb: var(--green); --sys-gbc: var(--purple); --sys-gba: var(--blue);
+	--r: 10px;
+	--shadow: 4px 4px 0 #000;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text);
+	font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+button, input { font: inherit; color: inherit; }
+a { color: inherit; }
+img.px { image-rendering: pixelated; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px 80px; }
+.hidden { display: none !important; }
+
+/* ---- header */
+header { display: flex; align-items: center; gap: 16px; padding: 18px 0 22px; }
+header .logo { height: 40px; cursor: pointer; }
+header .grow { flex: 1; }
+.pill { display: flex; gap: 14px; align-items: center; color: var(--dim); font-size: 13px;
+	background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; }
+.pill b { color: var(--text); font-weight: 600; }
+.batt { display: inline-block; width: 22px; height: 11px; border: 2px solid var(--dim); border-radius: 2px;
+	position: relative; vertical-align: -1px; margin-right: 6px; }
+.batt::after { content: ""; position: absolute; right: -5px; top: 2px; width: 2px; height: 3px; background: var(--dim); }
+.batt i { position: absolute; left: 1px; top: 1px; bottom: 1px; background: var(--green); }
+
+/* ---- buttons: chunky, hard shadow, press down */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+	background: var(--panel2); border: 2px solid #000; border-radius: 8px; box-shadow: 3px 3px 0 #000;
+	padding: 8px 16px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap;
+	position: relative; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.btn:hover { background: #2c2c34; }
+.btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+.btn:disabled { opacity: .45; cursor: default; transform: none; box-shadow: 3px 3px 0 #000; }
+.btn.go { background: var(--yellow); color: #111; }
+.btn.go:hover { background: #ffe46b; }
+.btn.small { padding: 5px 11px; font-size: 13px; box-shadow: 2px 2px 0 #000; }
+.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--dim); }
+.btn.ghost:hover { color: var(--text); background: var(--panel2); }
+/* hold to confirm: a bar fills while pressed */
+.btn.hold { color: var(--red); touch-action: none; -webkit-touch-callout: none; }
+.btn.hold .fill { position: absolute; inset: 0; width: 0; background: var(--red); opacity: .35; pointer-events: none; }
+.btn.hold.holding .fill { width: 100%; transition: width 1s linear; }
+.btn.hold > span { position: relative; }
+
+/* ---- library */
+.toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 26px; }
+.search { flex: 1; min-width: 200px; background: var(--panel); border: 2px solid var(--line);
+	border-radius: 8px; padding: 9px 14px; outline: none; }
+.search:focus { border-color: var(--cyan); }
+.sys-head { display: flex; align-items: baseline; gap: 12px; margin: 30px 0 14px; }
+.sys-head h2 { margin: 0; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; }
+.sys-head h2::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 10px;
+	background: var(--c); box-shadow: 2px 2px 0 #000; vertical-align: -1px; }
+.sys-head .n { color: var(--faint); font-size: 13px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 22px 18px; }
+.game { cursor: pointer; min-width: 0; outline: none; }
+.cover { aspect-ratio: 1; border-radius: 8px; background: var(--panel); border: 2px solid #000;
+	box-shadow: var(--shadow); overflow: hidden; position: relative; display: grid; place-items: center;
+	transition: transform .12s; }
+.game:hover .cover, .game:focus-visible .cover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #000; }
+.game:focus-visible .cover { border-color: var(--yellow); }
+.cover img { width: 100%; height: 100%; object-fit: contain; }
+.cover .ph { width: 100%; height: 100%; display: grid; place-items: center; background: var(--c); }
+.cover .ph b { font: 900 46px/1 ui-monospace, Menlo, Consolas, monospace; color: #fff;
+	text-shadow: 3px 3px 0 #000; -webkit-text-stroke: 2px #000; paint-order: stroke fill; }
+.cover .tags { position: absolute; left: 6px; bottom: 6px; display: flex; gap: 4px; }
+.tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; background: #000c; color: #fff;
+	padding: 2px 6px; border-radius: 4px; }
+.game .t { margin-top: 10px; font-weight: 600; line-height: 1.25; display: -webkit-box;
+	-webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.game .r { color: var(--faint); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.empty { margin-top: 40px; border: 2px dashed var(--line); border-radius: 16px; padding: 60px 20px; text-align: center; }
+.empty h3 { margin: 0 0 8px; font-size: 20px; }
+.empty p { color: var(--dim); margin: 0 0 20px; }
+
+/* ---- game page */
+.back { margin: -6px 0 18px -10px; }
+.hero { display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 34px; }
+.hero .cover { width: 260px; flex: none; }
+.hero .info { flex: 1; min-width: 260px; }
+.hero h1 { margin: 6px 0 4px; font-size: 32px; line-height: 1.15; }
+.hero .sub { color: var(--dim); }
+.sysbadge { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .1em; color: #000;
+	background: var(--c); padding: 3px 8px; border-radius: 4px; box-shadow: 2px 2px 0 #000; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 18px; margin: 18px 0 22px; color: var(--dim); font-size: 14px; }
+.facts b { color: var(--text); font-weight: 500; }
+.row-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.section { background: var(--panel); border: 2px solid #000; box-shadow: var(--shadow); border-radius: var(--r);
+	padding: 20px 22px; margin-bottom: 26px; }
+.section > h2 { margin: 0 0 14px; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.saveline { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.saveline .what { flex: 1; min-width: 200px; }
+.saveline .what b { display: block; font-size: 17px; }
+.saveline .what span { color: var(--dim); font-size: 13px; }
+.saveline + .saveline { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.floppy { width: 34px; height: 34px; flex: none; }
+.muted { color: var(--dim); }
+
+.states { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+.state .shot { aspect-ratio: 3 / 2; background: #000; border: 2px solid #000; border-radius: 6px;
+	box-shadow: 3px 3px 0 #000; overflow: hidden; }
+.state .shot img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; display: block; }
+.state .when { margin: 10px 0 8px; }
+.state .when b { display: block; }
+.state .when span { color: var(--faint); font-size: 12px; }
+
+.rename { display: flex; gap: 10px; flex-wrap: wrap; }
+.rename input { flex: 1; min-width: 220px; background: var(--panel2); border: 2px solid var(--line); border-radius: 8px; padding: 8px 12px; outline: none; }
+.rename input:focus { border-color: var(--cyan); }
+.danger-zone { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.danger-zone p { flex: 1; min-width: 220px; margin: 0; color: var(--dim); font-size: 14px; }
+.sep { height: 1px; background: var(--line); margin: 18px 0; }
+
+/* ---- pairing */
+#pair { max-width: 420px; margin: 10vh auto 0; text-align: center; }
+#pair .logo { height: 56px; margin-bottom: 30px; }
+#pair p { color: var(--dim); }
+#code { width: 100%; font: 800 38px ui-monospace, Menlo, Consolas, monospace; letter-spacing: .45em;
+	text-align: center; padding: 14px 0 14px .45em; background: var(--panel2); border: 2px solid #000;
+	box-shadow: var(--shadow); border-radius: var(--r); margin: 14px 0 10px; outline: none; }
+#code:focus { border-color: var(--yellow); }
+.err { color: var(--red); min-height: 1.5em; }
+
+/* ---- drop overlay + upload tray */
+#drop { position: fixed; inset: 0; background: #101012e0; display: grid; place-items: center; z-index: 20;
+	pointer-events: none; }
+#drop div { border: 3px dashed var(--yellow); border-radius: 20px; padding: 50px 70px; text-align: center; }
+#drop b { font-size: 24px; display: block; margin-bottom: 6px; }
+#drop span { color: var(--dim); }
+#tray { position: fixed; right: 20px; bottom: 20px; width: 360px; max-width: calc(100vw - 40px); max-height: 50vh;
+	overflow: auto; background: var(--panel); border: 2px solid #000; box-shadow: var(--shadow);
+	border-radius: var(--r); padding: 14px 16px; z-index: 10; }
+#tray h3 { margin: 0 0 10px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+	display: flex; justify-content: space-between; }
+.up { font-size: 13px; margin-top: 10px; }
+.up .l { display: flex; justify-content: space-between; gap: 10px; }
+.up .l span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.up .l span:last-child { color: var(--dim); white-space: nowrap; }
+.bar { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; margin-top: 5px; }
+.bar i { display: block; height: 100%; width: 0; background: var(--cyan); transition: width .2s; }
+.up.ok .bar i { background: var(--green); }
+.up.bad .bar i { background: var(--red); width: 100% !important; }
+.up.bad .l span:last-child { color: var(--red); }
+
+#toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--panel2);
+	border: 2px solid #000; box-shadow: var(--shadow); border-radius: 8px; padding: 10px 18px; z-index: 30; }
+
+footer { margin-top: 50px; color: var(--faint); font-size: 13px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
+footer a { cursor: pointer; text-decoration: underline; }
+
+@media (max-width: 600px) {
+	.wrap { padding: 0 14px 80px; }
+	.grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 18px 12px; }
+	.hero .cover { width: 100%; max-width: 320px; }
+	.hero h1 { font-size: 26px; }
+	header .logo { height: 32px; }
+	.pill .storage { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- pairing -->
+<section id="pair" class="hidden">
+	<img class="logo px" src="/logo.png" alt="cozisboy">
+	<div class="section">
+		<h2>Connect to your cozisboy</h2>
+		<p>Enter the 6-digit code shown on the device.</p>
+		<input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="······">
+		<div class="err" id="pairErr"></div>
+		<button class="btn go" id="pairBtn" style="width:100%">Connect</button>
+	</div>
+</section>
+
+<div class="wrap hidden" id="app">
+	<header>
+		<img class="logo px" src="/logo.png" alt="cozisboy" onclick="location.hash=''">
+		<div class="grow"></div>
+		<div class="pill" id="pill"></div>
+	</header>
+
+	<!-- library -->
+	<main id="libView">
+		<div class="toolbar">
+			<input class="search" id="search" type="search" placeholder="Search games">
+			<button class="btn go" id="addBtn">+ Add games</button>
+		</div>
+		<div id="lib"></div>
+		<footer>
+			<span id="libCount"></span>
+			<span>
+				<a id="backupBtn">Back up all saves</a> ·
+				<a id="backupAllBtn">saves and states</a> ·
+				<a id="coversBtn">Find missing covers</a> ·
+				<a id="logout">Disconnect this browser</a>
+			</span>
+		</footer>
+	</main>
+
+	<!-- game -->
+	<main id="gameView" class="hidden"></main>
+</div>
+
+<input type="file" id="romIn" multiple accept=".gba,.gbc,.gb" hidden>
+<input type="file" id="saveIn" accept=".sav,.srm" hidden>
+<input type="file" id="coverIn" accept="image/png" hidden>
+
+<div id="drop" class="hidden"><div><b id="dropT">Drop to add games</b><span id="dropS">.gba, .gbc and .gb files</span></div></div>
+<div id="tray" class="hidden"><h3><span>Adding games</span><a id="trayClose" style="cursor:pointer">✕</a></h3><div id="ups"></div></div>
+<div id="toast" class="hidden"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const HDR = { "X-Cozis": "1" };
+const SYS_REPO = { gb: "Nintendo_-_Game_Boy", gbc: "Nintendo_-_Game_Boy_Color", gba: "Nintendo_-_Game_Boy_Advance" };
+const ROM_EXT = /\.(gba|gbc|gb)$/i;
+
+let systems = [], games = [], current = null;
+
+// ------------------------------------------------------------ helpers
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function size(n) {
+	if (n < 1024) return n + " B";
+	const u = ["KB", "MB", "GB"]; let i = -1;
+	do { n /= 1024; i++; } while (n >= 1024 && i < 2);
+	return (n < 10 ? n.toFixed(1) : Math.round(n)) + " " + u[i];
+}
+const known = t => t > 978307200; // the device clock may not be set (no RTC/NTP yet)
+function ago(t) {
+	if (!known(t)) return "date unknown";
+	const s = Date.now() / 1000 - t, rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+	if (s < 60) return "just now";
+	if (s < 3600) return rtf.format(-Math.round(s / 60), "minute");
+	if (s < 86400) return rtf.format(-Math.round(s / 3600), "hour");
+	if (s < 86400 * 30) return rtf.format(-Math.round(s / 86400), "day");
+	return new Date(t * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+const when = t => known(t) ? new Date(t * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "";
+const sysOf = k => systems.find(s => s.key === k) || { key: k, short: k.toUpperCase(), label: k };
+const initials = t => (t.match(/[A-Za-z0-9]+/g) || ["?"]).slice(0, 2).map(w => w[0].toUpperCase()).join("");
+function toast(msg) {
+	const t = $("toast"); t.textContent = msg; t.classList.remove("hidden");
+	clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add("hidden"), 3500);
+}
+async function api(method, path, body) {
+	const r = await fetch("/api/" + path, { method, headers: HDR, body });
+	if (r.status === 401) { showPair(); throw new Error("not connected"); }
+	const j = (r.headers.get("content-type") || "").includes("json") ? await r.json() : null;
+	if (!r.ok) throw new Error(j && j.error || r.statusText);
+	return j;
+}
+function coverHTML(g) {
+	if (g.cover) return `<img src="/api/games/${g.id}/cover?x=1&v=${g.cover}" alt="" loading="lazy">`;
+	return `<div class="ph" style="--c:var(--sys-${g.sys})"><b>${esc(initials(g.title))}</b></div>`;
+}
+const FLOPPY = `<svg class="floppy" viewBox="0 0 16 16" shape-rendering="crispEdges"><path fill="#000" d="M1 1h12l2 2v12H1z"/><path fill="var(--cyan)" d="M2 2h10l2 2v10H2z"/><path fill="#fff" d="M4 2h7v4H4z"/><path fill="#000" d="M9 3h1v2H9z"/><path fill="#e8e8e8" d="M4 9h8v5H4z"/></svg>`;
+
+// "Hold to confirm" buttons: the action runs after 1 s of pressing.
+function holdButton(label, action) {
+	const b = document.createElement("button");
+	b.className = "btn small hold";
+	b.innerHTML = `<i class="fill"></i><span>${esc(label)}</span>`;
+	b.title = "Press and hold to confirm";
+	let t;
+	const start = e => { e.preventDefault(); b.classList.add("holding"); t = setTimeout(() => { b.classList.remove("holding"); action(); }, 1000); };
+	const stop = () => { clearTimeout(t); b.classList.remove("holding"); };
+	b.addEventListener("pointerdown", start);
+	["pointerup", "pointerleave", "pointercancel"].forEach(ev => b.addEventListener(ev, stop));
+	b.addEventListener("click", e => { if (e.detail === 0) toast("Hold the button to confirm"); });
+	return b;
+}
+
+// ------------------------------------------------------------ pairing
+function showPair() { $("app").classList.add("hidden"); $("pair").classList.remove("hidden"); $("code").focus(); }
+async function pair() {
+	const code = $("code").value.replace(/\D/g, "");
+	if (code.length !== 6) { $("pairErr").textContent = "The code has 6 digits."; return; }
+	$("pairBtn").disabled = true;
+	const r = await fetch("/api/pair", { method: "POST", headers: HDR, body: code });
+	$("pairBtn").disabled = false;
+	if (r.ok) { $("code").value = ""; $("pairErr").textContent = ""; boot(); }
+	else { $("pairErr").textContent = "That's not it. After 5 tries the device shows a new code."; $("code").select(); }
+}
+$("pairBtn").onclick = pair;
+$("code").addEventListener("input", e => { if (e.target.value.replace(/\D/g, "").length === 6) pair(); });
+$("code").addEventListener("keydown", e => { if (e.key === "Enter") pair(); });
+$("logout").onclick = async () => { await api("POST", "logout"); showPair(); };
+
+// ------------------------------------------------------------ status pill
+async function refreshStatus() {
+	const s = await api("GET", "status"), b = s.battery;
+	const col = b.capacity <= 15 ? "var(--red)" : b.capacity <= 35 ? "var(--yellow)" : "var(--green)";
+	$("pill").innerHTML = (b.capacity < 0 ? "" :
+		`<span><span class="batt"><i style="width:${Math.max(0, b.capacity) * 18 / 100}px;background:${col}"></i></span><b>${b.capacity}%</b>${/^Charging/.test(b.status) ? " charging" : ""}</span>`) +
+		(s.storage ? `<span class="storage"><b>${size(s.storage.free)}</b> free</span>` : "");
+}
+
+// ------------------------------------------------------------ library
+async function loadGames() {
+	const j = await api("GET", "games");
+	systems = j.systems; games = j.games;
+	renderLib();
+}
+function renderLib() {
+	const q = $("search").value.trim().toLowerCase();
+	const shown = games.filter(g => !q || g.name.toLowerCase().includes(q));
+	const lib = $("lib");
+	$("libCount").textContent = games.length ? `${games.length} game${games.length === 1 ? "" : "s"}` : "";
+	if (!games.length) {
+		lib.innerHTML = `<div class="empty"><h3>No games yet</h3><p>Drag your .gba, .gbc and .gb files anywhere on this page,<br>or pick them from your computer.</p><button class="btn go" onclick="$('romIn').click()">Choose files</button></div>`;
+		return;
+	}
+	if (!shown.length) { lib.innerHTML = `<p class="muted">No game matches “${esc(q)}”.</p>`; return; }
+	let html = "";
+	for (const s of [...systems].reverse()) {	// newest system first
+		const gs = shown.filter(g => g.sys === s.key);
+		if (!gs.length) continue;
+		html += `<div class="sys-head" style="--c:var(--sys-${s.key})"><h2>${esc(s.label)}</h2><span class="n">${gs.length}</span></div><div class="grid">`;
+		for (const g of gs) {
+			const tags = (g.save ? `<span class="tag">SAVE</span>` : "") + (g.states ? `<span class="tag">${g.states} STATE${g.states > 1 ? "S" : ""}</span>` : "");
+			html += `<div class="game" tabindex="0" data-id="${g.id}">
+				<div class="cover">${coverHTML(g)}<div class="tags">${tags}</div></div>
+				<div class="t">${esc(g.title)}</div><div class="r">${esc(g.region)}</div></div>`;
+		}
+		html += `</div>`;
+	}
+	lib.innerHTML = html;
+	lib.querySelectorAll(".game").forEach(el => {
+		el.onclick = () => location.hash = "#/game/" + el.dataset.id;
+		el.onkeydown = e => { if (e.key === "Enter") el.click(); };
+	});
+}
+$("search").addEventListener("input", renderLib);
+$("addBtn").onclick = () => $("romIn").click();
+$("romIn").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
+$("backupBtn").onclick = () => location.href = "/api/backup?x=1";
+$("backupAllBtn").onclick = () => location.href = "/api/backup?x=1&states=1";
+$("coversBtn").onclick = async () => {
+	const missing = games.filter(g => !g.cover);
+	if (!missing.length) { toast("Every game has a cover."); return; }
+	toast(`Looking for ${missing.length} cover${missing.length > 1 ? "s" : ""}…`);
+	let found = 0;
+	for (const g of missing) if (await fetchCover(g)) found++;
+	toast(`Found ${found} of ${missing.length} covers.`);
+	loadGames();
+};
+
+// Box art from libretro-thumbnails, matched by the No-Intro name.
+async function fetchCover(g) {
+	const file = g.name.replace(/[&*/:`<>?\\|"]/g, "_") + ".png";
+	const url = `https://raw.githubusercontent.com/libretro-thumbnails/${SYS_REPO[g.sys]}/master/Named_Boxarts/${encodeURIComponent(file)}`;
+	try {
+		const r = await fetch(url);
+		if (!r.ok) return false;
+		await api("PUT", `games/${g.id}/cover`, await r.blob());
+		return true;
+	} catch { return false; }
+}
+
+// ------------------------------------------------------------ uploads
+const queue = []; let busy = false;
+function trayItem(name) {
+	$("tray").classList.remove("hidden");
+	const el = document.createElement("div");
+	el.className = "up";
+	el.innerHTML = `<div class="l"><span>${esc(name)}</span><span class="st">waiting</span></div><div class="bar"><i></i></div>`;
+	$("ups").prepend(el);
+	return el;
+}
+function addFiles(files) {
+	for (const f of files) {
+		const el = trayItem(f.name);
+		if (!ROM_EXT.test(f.name)) { el.classList.add("bad"); el.querySelector(".st").textContent = "not a .gba/.gbc/.gb file"; continue; }
+		queue.push({ f, el });
+	}
+	pump();
+}
+function put(url, file, el) {
+	return new Promise(res => {
+		const x = new XMLHttpRequest();
+		x.open("PUT", url);
+		x.setRequestHeader("X-Cozis", "1");
+		const st = el.querySelector(".st"), bar = el.querySelector(".bar i"), t0 = performance.now();
+		x.upload.onprogress = e => {
+			if (!e.lengthComputable) return;
+			bar.style.width = (100 * e.loaded / e.total) + "%";
+			const rate = e.loaded / ((performance.now() - t0) / 1000);
+			st.textContent = `${Math.round(100 * e.loaded / e.total)}% · ${size(rate)}/s`;
+		};
+		x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch {} res({ status: x.status, j }); };
+		x.onerror = () => res({ status: 0, j: { error: "connection lost" } });
+		x.send(file);
+	});
+}
+async function pump() {
+	if (busy) return;
+	busy = true;
+	while (queue.length) {
+		const { f, el } = queue.shift(), st = el.querySelector(".st");
+		let r = await put(`/api/games?filename=${encodeURIComponent(f.name)}`, f, el);
+		if (r.status === 409) {
+			if (confirm(`"${f.name.replace(ROM_EXT, "")}" is already on the device. Replace the game file? (Its save and states stay.)`))
+				r = await put(`/api/games?filename=${encodeURIComponent(f.name)}&replace=1`, f, el);
+			else { el.classList.add("bad"); st.textContent = "already there"; continue; }
+		}
+		if (r.status !== 200) { el.classList.add("bad"); st.textContent = r.j.error || "failed"; continue; }
+		el.classList.add("ok");
+		el.querySelector(".bar i").style.width = "100%";
+		if (!r.j.cover) { st.textContent = "finding cover…"; await fetchCover(r.j); }
+		st.textContent = "added";
+		await loadGames();
+	}
+	busy = false;
+	setTimeout(() => { if (!busy && !queue.length) { $("tray").classList.add("hidden"); $("ups").innerHTML = ""; } }, 6000);
+}
+$("trayClose").onclick = () => { $("tray").classList.add("hidden"); if (!busy) $("ups").innerHTML = ""; };
+
+// Drag and drop anywhere. On a game page, a .sav replaces its save and a .png its cover.
+let dragDepth = 0;
+document.addEventListener("dragenter", e => {
+	if (!e.dataTransfer || ![...e.dataTransfer.types].includes("Files") || $("app").classList.contains("hidden")) return;
+	e.preventDefault(); dragDepth++;
+	$("dropT").textContent = current ? "Drop a game, a save or a cover" : "Drop to add games";
+	$("dropS").textContent = current ? ".gba/.gbc/.gb adds games · .sav replaces this game's save · .png sets its cover" : ".gba, .gbc and .gb files";
+	$("drop").classList.remove("hidden");
+});
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; $("drop").classList.add("hidden"); } });
+document.addEventListener("drop", e => {
+	e.preventDefault(); dragDepth = 0; $("drop").classList.add("hidden");
+	const files = [...(e.dataTransfer && e.dataTransfer.files || [])];
+	if (!files.length || $("app").classList.contains("hidden")) return;
+	if (current) {
+		const save = files.find(f => /\.(sav|srm)$/i.test(f.name)), png = files.find(f => /\.png$/i.test(f.name));
+		if (save) return replaceSave(save);
+		if (png) return setCover(png);
+	}
+	addFiles(files);
+});
+
+// ------------------------------------------------------------ game page
+async function showGame(id) {
+	let g, st;
+	try { [g, st] = await Promise.all([api("GET", "games/" + id), api("GET", `games/${id}/states`)]); }
+	catch (e) { toast(e.message); location.hash = ""; return; }
+	current = g;
+	const s = sysOf(g.sys), v = $("gameView");
+	v.innerHTML = `
+		<button class="btn ghost back" onclick="location.hash=''">← All games</button>
+		<div class="hero">
+			<div class="cover">${coverHTML(g)}</div>
+			<div class="info">
+				<span class="sysbadge" style="--c:var(--sys-${g.sys})">${esc(s.short)}</span>
+				<h1>${esc(g.title)}</h1>
+				<div class="sub">${esc(s.label)}${g.region ? " · " + esc(g.region) : ""}</div>
+				<div class="facts">
+					<span>Battery save</span><b>${g.save ? "saved " + ago(g.save.time) : "none yet"}</b>
+					<span>Save states</span><b>${g.states || "none"}</b>
+					<span>Game size</span><b>${size(g.rom_size)}</b>
+					<span>Added</span><b>${known(g.added) ? ago(g.added) : "—"}</b>
+				</div>
+				<div class="row-btns">
+					${g.save ? `<a class="btn" href="/api/games/${g.id}/save?x=1">Download save</a>` : ""}
+					<a class="btn" href="/api/games/${g.id}/rom?x=1">Download game</a>
+				</div>
+			</div>
+		</div>
+
+		<div class="section" id="saveSec"><h2>Battery save</h2></div>
+		<div class="section"><h2>Save states</h2><div id="statesBox"></div></div>
+		<div class="section" id="gameSec"><h2>Game</h2></div>`;
+
+	// battery save
+	const ss = $("saveSec");
+	const line = document.createElement("div");
+	line.className = "saveline";
+	if (g.save) {
+		line.innerHTML = `${FLOPPY}<div class="what"><b>Saved ${ago(g.save.time)}</b><span>${when(g.save.time)} · ${size(g.save.size)}</span></div>`;
+		const dl = document.createElement("a"); dl.className = "btn small"; dl.textContent = "Download"; dl.href = `/api/games/${g.id}/save?x=1`;
+		const rep = document.createElement("button"); rep.className = "btn small"; rep.textContent = "Replace…"; rep.onclick = () => $("saveIn").click();
+		line.append(dl, rep, holdButton("Hold to delete", async () => { await api("DELETE", `games/${g.id}/save`); toast("Save deleted. You can still restore it below."); showGame(g.id); }));
+	} else {
+		line.innerHTML = `${FLOPPY}<div class="what"><b>No save yet</b><span>The game creates one the first time you save in it. You can also bring a save from another device.</span></div>`;
+		const up = document.createElement("button"); up.className = "btn small"; up.textContent = "Upload a save…"; up.onclick = () => $("saveIn").click();
+		line.append(up);
+	}
+	ss.append(line);
+	if (g.save_backup) {
+		const b = document.createElement("div");
+		b.className = "saveline";
+		b.innerHTML = `<div class="what"><b>Previous save</b><span>Kept when the save was last replaced or deleted.</span></div>`;
+		const dl = document.createElement("a"); dl.className = "btn small"; dl.textContent = "Download"; dl.href = `/api/games/${g.id}/save/backup?x=1`;
+		const rs = document.createElement("button"); rs.className = "btn small"; rs.textContent = g.save ? "Swap with current" : "Restore";
+		rs.onclick = async () => { await api("POST", `games/${g.id}/save/restore`); toast("Previous save restored."); showGame(g.id); };
+		b.append(dl, rs);
+		ss.append(b);
+	}
+
+	// states gallery
+	const sb = $("statesBox");
+	if (!st.states.length) sb.innerHTML = `<p class="muted" style="margin:0">No save states yet. They appear here when you save a state while playing.</p>`;
+	else {
+		const grid = document.createElement("div"); grid.className = "states";
+		for (const x of st.states) {
+			const el = document.createElement("div"); el.className = "state";
+			el.innerHTML = `<div class="shot">${x.thumb ? `<img src="/api/games/${g.id}/states/${x.id}/thumb?x=1" alt="" loading="lazy">` : ""}</div>
+				<div class="when"><b>${ago(x.time)}</b><span>${when(x.time)}</span></div><div class="row-btns"></div>`;
+			const dl = document.createElement("a"); dl.className = "btn small"; dl.textContent = "Download"; dl.href = `/api/games/${g.id}/states/${x.id}?x=1`;
+			el.querySelector(".row-btns").append(dl, holdButton("Hold to delete", async () => { await api("DELETE", `games/${g.id}/states/${x.id}`); showGame(g.id); }));
+			grid.append(el);
+		}
+		sb.append(grid);
+	}
+
+	// game management
+	const gs = $("gameSec");
+	gs.insertAdjacentHTML("beforeend", `<div class="rename"><input id="nameIn" value="${esc(g.name)}" spellcheck="false"><button class="btn small" id="renameBtn">Rename</button></div>
+		<p class="muted" style="font-size:13px;margin:8px 0 0">The name decides the cover: keep the official name (e.g. “Pokemon - Emerald Version (USA, Europe)”) to find it automatically.</p>
+		<div class="sep"></div>
+		<div class="row-btns" id="coverBtns"></div>
+		<div class="sep"></div>
+		<div class="danger-zone"><p>Delete the game together with its battery save and all its save states. This can't be undone.</p></div>`);
+	$("renameBtn").onclick = async () => {
+		const name = $("nameIn").value.trim();
+		if (!name || name === g.name) return;
+		try { const n = await api("POST", `games/${g.id}/rename?name=${encodeURIComponent(name)}`); toast("Renamed."); location.hash = "#/game/" + n.id; loadGames(); }
+		catch (e) { toast(e.message); }
+	};
+	const cb = $("coverBtns");
+	const find = document.createElement("button"); find.className = "btn small"; find.textContent = "Find cover online";
+	find.onclick = async () => { find.disabled = true; const ok = await fetchCover(g); toast(ok ? "Cover found." : "No cover found for this name."); showGame(g.id); loadGames(); };
+	const upc = document.createElement("button"); upc.className = "btn small"; upc.textContent = "Upload cover…"; upc.onclick = () => $("coverIn").click();
+	cb.append(find, upc);
+	if (g.cover) {
+		const rm = document.createElement("button"); rm.className = "btn small ghost"; rm.textContent = "Remove cover";
+		rm.onclick = async () => { await api("DELETE", `games/${g.id}/cover`); showGame(g.id); loadGames(); };
+		cb.append(rm);
+	}
+	gs.querySelector(".danger-zone").append(holdButton("Hold to delete game", async () => {
+		await api("DELETE", "games/" + g.id); toast(`Deleted ${g.title}.`); location.hash = ""; loadGames();
+	}));
+}
+
+async function replaceSave(file) {
+	const g = current;
+	if (g.save && !confirm(`Replace the save of ${g.title} with "${file.name}"? The current save is kept as the previous save.`)) return;
+	try { await api("PUT", `games/${g.id}/save`, file); toast("Save replaced."); showGame(g.id); loadGames(); }
+	catch (e) { toast(e.message); }
+}
+async function setCover(file) {
+	try { await api("PUT", `games/${current.id}/cover`, file); toast("Cover updated."); showGame(current.id); loadGames(); }
+	catch (e) { toast(e.message); }
+}
+$("saveIn").onchange = e => { if (e.target.files[0]) replaceSave(e.target.files[0]); e.target.value = ""; };
+$("coverIn").onchange = e => { if (e.target.files[0]) setCover(e.target.files[0]); e.target.value = ""; };
+
+// ------------------------------------------------------------ routing
+function route() {
+	const m = location.hash.match(/^#\/game\/([0-9a-f]{16})$/);
+	$("libView").classList.toggle("hidden", !!m);
+	$("gameView").classList.toggle("hidden", !m);
+	if (m) showGame(m[1]);
+	else { current = null; renderLib(); }
+	window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", route);
+
+async function boot() {
+	try { await Promise.all([refreshStatus(), loadGames()]); } catch { return; }
+	$("pair").classList.add("hidden"); $("app").classList.remove("hidden");
+	route();
+	clearInterval(boot.t);
+	boot.t = setInterval(() => refreshStatus().catch(() => {}), 15000);
+}
+boot();
+</script>
+</body>
+</html>

@@ -70,8 +70,8 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
       /data/wifi). Reconnects after sleep.
 - [ ] Wi-Fi: first scan takes ~5 s (association at ~9 s): remember the last
       channel (`scan_freq`) for a faster reconnect; Wi-Fi page in the UI.
-- [ ] Clock: no RTC time at boot (date is 1970): NTP once Wi-Fi is up, and
-      check whether the H616 RTC keeps time across power-off.
+- [x] Clock: system time from the battery-backed PCF8563 at boot (S01clock,
+      driver built in), busybox ntpd once Wi-Fi is up writes it back.
 - [x] GPU (Panfrost): kernel side works (Mali-G31, /dev/dri/renderD128). Fix:
       CONFIG_SUN50I_H6_PRCM_PPU (GPU power domain) was missing.
 - [ ] GPU userspace: Mesa (panfrost gallium, GLES) for emulators/UI.
@@ -102,6 +102,19 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
       (saves writing 14 MB per flash).
 - [ ] Remove tinyalsa (no longer used; tinyalsa 2.0 never started the stream
       on this codec).
+
+## Web app (apps/web) + game library (apps/common/library.h)
+
+- [x] Game library: one folder per game (ROM, save + backup, states with PNG
+      screenshots, cover), stable ids, GB/GBC detected from the ROM header.
+- [x] Web app prototype: pairing code, cover grid, drop ROMs (covers fetched
+      by the browser from libretro-thumbnails), game page with battery save
+      (replace/delete keep a backup, restore), save-state gallery, zip backup.
+- [ ] Started at boot for now (S60web; code in /run/cozisboy-web.code): the
+      launcher should switch it on/off and show the pairing code.
+- [ ] Launcher: move to the library (rescan when active, states via
+      coz_state_add).
+- [ ] Live screen over WebSocket (JPEG), remote input.
 
 ## Games
 

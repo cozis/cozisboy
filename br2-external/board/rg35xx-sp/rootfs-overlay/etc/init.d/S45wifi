@@ -15,10 +15,14 @@ start() {
 		wpa_supplicant -B -i wlan0 -c $CONF -P /run/wpa_supplicant.pid
 		# retry every second (default: 3 tries, then a 20 s pause)
 		udhcpc -b -S -t 30 -T 1 -A 1 -i wlan0 -p /run/udhcpc.wlan0.pid
+		# network time: keeps retrying until the network is up, then
+		# corrects the clock and saves it to the RTC
+		ntpd -p pool.ntp.org -S /usr/libexec/cozisboy-ntp-hook
 	' </dev/null >/dev/null 2>&1 &
 }
 
 stop() {
+	killall ntpd 2>/dev/null
 	for p in /run/udhcpc.wlan0.pid /run/wpa_supplicant.pid; do
 		[ -f $p ] && kill $(cat $p) 2>/dev/null
 		rm -f $p

@@ -59,6 +59,7 @@ BR2_TARGET_ROOTFS_EXT2_SIZE="256M"
 # BR2_TARGET_ROOTFS_TAR is not set
 
 # --- Packages
+BR2_PACKAGE_BUSYBOX_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_AMBERNIC_PATH)/board/rg35xx-sp/busybox.fragment"
 BR2_PACKAGE_DROPBEAR=y
 # sftp-server only (for scp/sftp/file managers; dropbear has none). sshd and
 # its init script are removed in post-build.
@@ -88,6 +89,7 @@ BR2_PACKAGE_ALSA_UTILS_SPEAKER_TEST=y
 BR2_PACKAGE_TINYALSA=y
 BR2_PACKAGE_TINYALSA_TOOLS=y
 BR2_PACKAGE_COZISBOY_SPLASH=y
+BR2_PACKAGE_COZISBOY_WEB=y
 
 # --- Host tools for the SD image
 BR2_PACKAGE_HOST_GENIMAGE=y

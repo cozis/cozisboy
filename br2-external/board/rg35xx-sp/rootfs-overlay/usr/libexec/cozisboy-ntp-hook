@@ -1,0 +1,9 @@
+#!/bin/sh
+# busybox ntpd -S hook: after a clock step (or periodically), save the time to
+# the battery-backed RTC so it's right on the next boot, even offline.
+case "$1" in
+step|periodic)
+	[ -r /run/rtc-device ] && hwclock -w -u -f "$(cat /run/rtc-device)" 2>/dev/null
+	;;
+esac
+exit 0
