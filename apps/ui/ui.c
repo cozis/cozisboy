@@ -1370,36 +1370,49 @@ static void draw_home(canvas *c)
 	int n = home_items(it);
 	if (S.sel >= n)
 		S.sel = n - 1;
-	const int spacing = 140, size = 112, base_y = 92;
+	// the selected item is big; the others shrink and close up around it
+	const int big = 200, small = 128, gap = 24, cy = 182;
 	float bump = S.bump < 0.3f ? S.bump_dir * 0.12f * sinf(S.bump / 0.3f * PI) : 0;
 	float cam = S.cam + bump;
 	int ngames = 0;
 	while (ngames < n && it[ngames].app < 0)
 		ngames++;
-
+	float near_d = big / 2.0f + gap + small / 2.0f, far_d = small + gap;
+	float cx[MAX_HOME];
+	int sz[MAX_HOME];
 	for (int i = 0; i < n; i++) {
-		int x = W / 2 + (int)lrintf((i - cam) * spacing) - size / 2;
-		if (x < -size - 10 || x > W + 10)
-			continue;
-		int y = base_y + 24, sel = i == S.sel;
-		if (sel) {
-			float hop = S.hop < 0.25f ? sinf(S.hop / 0.25f * PI) * 12 : 0;
-			int bob = 2 * (int)lrintf(sinf(S.t * 4) * 1.0f);
-			rrect(c, x + 8, y + size + 6, size - 16, 8, 4, 0x080808); // ground shadow
-			y -= 14 + bob + (int)hop;
+		float d = i - cam, ad = fabsf(d);
+		float off = ad <= 1 ? ad * near_d : near_d + (ad - 1) * far_d;
+		cx[i] = W / 2 + (d < 0 ? -off : off);
+		sz[i] = small + (int)lrintf((big - small) * clampf(1 - ad, 0, 1));
+	}
+	for (int pass = 0; pass < 2; pass++) // neighbours first, selection on top
+		for (int i = 0; i < n; i++) {
+			int sel = i == S.sel, size = sz[i];
+			if (sel != pass)
+				continue;
+			int x = (int)lrintf(cx[i]) - size / 2;
+			if (x < -size - 10 || x > W + 10)
+				continue;
+			int y = cy - size / 2;
+			if (sel) {
+				float hop = S.hop < 0.25f ? sinf(S.hop / 0.25f * PI) * 12 : 0;
+				int bob = 2 * (int)lrintf(sinf(S.t * 4) * 1.0f);
+				rrect(c, x + 12, y + size + 10, size - 24, 8, 4, 0x080808); // ground shadow
+				y -= 6 + bob + (int)hop;
+			}
+			if (it[i].app >= 0)
+				draw_tile(c, it[i].app, x, y, size, size * 5 / 112, !sel);
+			else
+				games_ref_tile(c, it[i].game, x, y, size, !sel);
+			if (sel)
+				brackets(c, x, y, size, size, 12);
 		}
-		if (it[i].app >= 0)
-			draw_tile(c, it[i].app, x, y, size, 5, !sel);
-		else
-			games_ref_tile(c, it[i].game, x, y, size, !sel);
-		if (sel)
-			brackets(c, x, y, size, size, 12);
-		// dotted divider between the games and the apps
-		if (ngames && i == ngames - 1) {
-			int dx = x + size + (spacing - size) / 2 - 1;
-			for (int yy = base_y + 10; yy < base_y + 24 + size; yy += 10)
-				fill(c, dx, yy, 3, 6, 0x555555);
-		}
+	// dotted divider between the games and the apps
+	if (ngames && ngames < n) {
+		int dx = (int)lrintf((cx[ngames - 1] + sz[ngames - 1] / 2.0f + cx[ngames] - sz[ngames] / 2.0f) / 2) - 1;
+		for (int yy = cy - small / 2; yy < cy + small / 2; yy += 10)
+			fill(c, dx, yy, 3, 6, 0x555555);
 	}
 
 	// page dots: games green, apps in their colour
@@ -1407,7 +1420,7 @@ static void draw_home(canvas *c)
 	for (int i = 0; i < n; i++) {
 		int w = i == S.sel ? 20 : 8;
 		uint32_t dc = it[i].app >= 0 ? PAL[it[i].app] : games_ref_col(it[i].game);
-		fill(c, dx, 272, w, 8, i == S.sel ? dc : 0x444444);
+		fill(c, dx, 300, w, 8, i == S.sel ? dc : 0x444444);
 		dx += w + 8;
 	}
 
@@ -1431,12 +1444,12 @@ static void draw_home(canvas *c)
 		float lt = clampf((S.hop - i * 0.03f) / 0.3f, 0, 1);
 		int off = -(int)((1 - ease_out_bounce(lt)) * 18);
 		char s1[2] = {name[i], 0};
-		text_arcade(c, nx + i * 6 * scale, 306 + off, s1, scale, col);
+		text_arcade(c, nx + i * 6 * scale, 326 + off, s1, scale, col);
 	}
 	if (h->app < 0 && h->game >= 0) // an open game: same pill as the games view
-		games_open_pill(c, W / 2, 362, h->game);
+		games_open_pill(c, W / 2, 380, h->game);
 	else
-		text(c, (W - text_width(desc, 2)) / 2, 368, desc, 2, GREY);
+		text(c, (W - text_width(desc, 3)) / 2, 384, desc, 3, GREY);
 }
 
 // About: what this is and how to reach it. Read-only.

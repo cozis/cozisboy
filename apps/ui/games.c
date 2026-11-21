@@ -920,8 +920,8 @@ static int index_of(const int *v, int n, int g)
 #define GRID_COLS 5
 
 // Covers layout: open games, a gap with a dashed line, then all other games.
-#define COVER_SP 150
-#define COVER_GAP 70
+#define COVER_SP 182
+#define COVER_GAP 60
 
 static float cover_pos(int i)
 {
@@ -1227,7 +1227,7 @@ static void hub_draw_covers(canvas *c, const int *v, int n)
 {
 	int g = G.game, ri = hub_sel_run(), si = hub_sel_item();
 	draw_key_art(c, g, 0.45f);
-	const int big = 156, small = 104, cy = 150;
+	const int big = 216, small = 136, cy = 178;
 
 	// group labels above each group's first cover
 	int top = cy - big / 2 - 30;
@@ -1279,24 +1279,18 @@ static void hub_draw_covers(canvas *c, const int *v, int n)
 	while (ts > 2 && text_width(title, ts) > W - 30)
 		ts--;
 	int tw = text_width(title, ts);
-	text_arcade(c, (W - tw) / 2, 254 + (4 - ts) * 7, title, ts, lib[g].col);
+	text_arcade(c, (W - tw) / 2, 316 + (4 - ts) * 7, title, ts, lib[g].col);
 	char buf[64];
 	int also = ri < 0 ? find_running(g) : -1; // in all games, but also open
 	if (ri >= 0 || also >= 0) { // status pill: open
-		games_open_pill(c, W / 2, 296, ri >= 0 ? ri : also);
+		games_open_pill(c, W / 2, 364, ri >= 0 ? ri : also);
 	} else {
 		if (lib[g].recent)
 			snprintf(buf, sizeof buf, "LAST PLAYED %s", last_text(g));
 		else
 			snprintf(buf, sizeof buf, "NOT PLAYED YET");
-		text(c, (W - text_width(buf, 2)) / 2, 302, buf, 2, 0xaaaaaa);
+		text(c, (W - text_width(buf, 3)) / 2, 366, buf, 3, 0xaaaaaa);
 	}
-	// button: green RESUME for open games, white START otherwise
-	const char *bl = ri >= 0 ? "A  RESUME" : also >= 0 ? "A  ANOTHER COPY" : "A  START";
-	int bw = also >= 0 ? 240 : 180, bx = W / 2 - bw / 2, by = 350;
-	uint32_t bf = ri >= 0 ? PAL[3] : WHITE;
-	wbox(c, bx, by, bw, 36, bf, W_SEL);
-	text(c, bx + (bw - text_width(bl, 2)) / 2, by + 11 - (wstyle == 2 ? 3 : 0), bl, 2, wink(bf, W_SEL));
 }
 
 // Variation 2: grid + details panel
