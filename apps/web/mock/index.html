@@ -236,6 +236,61 @@ footer a { cursor: pointer; text-decoration: underline; }
 }
 .split-tabs { display: none; gap: 6px; margin-bottom: 14px; }
 
+
+/* ======================================================== three columns: lists + detail */
+.wrap.wide { max-width: 1760px; }
+.trio .li .meta .mini:not(.sys) { display: none; }	/* save/state tags: icons instead */
+.trio .li .ic { font-size: 12px; color: var(--dim); white-space: nowrap; }
+.trio { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(420px, 1.35fr) minmax(300px, 1fr); gap: 22px; align-items: start; }
+.trio .pane { height: calc(100vh - 120px); }
+.li.sel { background: var(--panel2); border-left-color: var(--c, var(--yellow)); }
+[data-style="arcade"] .li.sel { box-shadow: inset 0 0 0 2px #000; }
+.detail { height: calc(100vh - 120px); overflow-y: auto; padding: 0; position: relative; }
+.detail .dhero { position: relative; padding: 22px 24px 20px; overflow: hidden; }
+.detail .dhero::before { content: ""; position: absolute; inset: 0; background: var(--bgimg) center/cover; filter: blur(28px) saturate(1.4); opacity: .35; transform: scale(1.2); }
+.detail .dhero > * { position: relative; }
+.detail .dtop { display: flex; gap: 20px; align-items: flex-end; }
+.detail .big { width: 190px; flex: none; aspect-ratio: 1; background: #000; cursor: zoom-in; overflow: hidden; }
+.detail .big.wide { width: 240px; aspect-ratio: 3/2; }
+[data-style="arcade"] .detail .big { border: 2px solid #000; border-radius: 8px; box-shadow: 4px 4px 0 #000; }
+.detail .big img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.detail .big.wide img { object-fit: cover; image-rendering: pixelated; }
+.detail h1 { margin: 6px 0 4px; font-size: 26px; line-height: 1.15; }
+.detail .sub { color: var(--dim); font-size: 14px; }
+.detail .facts { margin: 16px 0 0; grid-template-columns: max-content 1fr max-content 1fr; }
+.detail .sec { padding: 18px 24px; border-top: 2px solid var(--line); }
+[data-style="arcade"] .detail .sec { border-top-color: #000; }
+.detail .sec h3 { margin: 0 0 12px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.detail .states { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 16px; }
+.detail .state .shot { cursor: zoom-in; }
+.detail .shots { margin: 0 -4px; padding-bottom: 6px; }
+.detail .shots img { height: 150px; cursor: zoom-in; }
+.detail .install { display: flex; gap: 14px; align-items: center; margin-top: 18px; flex-wrap: wrap; }
+.detail .empty { display: grid; place-items: center; height: 100%; color: var(--faint); text-align: center; padding: 40px; }
+.close-detail { display: none; position: absolute; right: 14px; top: 14px; z-index: 2; }
+
+/* zoom overlay */
+#zoom { position: fixed; inset: 0; z-index: 60; background: rgba(5,5,8,.92); display: grid; place-items: center; cursor: zoom-out; }
+#zoom img { max-width: 92vw; max-height: 86vh; image-rendering: pixelated; border: 3px solid #000; box-shadow: 0 0 0 2px #333, 8px 8px 0 #000; background: #000; }
+#zoom img.photo { image-rendering: auto; }
+#zoom .cap { position: fixed; bottom: 22px; left: 0; right: 0; text-align: center; color: #ddd; font-size: 14px; }
+#zoom .nav { position: fixed; top: 50%; transform: translateY(-50%); font-size: 30px; color: #fff; background: #000a; border: 2px solid #000; width: 52px; height: 52px; border-radius: 8px; cursor: pointer; }
+#zoom .prev { left: 20px; } #zoom .next { right: 20px; }
+
+@media (max-width: 1280px) {
+	.trio { grid-template-columns: 1fr 1fr; }
+	.trio .detail { position: fixed; right: 0; top: 0; bottom: 0; width: min(560px, 100vw); height: auto; z-index: 40; border-radius: 0 !important;
+		transform: translateX(105%); transition: transform .22s ease-out; box-shadow: -8px 0 0 #000; }
+	.trio .detail.open { transform: none; }
+	.close-detail { display: inline-flex; }
+}
+@media (max-width: 860px) {
+	.trio { grid-template-columns: 1fr; }
+	.trio[data-show="lib"] .pane.cat, .trio[data-show="cat"] .pane.lib { display: none; }
+	.trio .pane { height: auto; }
+	.trio .pane-list { max-height: none; }
+}
+
 /* style switcher (mock only) */
 #switch { position: fixed; left: 14px; bottom: 14px; z-index: 50; display: flex; gap: 6px; align-items: center;
 	background: #000; color: #fff; padding: 6px 8px; border-radius: 10px; font: 600 12px system-ui; box-shadow: 0 4px 16px rgba(0,0,0,.4); }
@@ -268,6 +323,7 @@ footer a { cursor: pointer; text-decoration: underline; }
 	<button data-p="#/discover">Discover</button>
 	<button data-p="#/pair">Pair</button>
 	<span>library</span>
+	<button data-l="trio">Lists + detail</button>
 	<button data-l="split">Lists</button>
 	<button data-l="grid">Grid</button>
 </div>
@@ -421,7 +477,7 @@ function pagePair() {
 
 
 // ---------------------------------------------------------------- split layout
-let layout = "split", catSys = "ALL", libSys = "ALL", justAdded = null, splitShow = "lib";
+let layout = "trio", catSys = "ALL", libSys = "ALL", justAdded = null, splitShow = "lib";
 const installedNames = () => new Set(MOCK_GAMES.map(g => g.name));
 function sysFilter(cur, fn) {
 	return `<div class="seg">` + ["ALL", "GBA", "GBC", "GB"].map(k =>
@@ -452,6 +508,7 @@ function installMock(slug) {
 		rom_size: 1 << 20, added: MOCK_NOW, save: null, states: [] };
 	MOCK_GAMES.push(g);
 	justAdded = g.id;
+	if (layout === "trio") sel = { side: "lib", id: g.id };
 	render();
 	document.querySelector(".pane.lib .li.new")?.scrollIntoView({ block: "center", behavior: "smooth" });
 }
@@ -498,17 +555,159 @@ function pageSplit() {
 	<footer><span>${MOCK_GAMES.length} games on the console</span><span><a>Back up all saves</a> · <a>saves and states</a> · <a>Find missing covers</a> · <a>Disconnect this browser</a></span></footer>`;
 }
 
+
+// ---------------------------------------------------------------- three columns: lists + detail
+let sel = { side: "lib", id: null }, detailOpen = false;
+function selectRow(side, id) { sel = { side, id }; detailOpen = true; render(); }
+function zoomList() {	// images of the selected game, for the zoom overlay
+	if (sel.side === "lib") {
+		const g = MOCK_GAMES.find(x => x.id === sel.id); if (!g) return [];
+		return [...(g.cover ? [{ src: g.cover, cap: g.title + " · cover", photo: true }] : []),
+			...g.states.map(st => ({ src: st.thumb, cap: "Save state · " + ago(st.time) }))];
+	}
+	const e = MOCK_HH.find(x => x.slug === sel.id); if (!e) return [];
+	return e.screenshots.map((f, i) => ({ src: hhImg(e, f), cap: `${e.title} · ${i + 1} of ${e.screenshots.length}` }));
+}
+let zoomI = -1;
+function zoom(i) {
+	const list = zoomList(); zoomI = (i + list.length) % list.length;
+	let z = $("zoom");
+	if (!z) { z = document.createElement("div"); z.id = "zoom"; document.body.append(z); z.onclick = e => { if (e.target === z || e.target.tagName === "IMG") closeZoom(); }; }
+	const it = list[zoomI];
+	z.innerHTML = `<img class="${it.photo ? "photo" : ""}" src="${esc(it.src)}" alt=""><div class="cap">${esc(it.cap)}${list.length > 1 ? " — ← → to browse, Esc to close" : ""}</div>` +
+		(list.length > 1 ? `<button class="nav prev" onclick="event.stopPropagation();zoom(zoomI-1)">‹</button><button class="nav next" onclick="event.stopPropagation();zoom(zoomI+1)">›</button>` : "");
+}
+function closeZoom() { $("zoom")?.remove(); zoomI = -1; }
+
+function detailLib(g) {
+	let zi = 0;
+	const coverZ = g.cover ? zi++ : -1;
+	const FLOPPY = `<svg width="30" height="30" viewBox="0 0 16 16" shape-rendering="crispEdges"><path fill="#000" d="M1 1h12l2 2v12H1z"/><path fill="var(--cyan)" d="M2 2h10l2 2v10H2z"/><path fill="#fff" d="M4 2h7v4H4z"/><path fill="#000" d="M9 3h1v2H9z"/><path fill="#e8e8e8" d="M4 9h8v5H4z"/></svg>`;
+	const states = g.states.length ? `<div class="states">` + g.states.map(st => `<div class="state">
+			<div class="shot" onclick="zoom(${zi++})"><img src="${esc(st.thumb)}" alt=""></div>
+			<div class="when"><b>${ago(st.time)}</b><span>${new Date(st.time * 1000).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })}</span></div>
+			<div class="row"><a class="btn small">Download</a><a class="btn small danger">Delete</a></div></div>`).join("") + `</div>`
+		: `<p class="muted" style="margin:0">No save states yet. They appear here when you save a state while playing.</p>`;
+	return `<div class="dhero" style="--bgimg:url('${esc(g.cover || "")}')">
+		<button class="btn small close-detail" onclick="detailOpen=false;render()">✕</button>
+		<div class="dtop">
+			<div class="big" onclick="${coverZ >= 0 ? `zoom(${coverZ})` : ""}">${cover(g)}</div>
+			<div><span class="badge" style="--c:var(--sys-${g.sys})">${SYS[g.sys][0]}</span><h1>${esc(g.title)}</h1>
+				<div class="sub">${SYS[g.sys][1]}${g.region ? " · " + esc(g.region) : ""}</div></div>
+		</div>
+		<div class="facts">
+			<span>Game size</span><b>${size(g.rom_size)}</b><span>Added</span><b>${ago(g.added)}</b>
+			<span>Battery save</span><b>${g.save ? "saved " + ago(g.save.time) : "none yet"}</b><span>Save states</span><b>${g.states.length || "none"}</b>
+		</div>
+	</div>
+	<div class="sec"><h3>Battery save</h3>
+		<div class="saveline">${FLOPPY}<div class="what">${g.save ? `<b>Saved ${ago(g.save.time)}</b><span>${size(g.save.size)}</span>` : `<b>No save yet</b><span>The game creates one the first time you save in it.</span>`}</div>
+		${g.save ? `<a class="btn small">Download</a><a class="btn small">Replace…</a><a class="btn small danger">Delete</a>` : `<a class="btn small">Upload a save…</a>`}</div></div>
+	<div class="sec"><h3>Save states</h3>${states}</div>
+	<div class="sec"><h3>Game</h3>
+		<div class="row"><input class="search" value="${esc(g.name)}" style="flex:1"><a class="btn small">Rename</a></div>
+		<div class="row" style="margin-top:12px"><a class="btn small">Download game</a><a class="btn small">Find cover</a><a class="btn small">Upload cover…</a><span style="flex:1"></span><a class="btn small danger">Hold to delete</a></div>
+	</div>`;
+}
+function detailCat(e) {
+	const have = installedNames().has(e.title);
+	const g = have ? MOCK_GAMES.find(x => x.name === e.title) : null;
+	return `<div class="dhero" style="--bgimg:url('${esc(hhImg(e, e.screenshots[0]))}')">
+		<button class="btn small close-detail" onclick="detailOpen=false;render()">✕</button>
+		<div class="dtop">
+			<div class="big wide" onclick="zoom(0)"><img src="${esc(hhImg(e, e.screenshots[0]))}" alt=""></div>
+			<div><span class="badge" style="--c:var(--sys-${e.platform.toLowerCase()})">${e.platform}</span><h1>${esc(e.title)}</h1>
+				<div class="sub">by ${esc(e.developer || "unknown")}${e.date ? " · " + e.date.slice(0, 4) : ""}</div></div>
+		</div>
+		<div class="install">${have ? `<span class="have">✓ On your cozisboy</span><button class="btn small" onclick="selectRow('lib','${g.id}')">Show in my games</button>`
+			: `<button class="btn go big" onclick="installMock('${e.slug}')">+ Install</button><span class="muted" style="font-size:13px">Free · from Homebrew Hub</span>`}</div>
+	</div>
+	${e.screenshots.length > 1 ? `<div class="sec"><h3>Screenshots</h3><div class="shots">${e.screenshots.map((f, i) => `<img src="${esc(hhImg(e, f))}" alt="" onclick="zoom(${i})">`).join("")}</div></div>` : ""}
+	${e.tags.length ? `<div class="sec"><h3>Tags</h3><div class="row">${e.tags.map(t => `<span class="mini">${esc(t)}</span>`).join("")}</div></div>` : ""}
+	${e.description ? `<div class="sec"><h3>About</h3><div class="desc">${esc(e.description)}</div></div>` : ""}
+	<div class="sec"><a class="btn small ghost">View on Homebrew Hub ↗</a></div>`;
+}
+
+function pageTrio() {
+	const have = installedNames();
+	if (!sel.id) sel = { side: "lib", id: [...MOCK_GAMES].sort((a, b) => a.title.localeCompare(b.title))[0].id };
+	const lib = MOCK_GAMES.filter(g => libSys === "ALL" || g.sys === libSys.toLowerCase());
+	let left = "";
+	for (const k of ["gba", "gbc", "gb"]) {
+		const gs = lib.filter(g => g.sys === k).sort((a, b) => a.title.localeCompare(b.title));
+		if (!gs.length) continue;
+		left += `<div class="grp" style="--c:var(--sys-${k})"><i></i>${SYS[k][1].toUpperCase()} · ${gs.length}</div>` +
+			gs.map(g => libRow(g).replace('<div class="meta">', `<div class="meta"><span class="ic">${g.save ? "💾" : ""}${g.states.length ? " ◧" + g.states.length : ""}</span>`).replace('class="li', `data-side="lib" data-id="${g.id}" class="li${sel.side === "lib" && sel.id === g.id ? " sel" : ""}`)
+				.replace(/onclick="location.hash='#\/game\/[^']*'"/, `onclick="selectRow('lib','${g.id}')"`)).join("");
+	}
+	const cat = MOCK_HH.filter(e => catSys === "ALL" || e.platform === catSys).sort((a, b) => a.title.localeCompare(b.title));
+	const right = cat.map(e => catRow(e, have).replace('class="li', `data-side="cat" data-id="${e.slug}" class="li${sel.side === "cat" && sel.id === e.slug ? " sel" : ""}`)
+		.replace(/onclick="location.hash='#\/discover\/[^']*'"/, `onclick="selectRow('cat','${e.slug}')"`)).join("");
+	const g = sel.side === "lib" ? MOCK_GAMES.find(x => x.id === sel.id) : null;
+	const e = sel.side === "cat" ? MOCK_HH.find(x => x.slug === sel.id) : null;
+	if (g) glow(g.sys); else if (e) glow(e.platform.toLowerCase());
+	const free = size(MOCK_STATUS.storage.free);
+	return `<header>
+		<img class="logo pix" src="../logo.png" alt="cozisboy">
+		<div class="grow"></div>
+		<div class="status"><span><span class="batt"><i style="width:${MOCK_STATUS.battery.capacity * 18 / 100}px"></i></span><b>${MOCK_STATUS.battery.capacity}%</b></span>
+			<span class="storage"><b>${free}</b> free</span><a class="btn small ghost">Back up saves</a></div>
+	</header>
+	<div class="split-tabs seg">
+		<button class="${splitShow === "lib" ? "on" : ""}" style="--c:var(--yellow)" onclick="splitShow='lib';render()">On this cozisboy</button>
+		<button class="${splitShow === "cat" ? "on" : ""}" style="--c:var(--yellow)" onclick="splitShow='cat';render()">Catalog</button>
+	</div>
+	<div class="trio" data-show="${splitShow}">
+		<section class="card pane lib">
+			<div class="pane-head">
+				<h2>On this cozisboy <span class="n">${MOCK_GAMES.length} games</span></h2>
+				<div class="sub">${free} free · drop .gba, .gbc or .gb files here</div>
+				<div class="tools"><input class="search" placeholder="Search">${sysFilter(libSys, "setLibSys")}</div>
+			</div>
+			<div class="pane-list" data-list="lib">${left}</div>
+		</section>
+		<section class="card detail${detailOpen ? " open" : ""}">${g ? detailLib(g) : e ? detailCat(e) : `<div class="empty">Pick a game on either side</div>`}</section>
+		<section class="card pane cat">
+			<div class="pane-head">
+				<h2>Catalog <span class="n">${cat.length} free games</span></h2>
+				<div class="sub">Community homebrew from Homebrew Hub</div>
+				<div class="tools"><input class="search" placeholder="Search">${sysFilter(catSys, "setCatSys")}</div>
+			</div>
+			<div class="pane-list" data-list="cat">${right}</div>
+		</section>
+	</div>`;
+}
+// keyboard: up/down in the list of the selected side; Esc closes zoom/detail
+document.addEventListener("keydown", ev => {
+	if (zoomI >= 0) {
+		if (ev.key === "Escape") closeZoom();
+		if (ev.key === "ArrowRight") zoom(zoomI + 1);
+		if (ev.key === "ArrowLeft") zoom(zoomI - 1);
+		return;
+	}
+	if (layout !== "trio" || ev.target.tagName === "INPUT") return;
+	if (ev.key === "Escape") { detailOpen = false; render(); return; }
+	if (ev.key !== "ArrowDown" && ev.key !== "ArrowUp") return;
+	const rows = [...document.querySelectorAll(`.pane-list[data-list="${sel.side}"] .li`)];
+	const i = rows.findIndex(r => r.classList.contains("sel"));
+	const n = rows[Math.max(0, Math.min(rows.length - 1, i + (ev.key === "ArrowDown" ? 1 : -1)))];
+	if (n) { ev.preventDefault(); sel = { side: n.dataset.side, id: n.dataset.id }; render(); document.querySelector(".li.sel")?.scrollIntoView({ block: "nearest" }); }
+});
+
 // ---------------------------------------------------------------- shell
 function glow(sys) { document.documentElement.style.setProperty("--glow", `var(--sys-${sys})`); }
 function render() {
 	const h = location.hash || "#/";
 	let m;
+	const scrolls = [...document.querySelectorAll(".pane-list")].map(el => el.scrollTop);
+	$("root").classList.toggle("wide", layout === "trio" && !/^#\/(game|discover|pair)/.test(h));
 	$("root").innerHTML =
 		(m = h.match(/^#\/game\/(.+)/)) ? pageGame(m[1]) :
 		(m = h.match(/^#\/discover\/(.+)/)) ? pageHhGame(m[1]) :
 		h === "#/discover" ? pageDiscover() :
-		h === "#/pair" ? pagePair() : layout === "split" ? pageSplit() : pageLibrary();
+		h === "#/pair" ? pagePair() : layout === "trio" ? pageTrio() : layout === "split" ? pageSplit() : pageLibrary();
 	renderPixelText($("root"));
+	document.querySelectorAll(".pane-list").forEach((el, i) => { if (scrolls[i]) el.scrollTop = scrolls[i]; });
 	document.querySelectorAll("#switch [data-s]").forEach(b => b.classList.toggle("on", b.dataset.s === style()));
 	document.querySelectorAll("#switch [data-p]").forEach(b => b.classList.toggle("on", b.dataset.p === h.replace(/\/discover\/.+/, "/discover")));
 	document.querySelectorAll("#switch [data-l]").forEach(b => b.classList.toggle("on", b.dataset.l === layout));
