@@ -14,10 +14,10 @@ HDRS = ui.h ui_priv.h gfx.h emu.h sys.h ../common/sfx.h ../common/library.h
 all: cozisboy-preview cozisboy-shot sfx-demo
 
 cozisboy-preview: host_sdl.c $(CORE) $(HDRS)
-	$(CC) $(CFLAGS) -o $@ host_sdl.c $(CORE) $(shell pkg-config --cflags --libs sdl2) -lm -lmgba
+	$(CC) $(CFLAGS) -o $@ host_sdl.c $(CORE) $(shell pkg-config --cflags --libs sdl2) -lm -lmgba -lpng
 
 cozisboy-shot: host_shot.c $(CORE) $(HDRS)
-	$(CC) $(CFLAGS) -o $@ host_shot.c $(CORE) -lm -lmgba
+	$(CC) $(CFLAGS) -o $@ host_shot.c $(CORE) -lm -lmgba -lpng
 
 sfx-demo: sfx_demo.c ../common/sfx.c ../common/sfx.h
 	$(CC) $(CFLAGS) -o $@ sfx_demo.c ../common/sfx.c -lm
@@ -65,7 +65,7 @@ SSH_OPTS ?= -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLe
 device: cozisboy-ui
 
 cozisboy-ui: $(DEV_SRCS) $(HDRS)
-	$(DEV_CC) $(DEV_CFLAGS) -o $@ $(DEV_SRCS) $(DEV_LDFLAGS) -lmgba -lasound -lpthread -lm
+	$(DEV_CC) $(DEV_CFLAGS) -o $@ $(DEV_SRCS) $(DEV_LDFLAGS) -lmgba -lasound -lpng -lz -lpthread -lm
 
 # Replace the launcher on the console (root is read-only: remount for the copy);
 # init restarts it.

@@ -141,9 +141,16 @@ static const char *thumbs_dir(void)
 
 static void ensure_cover(int g)
 {
-	if (cover_tried[g] || !lib[g].thumb)
+	if (cover_tried[g] || (!lib[g].thumb && !lib[g].cg))
 		return;
 	cover_tried[g] = 1;
+	// the library's box art (added from the web app), else thumbs/
+	if (lib[g].cg && lib[g].cg->has_cover && coz_cover_load(lib[g].cg, COVER_N, COVER_N, cover_img[g]) == 0) {
+		has_cover[g] = 1;
+		return;
+	}
+	if (!lib[g].thumb)
+		return;
 	char path[600];
 	snprintf(path, sizeof path, "%s/cover/%s.ppm", thumbs_dir(), lib[g].thumb);
 	if (load_ppm(path, COVER_N, COVER_N, cover_img[g]))

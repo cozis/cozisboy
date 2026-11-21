@@ -7,7 +7,7 @@
 COZISBOY_UI_VERSION = local
 COZISBOY_UI_SITE = $(BR2_EXTERNAL_AMBERNIC_PATH)/../apps
 COZISBOY_UI_SITE_METHOD = local
-COZISBOY_UI_DEPENDENCIES = alsa-lib mgba
+COZISBOY_UI_DEPENDENCIES = alsa-lib mgba libpng
 
 # apps/ui/Makefile's "device" target knows the sources; build it with
 # Buildroot's compiler and flags.

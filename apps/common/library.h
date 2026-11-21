@@ -124,6 +124,9 @@ int coz_save_restore_backup(const coz_game *g);
 int coz_cover_import_begin(const coz_game *g, coz_import *imp);	// PNG bytes
 int coz_cover_import_commit(const coz_game *g, coz_import *imp);
 int coz_cover_delete(const coz_game *g);
+// Decode the cover (any PNG) and scale it to fill w x h (centre-cropped, like
+// object-fit: cover) into XRGB8888 pixels. 0 on success, -ENOENT if none.
+int coz_cover_load(const coz_game *g, int w, int h, uint32_t *out);
 
 // ---- save states
 // Newest first. Free *out with free().

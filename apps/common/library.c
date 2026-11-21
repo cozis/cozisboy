@@ -22,6 +22,7 @@
 #include <fcntl.h>
 #include <ftw.h>
 #include <limits.h>
+#include <png.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -562,6 +563,50 @@ int coz_cover_import_commit(const coz_game *g, coz_import *imp)
 fail:
 	coz_import_abort(imp);
 	return r;
+}
+
+int coz_cover_load(const coz_game *g, int w, int h, uint32_t *out)
+{
+	char p[PATH_MAX];
+	coz_game_cover_path(g, p, sizeof p);
+	png_image img;
+	memset(&img, 0, sizeof img);
+	img.version = PNG_IMAGE_VERSION;
+	if (!png_image_begin_read_from_file(&img, p))
+		return access(p, F_OK) ? -ENOENT : -EINVAL;
+	img.format = PNG_FORMAT_RGB;
+	size_t sw = img.width, sh = img.height;
+	if (!sw || !sh || sw > 8192 || sh > 8192) {
+		png_image_free(&img);
+		return -EINVAL;
+	}
+	unsigned char *rgb = malloc(PNG_IMAGE_SIZE(img));
+	if (!rgb) {
+		png_image_free(&img);
+		return -ENOMEM;
+	}
+	if (!png_image_finish_read(&img, NULL, rgb, 0, NULL)) {
+		free(rgb);
+		png_image_free(&img);
+		return -EINVAL;
+	}
+	// fill w x h: scale so the image covers it, crop the overflow evenly
+	double s = (double)w / sw > (double)h / sh ? (double)w / sw : (double)h / sh;
+	double ox = (sw * s - w) / 2, oy = (sh * s - h) / 2;
+	for (int y = 0; y < h; y++) {
+		size_t sy = (size_t)((y + oy + 0.5) / s);
+		if (sy >= sh)
+			sy = sh - 1;
+		for (int x = 0; x < w; x++) {
+			size_t sx = (size_t)((x + ox + 0.5) / s);
+			if (sx >= sw)
+				sx = sw - 1;
+			const unsigned char *px = rgb + (sy * sw + sx) * 3;
+			out[(size_t)y * w + x] = (uint32_t)px[0] << 16 | (uint32_t)px[1] << 8 | px[2];
+		}
+	}
+	free(rgb);
+	return 0;
 }
 
 int coz_cover_delete(const coz_game *g)
