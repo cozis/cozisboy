@@ -100,6 +100,12 @@ static const char *const ICON_WIFI24[ICON_MAX] = {
 enum { V_CHOOSE, V_USB, V_WIFI };	// what the page shows
 enum { CH_USB, CH_WIFI, NCH };
 
+// Layout: content sits in a column with wide side margins, centred vertically
+// between the page header and the hint bar.
+#define PX0 56              // side margin
+#define PW (W - 2 * PX0)    // column width
+#define CONTENT_BOTTOM (H - 52)
+
 static struct {
 	int view, sel;
 	float t, hold, paired_t; // time in the view; FORGET: A held; "PAIRED!" shown
@@ -188,10 +194,10 @@ int pclink_update(unsigned p, float dt)
 static int address_box(canvas *c, int y, const char *url, const char *tag)
 {
 	int sc = 3;
-	rrect(c, UI_MX, y, W - 2 * UI_MX, 48, 6, 0x0c0c0c);
-	text(c, UI_MX + 18, y + 24 - 7 * sc / 2, url, sc, PAL[3]);
+	rrect(c, PX0, y, PW, 48, 6, 0x0c0c0c);
+	text(c, PX0 + 18, y + 24 - 7 * sc / 2, url, sc, PAL[3]);
 	if (tag)
-		text(c, W - UI_MX - 18 - text_width(tag, 2), y + 17, tag, 2, GREY);
+		text(c, PX0 + PW - 18 - text_width(tag, 2), y + 17, tag, 2, GREY);
 	return y + 48;
 }
 
@@ -205,9 +211,9 @@ static void step(canvas *c, int y, int n, const char *s)
 {
 	char num[4];
 	snprintf(num, sizeof num, "%d", n);
-	rrect(c, UI_MX, y, 24, 24, 4, PAL[APP_PCLINK]);
-	text(c, UI_MX + 12 - text_width(num, 2) / 2, y + 5, num, 2, BLACK);
-	text(c, UI_MX + 36, y + 5, s, 2, WHITE);
+	rrect(c, PX0, y, 24, 24, 4, PAL[APP_PCLINK]);
+	text(c, PX0 + 12 - text_width(num, 2) / 2, y + 5, num, 2, BLACK);
+	text(c, PX0 + 36, y + 5, s, 2, WHITE);
 }
 
 // "WAITING..." with animated dots
@@ -253,11 +259,11 @@ static void choice_card(canvas *c, int y, int h, const char *const *icon, const 
 {
 	uint32_t col = PAL[APP_PCLINK];
 	uint32_t fillc = sel ? col : 0x222222;
-	wbox(c, UI_MX, y, W - 2 * UI_MX, h, fillc, sel ? W_SEL : W_NORMAL);
+	wbox(c, PX0, y, PW, h, fillc, sel ? W_SEL : W_NORMAL);
 	uint32_t ink = sel ? wink(fillc, W_SEL) : WHITE;
 	int is = 3, isz = 24 * is;
-	big_icon(c, icon, UI_MX + 20, y + (h - isz) / 2, is, sel ? mix(col, BLACK, 0.45f) : 0x444444);
-	int tx = UI_MX + 20 + isz + 22, ty = y + (h - 76) / 2;
+	big_icon(c, icon, PX0 + 24, y + (h - isz) / 2, is, sel ? mix(col, BLACK, 0.45f) : 0x444444);
+	int tx = PX0 + 24 + isz + 24, ty = y + (h - 76) / 2;
 	text_arcade(c, tx, ty, title, 3, sel ? WHITE : col);
 	text(c, tx, ty + 40, line, 2, sel ? ink : GREY);
 	if (status)
@@ -271,7 +277,8 @@ void pclink_draw(canvas *c)
 	sys_wifi_status(&ssid, NULL);
 
 	if (L.view == V_USB) {
-		int y = ui_page_header(c, APP_PCLINK, "USB CABLE", NULL);
+		int top = ui_page_header(c, APP_PCLINK, "USB CABLE", NULL);
+		int y = top + (CONTENT_BOTTOM - top - (sys_usb_connected() ? 292 : 210)) / 2 - 16;
 		if (!sys_usb_connected()) {	// waiting for the cable: the plug, big
 			big_icon(c, ICON_USB24, (W - 24 * 4) / 2, y + 30, 4, 0x444444);
 			center(c, y + 150, "PLUG THE USB CABLE INTO YOUR COMPUTER", 2, WHITE);
@@ -286,7 +293,8 @@ void pclink_draw(canvas *c)
 		return;
 	}
 	if (L.view == V_WIFI) {
-		int y = ui_page_header(c, APP_PCLINK, "WI-FI", NULL);
+		int top = ui_page_header(c, APP_PCLINK, "WI-FI", NULL);
+		int y = top + (CONTENT_BOTTOM - top - (wifi ? 292 : 210)) / 2 - 16;
 		if (!wifi) {
 			big_icon(c, ICON_WIFI24, (W - 24 * 4) / 2, y + 30, 4, 0x444444);
 			center(c, y + 150, "WI-FI IS NOT CONNECTED", 2, WHITE);
@@ -310,11 +318,11 @@ void pclink_draw(canvas *c)
 	}
 
 	// the choice: two cards, one selected
-	int y = ui_page_header(c, APP_PCLINK, "PC LINK", NULL) + 16;
-	int h = 112;
+	int top = ui_page_header(c, APP_PCLINK, "PC LINK", NULL), h = 112, gap = 18;
+	int y = top + (CONTENT_BOTTOM - top - (2 * h + gap)) / 2;
 	choice_card(c, y, h, ICON_USB24, "USB CABLE", "PLUG INTO A COMPUTER", "NO CODE NEEDED", GREY,
 		    L.sel == CH_USB);
-	choice_card(c, y + h + 14, h, ICON_WIFI24, "WI-FI", "COMPUTER OR PHONE",
+	choice_card(c, y + h + gap, h, ICON_WIFI24, "WI-FI", "COMPUTER OR PHONE",
 		    wifi ? (ssid && *ssid ? ssid : "CONNECTED") : "NOT CONNECTED", wifi ? PAL[3] : GREY,
 		    L.sel == CH_WIFI);
 }
