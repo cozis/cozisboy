@@ -849,7 +849,7 @@ static void update(unsigned p, unsigned held, float dt)
 		return; // no input during transitions
 	}
 
-	if (S.screen != SCR_LIBRARY) // the game list doesn't use Menu
+	if (S.screen != SCR_LIBRARY && S.screen != SCR_HOME) // no Menu in the main menu and game list
 		menu_gesture(held, dt);
 	p &= ~BTN_MENU;
 	if (games_cc_active()) {
@@ -1196,8 +1196,6 @@ static void bottom_hints(canvas *c, int *xp)
 		} else {
 			draw_hint(c, &x, "A", "PLAY", PAL[3]);
 		}
-		if (games_running())
-			draw_hint(c, &x, "MENU", "CONTROL", PAL[APP_GAMES]);
 		break;
 	}
 	case SCR_APP:
