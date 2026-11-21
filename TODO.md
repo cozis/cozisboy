@@ -67,7 +67,9 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
 - [x] GPU (Panfrost): kernel side works (Mali-G31, /dev/dri/renderD128). Fix:
       CONFIG_SUN50I_H6_PRCM_PPU (GPU power domain) was missing.
 - [ ] GPU userspace: Mesa (panfrost gallium, GLES) for emulators/UI.
-- [ ] Battery / charging readout (AXP717), low-battery handling.
+- [x] Battery / charging readout (AXP717): /sys/class/power_supply/axp20x-battery
+      (capacity, status, voltage, current); power button = axp20x-pek input.
+- [ ] Low-battery handling and power-button actions in the UI.
 - [ ] Suspend to RAM (instant on), lid switch.
 - [ ] TF2 slot (`mmc2`?) not described in the mainline device tree.
 - [ ] Rumble motor (PH2), HDMI out.

@@ -205,3 +205,8 @@ CONFIG_SUN50I_H6_PRCM_PPU=y
 # supports #gpio-cells = 2 and fails with -ENOENT on Allwinner's 3-cell GPIOs.
 # Disabled, pwrseq_simple drives the GPIO directly.
 # CONFIG_RESET_GPIO is not set
+# AXP717 PMIC: battery gauge, USB power/charger, ADC, power button
+CONFIG_BATTERY_AXP20X=y
+CONFIG_AXP20X_POWER=y
+CONFIG_AXP20X_ADC=y
+CONFIG_INPUT_AXP20X_PEK=y
