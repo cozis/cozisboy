@@ -332,7 +332,9 @@ function pairHint() {
 	wifi.classList.toggle("hidden", !(pairOpen === "wifi" && !viaUsb));
 }
 async function showPair() {
-	if (page !== "pair" && await requestPair()) return;
+	clearInterval(boot.t);	// no status polling until paired
+	if (page === "pair") { pairHint(); return; }	// already showing: never rebuild (keeps the typed code)
+	if (await requestPair()) return;
 	clearInterval(showPair.t);
 	showPair.t = setInterval(() => { if (page === "pair") requestPair(); else clearInterval(showPair.t); }, 2000);
 	page = "pair";
@@ -354,7 +356,7 @@ async function showPair() {
 		$("pairBtn").disabled = false;
 		if (r.ok) { clearInterval(showPair.t); boot(); }
 		else if (r.status === 403 && !$("pairErr")) return;
-		else { const j = await r.json().catch(() => ({})); $("pairErr").textContent = /closed/.test(j.error || "") ? "Pairing closed on the cozisboy. Choose PAIR OVER WI-FI there again." : "That's not it. After 5 tries the console shows a new code."; $("code").select(); }
+		else { const j = await r.json().catch(() => ({})); $("pairErr").textContent = /closed/.test(j.error || "") ? "Pairing closed on the cozisboy. Open PC LINK there and choose WI-FI." : "That's not it. After 5 tries the console shows a new code."; $("code").select(); }
 	};
 	$("pairBtn").onclick = pair;
 	$("code").oninput = e => { if (e.target.value.replace(/\D/g, "").length === 6) pair(); };
