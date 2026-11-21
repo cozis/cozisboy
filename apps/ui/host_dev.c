@@ -12,6 +12,15 @@
 #include "ui.h"
 #include "ui_priv.h"
 
+// ui.h's BTN_A/B/X/Y/START/SELECT share their names with key-code macros in
+// <linux/input.h> (BTN_A = 0x130, ...), which would win once it's included.
+// Capture the UI's bit masks first, under names of our own.
+enum {
+	UI_UP = BTN_UP, UI_DOWN = BTN_DOWN, UI_LEFT = BTN_LEFT, UI_RIGHT = BTN_RIGHT,
+	UI_A = BTN_A, UI_B = BTN_B, UI_X = BTN_X, UI_Y = BTN_Y, UI_L = BTN_L, UI_R = BTN_R,
+	UI_START = BTN_START, UI_SELECT = BTN_SELECT, UI_MENU = BTN_MENU,
+};
+
 #include <alsa/asoundlib.h>
 #include <dirent.h>
 #include <errno.h>
@@ -135,11 +144,11 @@ static unsigned read_buttons(void)
 		int code;
 		unsigned btn;
 	} map[] = {
-		{BTN_DPAD_UP, BTN_UP},      {BTN_DPAD_DOWN, BTN_DOWN},  {BTN_DPAD_LEFT, BTN_LEFT},
-		{BTN_DPAD_RIGHT, BTN_RIGHT}, {BTN_EAST, BTN_A},          {BTN_SOUTH, BTN_B},
-		{BTN_WEST, BTN_X},          {BTN_NORTH, BTN_Y},         {BTN_TL, BTN_L},
-		{BTN_TR, BTN_R},            {BTN_START, BTN_START},     {BTN_SELECT, BTN_SELECT},
-		{BTN_MODE, BTN_MENU},
+		{BTN_DPAD_UP, UI_UP},       {BTN_DPAD_DOWN, UI_DOWN},   {BTN_DPAD_LEFT, UI_LEFT},
+		{BTN_DPAD_RIGHT, UI_RIGHT}, {BTN_EAST, UI_A},           {BTN_SOUTH, UI_B},
+		{BTN_WEST, UI_X},           {BTN_NORTH, UI_Y},          {BTN_TL, UI_L},
+		{BTN_TR, UI_R},             {BTN_START, UI_START},      {BTN_SELECT, UI_SELECT},
+		{BTN_MODE, UI_MENU},
 	};
 	unsigned char bits[KEY_MAX / 8 + 1] = {0};
 	unsigned b = 0;
