@@ -594,19 +594,20 @@ static void draw_ssh(canvas *c)
 	ui_row_value(c, y + UI_ROW, has ? "SET" : "NOT SET", 1, N.sel == 1, col, has ? PAL[3] : PAL[2]);
 
 	// how to connect
-	y = ui_section(c, y + 2 * UI_ROW + 8, "CONNECT");
+	y = ui_section(c, y + 2 * UI_ROW + 6, "CONNECT");
 	const char *ip;
 	int wifi = sys_wifi_status(NULL, &ip) == WIFI_CONNECTED;
 	if (!on) {
-		text(c, UI_MX + 14, y + 6, "SSH IS OFF", 2, GREY);
+		text(c, UI_MX + 16, y + 8, "TURN ON SSH TO CONNECT", UI_TS, GREY);
 	} else {
 		char cmd[64];
 		snprintf(cmd, sizeof cmd, "ssh root@%s", wifi ? ip : sys_usb_ip());
-		rrect(c, UI_MX, y + 2, W - 2 * UI_MX, 34, 5, 0x0c0c0c);
-		text(c, UI_MX + 14, y + 12, "$", 2, GREY);
-		text(c, UI_MX + 38, y + 12, cmd, 2, PAL[3]);
-		text(c, W - UI_MX - 14 - text_width(wifi ? "WI-FI" : "USB", 1), y + 15, wifi ? "WI-FI" : "USB", 1, GREY);
-		y += 44;
+		rrect(c, UI_MX, y + 2, W - 2 * UI_MX, 46, 6, 0x0c0c0c);
+		text(c, UI_MX + 16, y + 15, "$", UI_TS, GREY);
+		text(c, UI_MX + 52, y + 15, cmd, UI_TS, PAL[3]);
+		const char *via = wifi ? "WI-FI" : "USB";
+		text(c, W - UI_MX - 16 - text_width(via, 2), y + 18, via, 2, GREY);
+		y += 58;
 		char usb[64];
 		snprintf(usb, sizeof usb, "ssh root@%s", sys_usb_ip());
 		if (wifi)
@@ -620,24 +621,24 @@ static void draw_ssh(canvas *c)
 			snprintf(with, sizeof with, has ? "PASSWORD" : "NOTHING YET");
 		ui_info(c, y, "LOG IN WITH", with);
 		if (!keys && !has)
-			text(c, UI_MX + 14, y + UI_INFO, "SET A PASSWORD OR ADD A KEY TO LOG IN", 1, PAL[2]);
+			text(c, UI_MX + 16, y + UI_INFO, "SET A PASSWORD OR ADD A KEY", 2, PAL[2]);
 	}
 
 	// password popup: a sheet with the same rows
 	if (P.choose) {
 		const char *opts[3] = {has ? "TYPE A NEW PASSWORD" : "TYPE A PASSWORD",
 				       has ? "GENERATE A NEW ONE" : "GENERATE A RANDOM ONE", "REMOVE PASSWORD"};
-		int n = has ? 3 : 2, ph = 56 + n * UI_ROW, py = H - 50 - ph;
+		int n = has ? 3 : 2, ph = 60 + n * UI_ROW, py = H - 50 - ph;
 		int ry = ui_panel(c, UI_MX - 10, py, W - 2 * UI_MX + 20, ph, "ROOT PASSWORD", col);
 		for (int i = 0; i < n; i++)
 			ui_row(c, ry + i * UI_ROW, opts[i], P.sel == i, i == 2 ? PAL[0] : col);
 	} else if (P.show) {
-		int ph = 170, py = H - 50 - ph;
+		int ph = 210, py = H - 50 - ph;
 		int ry = ui_panel(c, UI_MX - 10, py, W - 2 * UI_MX + 20, ph, "NEW ROOT PASSWORD", col);
-		rrect(c, UI_MX, ry, W - 2 * UI_MX, 50, 5, 0x0c0c0c);
-		text(c, (W - text_width(P.pw, 3)) / 2, ry + 14, P.pw, 3, PAL[3]);
-		text(c, UI_MX + 14, ry + 66, "WRITE IT DOWN: IT WON'T BE SHOWN AGAIN.", 2, 0xdddddd);
-		text(c, UI_MX + 14, ry + 92, "A OR B: DONE", 1, GREY);
+		rrect(c, UI_MX, ry, W - 2 * UI_MX, 64, 6, 0x0c0c0c);
+		text(c, (W - text_width(P.pw, 4)) / 2, ry + 18, P.pw, 4, PAL[3]);
+		text(c, UI_MX + 16, ry + 82, "WRITE IT DOWN: IT WON'T", UI_TS, 0xdddddd);
+		text(c, UI_MX + 16, ry + 108, "BE SHOWN AGAIN.", UI_TS, 0xdddddd);
 	}
 	if (K.on)
 		osk_draw(c);

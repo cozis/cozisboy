@@ -1233,13 +1233,15 @@ void draw_tile(canvas *c, int app, int x, int y, int size, int scale, int dim)
  * values sit right-aligned at the same inset. Info rows (not selectable) are
  * a grey label with a white value. Popups are a panel with an accent title. */
 
+#define RT_Y ((UI_ROW - 6 - 7 * UI_TS) / 2) // text offset inside a row
+
 int ui_page_header(canvas *c, int app, const char *title, const char *sub)
 {
-	draw_tile(c, app, UI_MX, 14, 44, 2, 0);
-	text_arcade(c, UI_MX + 58, 23, title, 3, PAL[app]);
+	draw_tile(c, app, UI_MX, 12, 56, 2, 0);
+	text_arcade(c, UI_MX + 72, 22, title, 4, PAL[app]);
 	if (!sub)
 		return UI_TOP;
-	text(c, UI_MX, 68, sub, 2, GREY);
+	text(c, UI_MX, 80, sub, 2, GREY);
 	return UI_TOP + 24;
 }
 
@@ -1250,10 +1252,10 @@ void draw_header(canvas *c, int app, const char *title)
 
 int ui_section(canvas *c, int y, const char *title)
 {
-	text(c, UI_MX + 2, y + 6, title, 2, 0x8a8a8a);
+	text(c, UI_MX + 2, y + 8, title, 2, 0x8a8a8a);
 	int lx = UI_MX + text_width(title, 2) + 12;
-	fill(c, lx, y + 12, W - UI_MX - lx, 2, 0x2a2a2a);
-	return y + 28;
+	fill(c, lx, y + 14, W - UI_MX - lx, 2, 0x2a2a2a);
+	return y + 30;
 }
 
 // Background bar of a row (selected) and its label. Returns the label colour.
@@ -1262,40 +1264,40 @@ uint32_t ui_row(canvas *c, int y, const char *label, int sel, uint32_t col)
 	if (sel)
 		wbox(c, UI_MX, y, W - 2 * UI_MX, UI_ROW - 6, col, W_NORMAL);
 	uint32_t ink = sel ? wink(col, W_NORMAL) : 0xdddddd;
-	text(c, UI_MX + 14, y + 8, label, 2, ink);
+	text(c, UI_MX + 16, y + RT_Y, label, UI_TS, ink);
 	return ink;
 }
 
 // Right-aligned text value (+ an arrow when it opens something).
 void ui_row_value(canvas *c, int y, const char *value, int arrow, int sel, uint32_t col, uint32_t vcol)
 {
-	int xr = W - UI_MX - 14;
+	int xr = W - UI_MX - 16;
 	uint32_t ink = wink(col, W_NORMAL);
 	if (arrow) {
-		text(c, xr - 10, y + 8, ">", 2, sel ? ink : GREY);
-		xr -= 24;
+		text(c, xr - text_width(">", UI_TS), y + RT_Y, ">", UI_TS, sel ? ink : GREY);
+		xr -= text_width(">", UI_TS) + 14;
 	}
 	if (value)
-		text(c, xr - text_width(value, 2), y + 8, value, 2, sel ? ink : vcol);
+		text(c, xr - text_width(value, UI_TS), y + RT_Y, value, UI_TS, sel ? ink : vcol);
 }
 
 void ui_row_toggle(canvas *c, int y, int on, int sel)
 {
-	int xr = W - UI_MX - 10, mid = y + (UI_ROW - 6) / 2;
+	int xr = W - UI_MX - 12, mid = y + (UI_ROW - 6) / 2;
 	if (sel)
-		rrect(c, xr - 54, mid - 12, 56, 24, 5, BLACK);
-	rrect(c, xr - 52, mid - 10, 52, 20, 4, on ? PAL[3] : 0x444444);
-	fill(c, on ? xr - 22 : xr - 48, mid - 6, 18, 12, WHITE);
+		rrect(c, xr - 76, mid - 17, 78, 34, 6, BLACK);
+	rrect(c, xr - 74, mid - 15, 74, 30, 5, on ? PAL[3] : 0x444444);
+	fill(c, on ? xr - 32 : xr - 68, mid - 10, 26, 20, WHITE);
 	if (on)
-		text(c, xr - 47, mid - 7, "ON", 2, BLACK);
+		text(c, xr - 68, mid - 7, "ON", 2, BLACK);
 }
 
 void ui_row_slider(canvas *c, int y, int val, int max, int sel, uint32_t col)
 {
-	int bw = 10, gap = 3, xr = W - UI_MX - 14, mid = y + (UI_ROW - 6) / 2;
+	int bw = 14, gap = 4, xr = W - UI_MX - 16, mid = y + (UI_ROW - 6) / 2;
 	int sx = xr - max * (bw + gap) + gap;
 	for (int k = 0; k < max; k++)
-		fill(c, sx + k * (bw + gap), mid - 8, bw, 16,
+		fill(c, sx + k * (bw + gap), mid - 11, bw, 22,
 		     k < val ? (sel ? WHITE : col) : (sel ? mix(col, BLACK, 0.45f) : 0x333333));
 }
 
@@ -1303,27 +1305,29 @@ void ui_row_choice(canvas *c, int y, const char *value, int sel, uint32_t col)
 {
 	char buf[48];
 	snprintf(buf, sizeof buf, sel ? "< %s >" : "%s", value);
-	int xr = W - UI_MX - 14;
-	text(c, xr - text_width(buf, 2), y + 8, buf, 2, sel ? wink(col, W_NORMAL) : col);
+	int xr = W - UI_MX - 16;
+	text(c, xr - text_width(buf, UI_TS), y + RT_Y, buf, UI_TS, sel ? wink(col, W_NORMAL) : col);
 }
 
-// Not selectable: grey label, white value (shrinks to fit).
+// Not selectable: grey label, white value (smaller if it doesn't fit).
 void ui_info(canvas *c, int y, const char *label, const char *value)
 {
-	text(c, UI_MX + 14, y, label, 2, 0x8a8a8a);
-	int xr = W - UI_MX - 14, room = xr - (UI_MX + 14 + text_width(label, 2) + 16);
-	int vs = text_width(value, 2) <= room ? 2 : 1;
-	text(c, xr - text_width(value, vs), y + (vs == 1 ? 4 : 0), value, vs, 0xdddddd);
+	text(c, UI_MX + 16, y, label, UI_TS, 0x8a8a8a);
+	int xr = W - UI_MX - 16, room = xr - (UI_MX + 16 + text_width(label, UI_TS) + 18);
+	int vs = UI_TS;
+	while (vs > 1 && text_width(value, vs) > room)
+		vs--;
+	text(c, xr - text_width(value, vs), y + (UI_TS - vs) * 7 / 2, value, vs, 0xdddddd);
 }
 
-// Popup panel with a title; returns the y where its rows start.
+// Popup sheet with a title; returns the y where its rows start.
 int ui_panel(canvas *c, int x, int y, int w, int h, const char *title, uint32_t col)
 {
 	darken(c, 0, 0, W, H, 0.6f);
 	rrect(c, x - 3, y - 3, w + 6, h + 6, 8, BLACK);
 	rrect(c, x, y, w, h, 6, 0x181818);
-	text_arcade(c, x + 16, y + 14, title, 2, col);
-	return y + 44;
+	text_arcade(c, x + 16, y + 14, title, 3, col);
+	return y + 52;
 }
 
 static void brackets(canvas *c, int x, int y, int w, int h, int g)
@@ -1418,16 +1422,23 @@ static void draw_about(canvas *c)
 {
 	int y = ui_page_header(c, APP_SETTINGS, "ABOUT", NULL);
 	y = ui_section(c, y, "SYSTEM");
-	ui_info(c, y + 4, "VERSION", "COZISBOY 0.1");
-	ui_info(c, y + 4 + UI_INFO, "SYSTEM", "MAINLINE LINUX");
-	y = ui_section(c, y + 4 + 2 * UI_INFO + 6, "NETWORK");
+	ui_info(c, y + 6, "VERSION", "COZISBOY 0.1");
+	ui_info(c, y + 6 + UI_INFO, "SYSTEM", "MAINLINE LINUX");
+	y = ui_section(c, y + 6 + 2 * UI_INFO, "NETWORK");
 	const char *ip;
 	int wst = sys_wifi_status(NULL, &ip);
-	ui_info(c, y + 4, "WI-FI ADDRESS", wst == WIFI_CONNECTED ? ip : "NOT CONNECTED");
-	ui_info(c, y + 4 + UI_INFO, "USB ADDRESS", sys_usb_ip());
-	y = ui_section(c, y + 4 + 2 * UI_INFO + 6, "SSH HOST KEY");
-	text(c, UI_MX + 14, y + 4, sys_ssh_fingerprint(), text_width(sys_ssh_fingerprint(), 2) <= W - 2 * UI_MX - 28 ? 2 : 1,
-	     0xdddddd);
+	ui_info(c, y + 6, "WI-FI", wst == WIFI_CONNECTED ? ip : "NOT CONNECTED");
+	ui_info(c, y + 6 + UI_INFO, "USB", sys_usb_ip());
+	y = ui_section(c, y + 6 + 2 * UI_INFO, "SSH HOST KEY");
+	// "SHA256:" then the key on its own line, as big as fits
+	const char *fp = sys_ssh_fingerprint();
+	const char *key = strncmp(fp, "SHA256:", 7) ? fp : fp + 7;
+	int ks = UI_TS;
+	while (ks > 1 && text_width(key, ks) > W - 2 * UI_MX - 32)
+		ks--;
+	if (key != fp)
+		text(c, UI_MX + 16, y + 6, "SHA256", 2, 0x8a8a8a);
+	text(c, UI_MX + 16, y + 28, key, ks, 0xdddddd);
 }
 
 static void draw_app(canvas *c)

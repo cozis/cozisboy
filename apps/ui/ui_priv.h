@@ -75,10 +75,11 @@ int list_update(list_t *l, unsigned pressed, float dt);
 void list_draw(canvas *c, const list_t *l, int x, int y, int w, int rh, uint32_t col);
 
 /* ---- widget kit (ui.c): the building blocks of every page ---- */
-#define UI_MX 20   // side margin
-#define UI_TOP 72  // content top under a page header
-#define UI_ROW 36  // selectable row pitch
-#define UI_INFO 26 // info row pitch
+#define UI_MX 16   // side margin
+#define UI_TOP 84  // content top under a page header
+#define UI_ROW 50  // selectable row pitch
+#define UI_INFO 34 // info row pitch
+#define UI_TS 3    // text scale of rows and info
 int ui_page_header(canvas *c, int app, const char *title, const char *sub); // returns content top
 int ui_section(canvas *c, int y, const char *title);                       // returns y below it
 uint32_t ui_row(canvas *c, int y, const char *label, int sel, uint32_t col);
