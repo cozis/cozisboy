@@ -6,7 +6,8 @@
 // - Buttons: gpio-keys-gamepad, polled as a key bitmap (EVIOCGKEY) every frame.
 //   Volume keys step the system volume (the codec's DAC, 20 steps evenly
 //   spaced in dB) with an on-screen indicator; the level is kept in
-//   /data/ui/system-volume. The UI's own volume setting is left alone. The power button and the lid put the console to sleep
+//   /data/ui/system-volume. The UI's volume setting (Settings slider, 0..10)
+//   is kept in sync with it both ways. The power button and the lid put the console to sleep
 //   (cozisboy-sleep).
 // - Sound: a thread mixes UI sounds and the emulator into hw:0,0 (48 kHz).
 #include "emu.h"
@@ -115,6 +116,32 @@ static void volume_save(void)
 	rename(VOLUME_FILE ".tmp", VOLUME_FILE);
 }
 
+// The UI has its own volume (0..10: Settings slider, in-game menu) that scales
+// UI sounds and the emulator in software. On the device the codec volume is the
+// only volume: the UI's setting mirrors it (buttons -> slider, slider -> codec)
+// and the software scaling stays at full.
+static int ui_seen = -1;	// UI volume as we last set or saw it
+
+static void ui_mirror(void)
+{
+	ui_seen = (vol_level + 1) / 2;
+	ui_set_volume(ui_seen);
+}
+
+static void volume_sync(void)
+{
+	int u = ui_volume();
+	if (u != ui_seen && ui_seen >= 0) {	// moved in the UI
+		vol_level = u * 2;
+		volume_apply();
+		volume_dirty = 1;
+		volume_save_t = 1.0f;
+	}
+	ui_seen = u;
+	sfx_set_volume(1.0f);
+	emu_set_volume(1.0f);
+}
+
 static void volume_step(int dir)
 {
 	int v = vol_level + dir;
@@ -123,6 +150,7 @@ static void volume_step(int dir)
 	} else {
 		vol_level = v;
 		volume_apply();
+		ui_mirror();
 		sfx_play(SFX_CHANGE, v * 10 / VOL_STEPS);
 		volume_dirty = 1;
 		volume_save_t = 1.0f;	// write once the buttons settle
@@ -423,6 +451,8 @@ int main(void)
 
 	ui_init();
 	volume_load();
+	ui_mirror();
+	volume_sync();
 	sfx_init(RATE);
 	pthread_t at;
 	pthread_create(&at, NULL, audio_thread, NULL);
@@ -436,6 +466,7 @@ int main(void)
 			dt = 0.1f;
 		system_keys(dt);
 		ui_frame(buf, UI_W, dt, read_buttons());
+		volume_sync();
 		volume_tick(dt);
 		volume_draw(buf);
 		__u32 crtc = 0;
