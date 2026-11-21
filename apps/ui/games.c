@@ -193,6 +193,7 @@ static struct {
 	int hub_style, cc_style;
 	// hub
 	int game;           // selected game id
+	int hri;            // games view: selected open copy of it (-1: none / any)
 	int row, btn, card;
 	float cam, changed; // tile scroll, time since the selection changed
 	float camx;         // covers layout: scroll in pixels (has a gap between groups)
@@ -709,30 +710,69 @@ static void info_line(int g, char *buf, size_t n)
 
 /* ---- hub ----------------------------------------------------------------- */
 
-// Order: running games (most recent first), then by recency, then A-Z.
+/* Games view items: an open game is one item per open copy (HUB_RUN + run
+ * index), any other game one item (its game id). */
+#define HUB_RUN 100000
+
+static int item_game(int it)
+{
+	return it >= HUB_RUN ? run[it - HUB_RUN].game : it;
+}
+
+static int item_run(int it)
+{
+	return it >= HUB_RUN ? it - HUB_RUN : -1;
+}
+
+// The open copy selected in the games view, or -1.
+static int hub_sel_run(void)
+{
+	if (G.hri >= 0 && G.hri < nrun && run[G.hri].game == G.game)
+		return G.hri;
+	return find_running(G.game);
+}
+
+static int hub_sel_item(void)
+{
+	int ri = hub_sel_run();
+	return ri >= 0 ? HUB_RUN + ri : G.game;
+}
+
+static void hub_select(int it)
+{
+	G.game = item_game(it);
+	G.hri = item_run(it);
+}
+
+// Order: open copies (most recently used first), then played games (most
+// recent first), then never-played games A-Z.
 static int hub_order(int *v)
 {
 	int n = 0;
-	for (int g = 0; g < NGAMES; g++)
-		v[n++] = g;
+	for (int i = 0; i < nrun; i++)
+		v[n++] = HUB_RUN + i;
 	for (int i = 1; i < n; i++)
-		for (int j = i; j > 0; j--) {
+		for (int j = i; j > 0 && run[v[j] - HUB_RUN].last_used > run[v[j - 1] - HUB_RUN].last_used; j--) {
+			int t = v[j];
+			v[j] = v[j - 1], v[j - 1] = t;
+		}
+	nopen = n;
+	int first = n;
+	for (int g = 0; g < NGAMES; g++)
+		if (find_running(g) < 0)
+			v[n++] = g;
+	for (int i = first + 1; i < n; i++)
+		for (int j = i; j > first; j--) {
 			int a = v[j - 1], b = v[j];
-			int ra = find_running(a), rb = find_running(b);
-			int ka = ra >= 0 ? 1000000 + run[ra].last_used : lib[a].recent;
-			int kb = rb >= 0 ? 1000000 + run[rb].last_used : lib[b].recent;
-			int swap = kb > ka || (kb == ka && strcmp(lib[b].title, lib[a].title) < 0);
+			int swap = lib[b].recent > lib[a].recent ||
+				   (lib[b].recent == lib[a].recent && strcmp(lib[b].title, lib[a].title) < 0);
 			if (!swap)
 				break;
 			v[j - 1] = b, v[j] = a;
 		}
-	nplayed = nopen = 0;
-	for (int g = 0; g < NGAMES; g++) {
-		if (find_running(g) >= 0)
-			nopen++;
-		else if (lib[g].recent)
-			nplayed++;
-	}
+	nplayed = 0;
+	for (int i = first; i < n; i++)
+		nplayed += lib[v[i]].recent != 0;
 	return n;
 }
 
@@ -764,10 +804,10 @@ static float cover_pos(int i)
 // Open the hub on its first item: the most recently played game.
 void games_hub_focus_first(void)
 {
-	int v[MAXLIB], n = hub_order(v);
+	int v[MAXLIB + MAXRUN], n = hub_order(v);
 	if (!n)
 		return;
-	G.game = v[0];
+	hub_select(v[0]);
 	G.cam = 0, G.camx = cover_pos(0);
 	G.row = 0, G.btn = 0, G.changed = 0;
 }
@@ -776,15 +816,19 @@ static void hub_activate(int act, int g, int ri)
 {
 	switch (act) {
 	case BT_PLAY:
-		open_game(g, -1, 100, 90);
+		if (ri >= 0)
+			enter_game(ri, 100, 90); // that copy
+		else
+			open_game(g, -1, 100, 90);
 		break;
 	case BT_FAV:
 		lib[g].fav = !lib[g].fav;
 		sfx_play(lib[g].fav ? SFX_TOGGLE_ON : SFX_TOGGLE_OFF, 0);
 		break;
 	case BT_CLOSE:
+		snprintf(toast_buf, sizeof toast_buf, "%s CLOSED", inst_title(ri));
 		close_running(ri);
-		snprintf(toast_buf, sizeof toast_buf, "%s CLOSED", lib[g].title);
+		G.hri = -1;
 		sfx_play(SFX_TOGGLE_OFF, 0);
 		toast(toast_buf);
 		G.btn = BT_PLAY;
@@ -794,9 +838,9 @@ static void hub_activate(int act, int g, int ri)
 
 static void hub_update(unsigned p, float dt)
 {
-	int v[NGAMES], n = hub_order(v);
-	int idx = index_of(v, n, G.game);
-	int g = G.game, ri = find_running(g);
+	int v[NGAMES + MAXRUN], n = hub_order(v);
+	int idx = index_of(v, n, hub_sel_item());
+	int g = G.game, ri = hub_sel_run();
 	G.changed += dt;
 	G.cam += (idx - G.cam) * (1 - expf(-dt * 14));
 	G.camx += (cover_pos(idx) - G.camx) * (1 - expf(-dt * 14));
@@ -833,7 +877,7 @@ static void hub_update(unsigned p, float dt)
 	}
 	if (ni != idx) {
 		if (ni >= 0 && ni < n) {
-			G.game = v[ni];
+			hub_select(v[ni]);
 			G.changed = 0;
 			G.btn = BT_PLAY;
 			sfx_play(SFX_MOVE, ni);
@@ -871,7 +915,7 @@ static void hub_update(unsigned p, float dt)
 // Variation 0: PS5 shelf
 static void hub_draw_shelf(canvas *c, const int *v, int n)
 {
-	int g = G.game, ri = find_running(g);
+	int g = G.game, ri = hub_sel_run(), si = hub_sel_item();
 	draw_key_art(c, g, 0.25f);
 
 	const int sp = 70, ts = 56, big = 76, x0 = 24, ty = 54;
@@ -879,15 +923,15 @@ static void hub_draw_shelf(canvas *c, const int *v, int n)
 		int x = x0 + (int)lrintf((i - G.cam) * sp) + (i > G.cam + 0.5f ? big - ts : 0);
 		if (x < -big || x > W)
 			continue;
-		int sel = v[i] == g;
+		int sel = v[i] == si;
 		int s = sel ? big : ts;
 		int y = sel ? ty - 6 : ty + (big - ts) / 2 - 6;
 		if (sel && G.row == HUB_TILES)
 			wfocus(c, x, y, s, s, 6);
-		draw_cover(c, v[i], x, y, s);
+		draw_cover(c, item_game(v[i]), x, y, s);
 		if (!sel)
 			darken(c, x - 3, y - 3, s + 6, s + 6, 0.35f);
-		if (find_running(v[i]) >= 0)
+		if (item_run(v[i]) >= 0)
 			running_badge(c, x + s - 16, y + s - 16);
 	}
 
@@ -1038,7 +1082,7 @@ static void cover_frame(canvas *c, int x, int y, int s, int sel, int open)
 
 static void hub_draw_covers(canvas *c, const int *v, int n)
 {
-	int g = G.game, ri = find_running(g);
+	int g = G.game, ri = hub_sel_run(), si = hub_sel_item();
 	draw_key_art(c, g, 0.45f);
 	const int big = 156, small = 104, cy = 150;
 
@@ -1074,7 +1118,7 @@ static void hub_draw_covers(canvas *c, const int *v, int n)
 
 	for (int pass = 0; pass < 2; pass++) // neighbours first, selection on top
 		for (int i = 0; i < n; i++) {
-			int sel = v[i] == g;
+			int sel = v[i] == si;
 			if (sel != pass)
 				continue;
 			int s = sel ? big : small;
@@ -1082,7 +1126,7 @@ static void hub_draw_covers(canvas *c, const int *v, int n)
 			if (x < -s || x > W)
 				continue;
 			int y = cy - s / 2 + (sel ? -2 * (int)lrintf(sinf(ui_time() * 4)) : 0);
-			int r = find_running(v[i]);
+			int r = item_run(v[i]);
 			if (cover_style)
 				cover_frame(c, x, y, s, sel, r < 0 ? 0 : is_linked(r) ? 2 : 1);
 			else if (sel)
@@ -1091,17 +1135,18 @@ static void hub_draw_covers(canvas *c, const int *v, int n)
 			if (r >= 0)
 				draw_open_cover(c, r, x, y, s);
 			else
-				draw_cover(c, v[i], x, y, s);
+				draw_cover(c, item_game(v[i]), x, y, s);
 			skip_frame = 0;
 			if (!sel)
 				darken(c, x - 5, y - 5, s + 10, s + 10, r >= 0 ? 0.35f : 0.6f);
 		}
 
+	const char *title = ri >= 0 ? inst_title(ri) : lib[g].title;
 	int ts = 4;
-	while (ts > 2 && text_width(lib[g].title, ts) > W - 30)
+	while (ts > 2 && text_width(title, ts) > W - 30)
 		ts--;
-	int tw = text_width(lib[g].title, ts);
-	text_arcade(c, (W - tw) / 2, 254 + (4 - ts) * 7, lib[g].title, ts, lib[g].col);
+	int tw = text_width(title, ts);
+	text_arcade(c, (W - tw) / 2, 254 + (4 - ts) * 7, title, ts, lib[g].col);
 	char buf[64];
 	if (ri >= 0) { // status pill: open
 		int lk = is_linked(ri);
@@ -1130,22 +1175,22 @@ static void hub_draw_covers(canvas *c, const int *v, int n)
 // Variation 2: grid + details panel
 static void hub_draw_grid(canvas *c, const int *v, int n)
 {
-	int g = G.game, ri = find_running(g);
+	int g = G.game, ri = hub_sel_run(), si = hub_sel_item();
 	draw_header(c, APP_GAMES, "GAMES");
 	const int cs = 64, sp = 76, x0 = 28, y0 = 140;
 	for (int i = 0; i < n; i++) {
 		int x = x0 + (i % GRID_COLS) * sp, y = y0 + (i / GRID_COLS) * (sp + 8);
-		int sel = v[i] == g;
+		int sel = v[i] == si;
 		if (sel) {
 			y -= 4;
 			wfocus(c, x, y, cs, cs, 7);
 		}
-		draw_cover(c, v[i], x, y, cs);
+		draw_cover(c, item_game(v[i]), x, y, cs);
 		if (!sel)
 			darken(c, x - 3, y - 3, cs + 6, cs + 6, 0.3f);
-		if (find_running(v[i]) >= 0)
+		if (item_run(v[i]) >= 0)
 			running_badge(c, x + cs - 14, y + cs - 14);
-		if (lib[v[i]].fav)
+		if (lib[item_game(v[i])].fav)
 			text(c, x + 4, y + 4, "*", 2, PAL[2]);
 	}
 	// details panel
@@ -1173,7 +1218,7 @@ static void hub_draw_grid(canvas *c, const int *v, int n)
 
 static void hub_draw(canvas *c)
 {
-	int v[NGAMES], n = hub_order(v);
+	int v[NGAMES + MAXRUN], n = hub_order(v);
 	if (G.hub_style == 1)
 		hub_draw_covers(c, v, n);
 	else if (G.hub_style == 2)
@@ -1386,7 +1431,7 @@ static void quick_action(int a)
 		int g = in->game;
 		close_running(cur);
 		G.cc = 0;
-		G.game = g;
+		G.game = g, G.hri = -1;
 		snprintf(toast_buf, sizeof toast_buf, "%s CLOSED", lib[g].title);
 		toast(toast_buf);
 		sfx_play(SFX_BACK, 0);
@@ -2640,7 +2685,7 @@ void games_hints(canvas *c, int screen, int *x)
 {
 	if (screen != SCR_LIBRARY)
 		return;
-	int ri = find_running(G.game);
+	int ri = hub_sel_run();
 	draw_hint(c, x, "A", ri >= 0 ? "RESUME" : "START", PAL[3]);
 	draw_hint(c, x, "Y", "FAV", PAL[2]);
 	if (ri >= 0)
