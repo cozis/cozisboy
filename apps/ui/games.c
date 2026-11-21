@@ -1456,8 +1456,8 @@ static void activate_card(int sel, int x, int y)
  * all games), VIDEO, AUDIO, CONTROLS. A preview of the game sits on the right. */
 
 enum { E_HEADER, E_ACTION, E_OPTION, E_CARD };
-enum { ACT_RESUME, ACT_STATES, ACT_SETTINGS, ACT_LINK, ACT_RESET, ACT_CLOSE, NACT };
-static const char *const ACT_NAMES[NACT] = {"RESUME", "SAVE STATES", "SETTINGS", "LINK CABLE", "RESET",
+enum { ACT_RESUME, ACT_STATES, ACT_SETTINGS, ACT_COPY, ACT_LINK, ACT_RESET, ACT_CLOSE, NACT };
+static const char *const ACT_NAMES[NACT] = {"RESUME", "SAVE STATES", "SETTINGS", "ANOTHER COPY", "LINK CABLE", "RESET",
 					    "CLOSE GAME"};
 
 typedef struct {
@@ -1473,7 +1473,7 @@ static struct {
 	int col;        // 0: this game's actions, 1: open games / home / all games
 	int sel[2];
 	float sel_y[2];
-	int page;       // 0: main, 1: settings, 2: link cable
+	int page;       // 0: main, 1: settings, 2: link cable, 3: another copy
 	int lsel;       // link page selection
 	float lhold;    // hold-to-confirm progress on the link page
 	int larmed;
@@ -1818,20 +1818,21 @@ static int next_copy(void)
 
 static int link_rows(lrow_t *r)
 {
-	int n = 0, full = emu_linked(run[cur].eg) >= 4 || nrun >= MAXRUN || !next_copy();
-	if (!full) {
-		r[n++] = (lrow_t){L_COPY_OWN, 0, "LINKED COPY - ITS OWN SAVE"};
-		r[n++] = (lrow_t){L_COPY_MINE, 0, "LINKED COPY - COPY OF MY SAVE"};
+	int n = 0;
+	if (M2.page == 3) { // another copy: which save it starts from
+		r[n++] = (lrow_t){L_COPY_OWN, 0, "START WITH ITS OWN SAVE"};
+		r[n++] = (lrow_t){L_COPY_MINE, 0, "START FROM A COPY OF MY SAVE"};
+		return n;
 	}
 	for (int i = 0; i < nrun && n < 12; i++)
 		if (i != cur && is_emu(run[i].game) && (!run[i].eg || emu_linked(run[i].eg) == 1) &&
 		    emu_linked(run[cur].eg) < 4) {
 			r[n] = (lrow_t){L_WITH, i, ""};
-			snprintf(r[n].label, sizeof r[n].label, "LINK WITH %s", inst_title(i));
+			snprintf(r[n].label, sizeof r[n].label, "CONNECT TO %s", inst_title(i));
 			n++;
 		}
 	if (emu_linked(run[cur].eg) > 1)
-		r[n++] = (lrow_t){L_UNLINK, 0, "UNLINK THIS GAME"};
+		r[n++] = (lrow_t){L_UNLINK, 0, "UNPLUG CABLE"};
 	return n;
 }
 
@@ -1856,7 +1857,7 @@ static void open_linked_copy(int from_mine)
 	emu_link(run[orig].eg, eg);
 	G.cc = 0;
 	enter_game(i, W / 2, H / 2);
-	toast("LINKED - DOUBLE-TAP MENU TO SWITCH");
+	toast("DOUBLE-TAP MENU TO SWITCH COPIES");
 }
 
 static void link_update(unsigned p, float dt)
@@ -1917,11 +1918,17 @@ static void link_draw(canvas *c)
 {
 	uint32_t col = PAL[APP_GAMES], ink = wink(col, W_NORMAL);
 	const int lx = 60, lw = 520;
-	text_arcade(c, lx, 34, "LINK CABLE", 3, col);
+	int copy_page = M2.page == 3;
+	text_arcade(c, lx, 34, copy_page ? "PLAY ANOTHER COPY" : "LINK CABLE", 3, col);
 	text(c, lx, 66, inst_title(cur), 2, GREY);
 
-	// status
 	rrect(c, lx, 92, lw, 64, 6, 0x1c1c1c);
+	if (copy_page) { // what a copy is
+		text(c, lx + 16, 102, "A SECOND COPY OF THIS GAME, CONNECTED", 2, WHITE);
+		text(c, lx + 16, 124, "BY LINK CABLE: TRADE OR PLAY 2-PLAYER.", 2, WHITE);
+		text(c, lx + 16, 166, "DOUBLE-TAP MENU TO SWITCH BETWEEN THEM.", 2, GREY);
+	} else {
+	// status
 	int linked = emu_linked(run[cur].eg) > 1;
 	fill(c, lx + 16, 105, 8, 8, linked ? PAL[4] : GREY);
 	text(c, lx + 32, 102, linked ? "CONNECTED TO" : "NOT CONNECTED", 2, linked ? WHITE : GREY);
@@ -1936,13 +1943,16 @@ static void link_draw(canvas *c)
 		int ws = text_width(who, 2) <= lw - 50 ? 2 : 1;
 		text(c, lx + 32, 126, who, ws, PAL[4]);
 	} else {
-		text(c, lx + 32, 126, "PLAY A LINKED COPY OR LINK AN OPEN GAME", 1, GREY);
+		text(c, lx + 32, 126, "CONNECT IT TO ANOTHER OPEN GAME", 1, GREY);
+	}
 	}
 
 	// options
 	lrow_t r[16];
 	int n = link_rows(r);
-	const int top = 178, rh = 40;
+	const int top = copy_page ? 200 : 178, rh = 40;
+	if (!n)
+		text(c, lx, top + 10, "OPEN ANOTHER GAME FIRST", 2, GREY);
 	char path[600];
 	copy_sav_path(run[cur].game, next_copy(), path, sizeof path);
 	for (int i = 0; i < n; i++) {
@@ -1973,7 +1983,7 @@ static void ingame_update(unsigned p, float dt)
 		states_update(p, dt);
 		return;
 	}
-	if (M2.page == 2) {
+	if (M2.page >= 2) {
 		link_update(p, dt);
 		return;
 	}
@@ -2018,13 +2028,19 @@ static void ingame_update(unsigned p, float dt)
 		M2.page = 1, M2.ssel = 1, M2.ssel_y = 1;
 		sfx_play(SFX_OPEN, APP_SETTINGS);
 		break;
+	case ACT_COPY:
 	case ACT_LINK:
 		if (!run[cur].eg) {
-			toast("NO LINK CABLE IN THIS GAME");
+			toast("NOT AVAILABLE FOR THIS GAME");
 			sfx_play(SFX_BUMP, 0);
 			break;
 		}
-		M2.page = 2, M2.lsel = 0, M2.lhold = 0, M2.larmed = 0;
+		if (*sel == ACT_COPY && (nrun >= MAXRUN || !next_copy() || emu_linked(run[cur].eg) >= 4)) {
+			toast("TOO MANY COPIES OPEN");
+			sfx_play(SFX_BUMP, 0);
+			break;
+		}
+		M2.page = *sel == ACT_COPY ? 3 : 2, M2.lsel = 0, M2.lhold = 0, M2.larmed = 0;
 		sfx_play(SFX_OPEN, APP_GAMES);
 		break;
 	case ACT_RESET: quick_action(QA_RESET); break;
@@ -2121,7 +2137,7 @@ static void ingame_draw(canvas *c, float a)
 		return;
 	}
 	darken(c, 0, 0, W, H, 0.85f * a); // the game stays visible: the menu belongs to it
-	if (M2.page == 2) {
+	if (M2.page >= 2) {
 		link_draw(c);
 		return;
 	}
@@ -2173,7 +2189,7 @@ static void ingame_draw(canvas *c, float a)
 			char nb[16];
 			snprintf(nb, sizeof nb, "%d", states_order(sv2));
 			text(c, lx + lw - 16 - text_width(nb, 2), y + 12, nb, 2, sel ? ink : GREY);
-		} else if (i == ACT_SETTINGS) {
+		} else if (i == ACT_SETTINGS || i == ACT_COPY) {
 			text(c, lx + lw - 28, y + 12, ">", 2, sel ? ink : GREY);
 		} else if (i == ACT_LINK) {
 			int on = emu_linked(in->eg) > 1;
