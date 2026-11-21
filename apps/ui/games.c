@@ -723,12 +723,12 @@ static int item_run(int it)
 	return it >= HUB_RUN ? it - HUB_RUN : -1;
 }
 
-// The open copy selected in the games view, or -1.
+// The open copy selected in the games view (left group), or -1.
 static int hub_sel_run(void)
 {
 	if (G.hri >= 0 && G.hri < nrun && run[G.hri].game == G.game)
 		return G.hri;
-	return find_running(G.game);
+	return -1;
 }
 
 static int hub_sel_item(void)
@@ -743,7 +743,7 @@ static void hub_select(int it)
 	G.hri = item_run(it);
 }
 
-// Order: open copies (most recently used first), then all other games: most
+// Order: open copies (most recently used first), then all games: most
 // recently played first, never-played ones A-Z at the end.
 static int hub_order(int *v)
 {
@@ -757,9 +757,8 @@ static int hub_order(int *v)
 		}
 	nopen = n;
 	int first = n;
-	for (int g = 0; g < NGAMES; g++)
-		if (find_running(g) < 0)
-			v[n++] = g;
+	for (int g = 0; g < NGAMES; g++) // all games, open ones too (A: another copy)
+		v[n++] = g;
 	for (int i = first + 1; i < n; i++)
 		for (int j = i; j > first; j--) {
 			int a = v[j - 1], b = v[j];
@@ -805,12 +804,16 @@ void games_hub_focus_first(void)
 	G.row = 0, G.btn = 0, G.changed = 0;
 }
 
+static void open_copy_of(int orig, int from_mine);
+
 static void hub_activate(int act, int g, int ri)
 {
 	switch (act) {
 	case BT_PLAY:
 		if (ri >= 0)
 			enter_game(ri, 100, 90); // that copy
+		else if (find_running(g) >= 0 && lib[g].rom)
+			open_copy_of(find_running(g), 0); // already open: another copy
 		else
 			open_game(g, -1, 100, 90);
 		break;
@@ -1131,8 +1134,9 @@ static void hub_draw_covers(canvas *c, const int *v, int n)
 	int tw = text_width(title, ts);
 	text_arcade(c, (W - tw) / 2, 254 + (4 - ts) * 7, title, ts, lib[g].col);
 	char buf[64];
-	if (ri >= 0) { // status pill: open
-		games_open_pill(c, W / 2, 296, ri);
+	int also = ri < 0 ? find_running(g) : -1; // in all games, but also open
+	if (ri >= 0 || also >= 0) { // status pill: open
+		games_open_pill(c, W / 2, 296, ri >= 0 ? ri : also);
 	} else {
 		if (lib[g].recent)
 			snprintf(buf, sizeof buf, "LAST PLAYED %s", last_text(g));
@@ -1141,8 +1145,8 @@ static void hub_draw_covers(canvas *c, const int *v, int n)
 		text(c, (W - text_width(buf, 2)) / 2, 302, buf, 2, 0xaaaaaa);
 	}
 	// button: green RESUME for open games, white START otherwise
-	const char *bl = ri >= 0 ? "A  RESUME" : "A  START";
-	int bw = 180, bx = W / 2 - bw / 2, by = 350;
+	const char *bl = ri >= 0 ? "A  RESUME" : also >= 0 ? "A  ANOTHER COPY" : "A  START";
+	int bw = also >= 0 ? 240 : 180, bx = W / 2 - bw / 2, by = 350;
 	uint32_t bf = ri >= 0 ? PAL[3] : WHITE;
 	wbox(c, bx, by, bw, 36, bf, W_SEL);
 	text(c, bx + (bw - text_width(bl, 2)) / 2, by + 11 - (wstyle == 2 ? 3 : 0), bl, 2, wink(bf, W_SEL));
@@ -1787,16 +1791,21 @@ typedef struct {
 } lrow_t;
 
 // Next free copy number for the current game (1..3), or 0 if none.
-static int next_copy(void)
+static int next_copy_of(int ri)
 {
 	int used[4] = {0};
 	for (int i = 0; i < nrun; i++)
-		if (run[i].game == run[cur].game && run[i].copy < 4)
+		if (run[i].game == run[ri].game && run[i].copy < 4)
 			used[run[i].copy] = 1;
 	for (int n = 1; n < 4; n++)
 		if (!used[n])
 			return n;
 	return 0;
+}
+
+static int next_copy(void)
+{
+	return next_copy_of(cur);
 }
 
 static int link_rows(lrow_t *r)
@@ -1821,9 +1830,16 @@ static int link_rows(lrow_t *r)
 
 // Open a linked copy of the current game. from_mine: its save starts as a
 // copy of the current one (replacing the copy's own save).
-static void open_linked_copy(int from_mine)
+// Open another copy of open game orig, linked to it. from_mine: the copy's
+// save starts as a copy of the game's own save (replacing the copy's).
+static void open_copy_of(int orig, int from_mine)
 {
-	int g = run[cur].game, n = next_copy(), orig = cur;
+	int g = run[orig].game, n = next_copy_of(orig);
+	if (!n || nrun >= MAXRUN || emu_linked(run[orig].eg) >= 4 || wake(orig)) {
+		toast("TOO MANY COPIES OPEN");
+		sfx_play(SFX_BUMP, 0);
+		return;
+	}
 	char path[600];
 	copy_sav_path(g, n, path, sizeof path);
 	if (from_mine)
@@ -1841,6 +1857,11 @@ static void open_linked_copy(int from_mine)
 	G.cc = 0;
 	enter_game(i, W / 2, H / 2);
 	toast("DOUBLE-TAP MENU TO SWITCH COPIES");
+}
+
+static void open_linked_copy(int from_mine)
+{
+	open_copy_of(cur, from_mine);
 }
 
 static void link_update(unsigned p, float dt)
@@ -2678,7 +2699,7 @@ void games_hints(canvas *c, int screen, int *x)
 	if (screen != SCR_LIBRARY)
 		return;
 	int ri = hub_sel_run();
-	draw_hint(c, x, "A", ri >= 0 ? "RESUME" : "START", PAL[3]);
+	draw_hint(c, x, "A", ri >= 0 ? "RESUME" : find_running(G.game) >= 0 ? "ANOTHER COPY" : "START", PAL[3]);
 	draw_hint(c, x, "Y", "FAV", PAL[2]);
 	if (ri >= 0)
 		draw_hint(c, x, "X", "CLOSE", PAL[4]);
