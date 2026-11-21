@@ -34,6 +34,7 @@ void ui_set_layout(int hub, int cc);
 void ui_set_chrome(int bg, int top, int bot);
 // Pick the widget style variation (also in Settings).
 void ui_set_widgets(int style);
+void ui_set_transition(int style); // page transition style (Look page order)
 // Pick the Games / Settings icon variation, and render all of them on a sheet.
 void ui_set_icons(int games, int settings);
 void ui_icon_sheet(uint32_t *buf, int stride);

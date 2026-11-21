@@ -457,6 +457,12 @@ static const char *const SLEEPS[] = {"1 MIN", "5 MIN", "NEVER"};
 static const char *const HUB_STYLES[] = {"SHELF", "COVERS", "GRID"};
 static const char *const CC_STYLES[] = {"BOTTOM BAR", "SIDE PANEL", "CARD FAN"};
 static const char *const W_STYLES[] = {"ARCADE", "SOFT", "BEVEL", "NEON"};
+static const char *const T_STYLES[] = {"SQUARES", "SQUARES LIGHT", "FADE", "CROSSFADE", "SLIDE", "DISSOLVE"};
+enum { TR_SQUARES, TR_SQUARES_LIGHT, TR_FADE, TR_CROSSFADE, TR_SLIDE, TR_DISSOLVE, NTR };
+// per style: seconds to cover the old screen, seconds to reveal the new one
+// (0 to cover: the new screen is drawn at once, the old one is a snapshot)
+static const float TR_TIME[NTR][2] = {{0.32f, 0.32f}, {0.16f, 0.18f}, {0.12f, 0.16f},
+				      {0, 0.22f},       {0, 0.24f},       {0, 0.28f}};
 enum { SET_WIFI, SET_SSH, SET_BRIGHTNESS, SET_VOLUME, SET_SLEEP, SET_LOOK, SET_ABOUT };
 static item_t settings_items[] = {
 	{"WI-FI", IT_ACTION, 0, 0, NULL, NULL, NULL},
@@ -468,11 +474,12 @@ static item_t settings_items[] = {
 	{"ABOUT", IT_ACTION, 0, 0, NULL, NULL, NULL},
 };
 // "Look": the design variations still being compared
-enum { SET_HUB, SET_CC, SET_WIDGETS };
+enum { SET_HUB, SET_CC, SET_WIDGETS, SET_TRANS };
 static item_t look_items[] = {
 	{"GAMES LAYOUT", IT_CHOICE, 1, 3, HUB_STYLES, NULL, NULL}, // COVERS, picked 2026-11-21
 	{"CONTROL CENTER", IT_CHOICE, 0, 3, CC_STYLES, NULL, NULL},
 	{"WIDGET STYLE", IT_CHOICE, 0, 4, W_STYLES, NULL, NULL},
+	{"TRANSITION", IT_CHOICE, 0, NTR, T_STYLES, NULL, NULL},
 };
 static item_t power_items[] = {
 	{"SLEEP", IT_ACTION, 0, 0, NULL, "DEMO: WOULD SLEEP NOW", NULL},
@@ -504,6 +511,7 @@ static struct {
 	float trans_t;
 	uint32_t trans_col;
 	int trans_x, trans_y;
+	int trans_style, trans_back, snap_pending; // snapshot: copy the old frame next draw
 	// toast message
 	const char *toast;
 	float toast_t;
@@ -541,6 +549,11 @@ float ui_time(void)
 void ui_set_widgets(int style)
 {
 	wstyle = look_items[SET_WIDGETS].val = style;
+}
+
+void ui_set_transition(int style)
+{
+	look_items[SET_TRANS].val = style >= 0 && style < NTR ? style : 0;
 }
 
 void ui_set_chrome(int bg, int top, int bot)
@@ -633,6 +646,8 @@ void go(int to, uint32_t col, int x, int y)
 {
 	S.trans = 1;
 	S.trans_t = 0;
+	S.trans_style = look_items[SET_TRANS].val;
+	S.trans_back = to == SCR_HOME;
 	S.trans_to = to;
 	S.trans_col = col;
 	S.trans_x = x;
@@ -809,14 +824,15 @@ static void update(unsigned p, unsigned held, float dt)
 
 	if (S.trans) {
 		S.trans_t += dt;
-		if (S.trans == 1 && S.trans_t >= 0.32f) {
+		if (S.trans == 1 && S.trans_t >= TR_TIME[S.trans_style][0]) {
 			if (S.trans_to == SCR_HOME && S.screen == SCR_GAME)
 				S.sel = 0, S.cam = 0; // back from a game: focus its tile
 			S.screen = S.trans_to;
 			S.trans = 2;
 			S.trans_t = 0;
 			S.hop = 0;
-		} else if (S.trans == 2 && S.trans_t >= 0.32f) {
+			S.snap_pending = 1; // the buffer still holds the old screen
+		} else if (S.trans == 2 && S.trans_t >= TR_TIME[S.trans_style][1]) {
 			S.trans = 0;
 		}
 		return; // no input during transitions
@@ -1518,12 +1534,15 @@ static void draw_toast(canvas *c)
 }
 
 // Squares grow outward from the origin to cover the screen, then shrink away.
-static void draw_transition(canvas *c)
+static uint32_t snap[W * H]; // the screen being left (snapshot transitions)
+
+static float ease_out(float p)
 {
-	if (!S.trans)
-		return;
-	const int cell = 40;
-	float p = clampf(S.trans_t / 0.32f, 0, 1);
+	return 1 - (1 - p) * (1 - p) * (1 - p);
+}
+
+static void draw_squares(canvas *c, float p, int cell, uint32_t col)
+{
 	float maxd = sqrtf((float)(W * W + H * H));
 	for (int gy = 0; gy < H; gy += cell)
 		for (int gx = 0; gx < W; gx += cell) {
@@ -1534,14 +1553,79 @@ static void draw_transition(canvas *c)
 				l = 1 - l;
 			int s = (int)(l * cell + 0.5f) & ~1;
 			if (s > 0)
-				fill(c, gx + (cell - s) / 2, gy + (cell - s) / 2, s, s, S.trans_col);
+				fill(c, gx + (cell - s) / 2, gy + (cell - s) / 2, s, s, col);
 		}
+}
+
+static void draw_transition(canvas *c)
+{
+	if (!S.trans)
+		return;
+	int st = S.trans_style;
+	float dur = TR_TIME[st][S.trans - 1], p = dur > 0 ? clampf(S.trans_t / dur, 0, 1) : 1;
+	switch (st) {
+	case TR_SQUARES: draw_squares(c, p, 40, S.trans_col); break;
+	case TR_SQUARES_LIGHT: draw_squares(c, p, 20, mix(S.trans_col, BG0, 0.55f)); break;
+	case TR_FADE: darken(c, 0, 0, W, H, S.trans == 1 ? p : 1 - p); break;
+	case TR_CROSSFADE: { // the old screen fades out over the new one
+		if (S.trans != 2)
+			break;
+		int a = (int)(256 * (1 - ease_out(p)));
+		for (int y = 0; y < H; y++) {
+			uint32_t *row = c->px + (size_t)y * c->stride;
+			const uint32_t *o = snap + (size_t)y * W;
+			for (int x = 0; x < W; x++) {
+				uint32_t n = row[x], q = o[x];
+				uint32_t rb = ((n & 0xff00ff) * (256 - a) + (q & 0xff00ff) * a) >> 8 & 0xff00ff;
+				uint32_t g = ((n & 0xff00) * (256 - a) + (q & 0xff00) * a) >> 8 & 0xff00;
+				row[x] = rb | g;
+			}
+		}
+		break;
+	}
+	case TR_SLIDE: { // the new page pushes the old one out (from the right going in)
+		if (S.trans != 2)
+			break;
+		int off = (int)lrintf(W * (1 - ease_out(p)));
+		for (int y = 0; y < H && off > 0; y++) {
+			uint32_t *row = c->px + (size_t)y * c->stride;
+			const uint32_t *o = snap + (size_t)y * W;
+			if (!S.trans_back) { // new at x+off, old shifted left
+				memmove(row + off, row, (size_t)(W - off) * 4);
+				memcpy(row, o + (W - off), (size_t)off * 4);
+			} else { // new at x-off, old shifted right
+				memmove(row, row + off, (size_t)(W - off) * 4);
+				memcpy(row + (W - off), o, (size_t)off * 4);
+			}
+		}
+		break;
+	}
+	case TR_DISSOLVE: { // the old screen breaks up in 4 px blocks (ordered dither)
+		if (S.trans != 2)
+			break;
+		static const int bayer[4][4] = {{0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}};
+		int k = (int)(p * 17);
+		for (int by = 0; by < H / 4; by++)
+			for (int bx = 0; bx < W / 4; bx++) {
+				if (bayer[by & 3][bx & 3] < k)
+					continue;
+				for (int y = by * 4; y < by * 4 + 4; y++)
+					memcpy(c->px + (size_t)y * c->stride + bx * 4, snap + (size_t)y * W + bx * 4, 16);
+			}
+		break;
+	}
+	}
 }
 
 void ui_frame(uint32_t *buf, int stride, float dt, unsigned held)
 {
 	canvas cv = {buf, W, H, stride}, *c = &cv;
 	update(pressed(held, dt), held, dt);
+	if (S.snap_pending) { // the switch just happened: buf still shows the old screen
+		for (int y = 0; y < H; y++)
+			memcpy(snap + (size_t)y * W, buf + (size_t)y * stride, W * 4);
+		S.snap_pending = 0;
+	}
 
 	if (S.screen == SCR_GAME) {
 		games_draw(c, SCR_GAME); // full screen, draws its own overlay

@@ -93,6 +93,8 @@ int main(int argc, char **argv)
 		} else if (a[0] == 'k') { // k<file>: icon sheet
 			ui_icon_sheet(buf, UI_W);
 			save(a + 1);
+		} else if (a[0] == 't' && a[1]) { // t<n> transition style
+			ui_set_transition(a[1] - '0');
 		} else if (a[0] == 'g' && a[1]) { // g<n> widget style
 			ui_set_widgets(a[1] - '0');
 		} else if (a[0] == 'c' && a[1] && a[2] && a[3]) { // c<bg><top><bot>
