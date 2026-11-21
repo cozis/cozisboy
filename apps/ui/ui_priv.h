@@ -40,6 +40,8 @@ float ease_out_bounce(float t);
 float ui_time(void);
 int ui_volume(void);         // 0..10, shared by UI sounds and games
 void ui_set_volume(int v);
+int ui_brightness(void);     // 0..10 (Settings slider; the device front end drives the backlight)
+void ui_set_brightness(int v);
 int ui_screen(void);
 unsigned ui_held(void); // buttons held this frame (for hold-to-confirm)
 

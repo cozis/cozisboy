@@ -7,7 +7,8 @@
 //   Volume keys step the system volume (the codec's DAC, 20 steps evenly
 //   spaced in dB) with an on-screen indicator; the level is kept in
 //   /data/ui/system-volume. The UI's volume setting (Settings slider, 0..10)
-//   is kept in sync with it both ways. The power button and the lid put the console to sleep
+//   is kept in sync with it both ways. The Settings brightness slider drives
+//   the backlight. The power button and the lid put the console to sleep
 //   (cozisboy-sleep).
 // - Sound: a thread mixes UI sounds and the emulator into hw:0,0 (48 kHz).
 #include "emu.h"
@@ -170,6 +171,62 @@ static void volume_tick(float dt)
 	osd_in += (target - osd_in) * (1 - expf(-dt * 16));
 	if (osd_in < 0.002f)
 		osd_in = 0;
+}
+
+/* ---- brightness ----------------------------------------------------------------- */
+//
+// The Settings slider (0..10) drives the PWM backlight (0..255) on a square
+// curve, so each step looks like a similar change; 0 is dim but never black.
+// Kept in /data/ui/brightness.
+
+#define BRIGHTNESS_FILE "/data/ui/brightness"
+#define BACKLIGHT "/sys/class/backlight/backlight/brightness"
+#define BL_MIN 8
+
+static int bright_seen = -1;
+static float bright_save_t = -1;
+
+static void backlight_set(int level)
+{
+	float f = level / 10.0f;
+	int v = BL_MIN + (int)lroundf((255 - BL_MIN) * f * f);
+	FILE *b = fopen(BACKLIGHT, "w");
+	if (b) {
+		fprintf(b, "%d\n", v);
+		fclose(b);
+	}
+}
+
+static void brightness_load(void)
+{
+	FILE *f = fopen(BRIGHTNESS_FILE, "r");
+	int v;
+	if (f) {
+		if (fscanf(f, "%d", &v) == 1 && v >= 0 && v <= 10)
+			ui_set_brightness(v);
+		fclose(f);
+	}
+	bright_seen = ui_brightness();
+	backlight_set(bright_seen);
+}
+
+// Apply slider changes right away; save once it settles.
+static void brightness_sync(float dt)
+{
+	int b = ui_brightness();
+	if (b != bright_seen) {
+		bright_seen = b;
+		backlight_set(b);
+		bright_save_t = 1.0f;
+	}
+	if (bright_save_t > 0 && (bright_save_t -= dt) <= 0) {
+		FILE *f = fopen(BRIGHTNESS_FILE ".tmp", "w");
+		if (f) {
+			fprintf(f, "%d\n", b);
+			fclose(f);
+			rename(BRIGHTNESS_FILE ".tmp", BRIGHTNESS_FILE);
+		}
+	}
 }
 
 /* ---- sound -------------------------------------------------------------------- */
@@ -453,6 +510,7 @@ int main(void)
 	volume_load();
 	ui_mirror();
 	volume_sync();
+	brightness_load();
 	sfx_init(RATE);
 	pthread_t at;
 	pthread_create(&at, NULL, audio_thread, NULL);
@@ -467,6 +525,7 @@ int main(void)
 		system_keys(dt);
 		ui_frame(buf, UI_W, dt, read_buttons());
 		volume_sync();
+		brightness_sync(dt);
 		volume_tick(dt);
 		volume_draw(buf);
 		__u32 crtc = 0;

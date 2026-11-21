@@ -567,6 +567,16 @@ void ui_set_volume(int v)
 	emu_set_volume(v / 10.0f);
 }
 
+int ui_brightness(void)
+{
+	return settings_items[SET_BRIGHTNESS].val;
+}
+
+void ui_set_brightness(int v)
+{
+	settings_items[SET_BRIGHTNESS].val = v < 0 ? 0 : v > 10 ? 10 : v;
+}
+
 int ui_screen(void)
 {
 	return S.screen;
