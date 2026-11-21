@@ -6,7 +6,7 @@ FB="$BINARIES_DIR/fastboot"
 mkdir -p "$FB"
 
 # Trampoline (BL33 stand-in that jumps to Linux with x0 = device tree)
-"$HOST_DIR/bin/aarch64-linux-gcc" -c -DKERNEL_ADDR=0x40200000 \
+"$HOST_DIR/bin/aarch64-linux-gcc" -c -DKERNEL_ADDR=0x40200000 ${FASTBOOT_DEBUG_LED:+-DDEBUG_LED} ${FASTBOOT_DEBUG_BLINK:+-DDEBUG_BLINK} \
 	-o "$FB/trampoline.o" "$BOARD_DIR/fastboot/trampoline.S"
 "$HOST_DIR/bin/aarch64-linux-ld" -Ttext=0x4a000000 -o "$FB/trampoline.elf" "$FB/trampoline.o"
 "$HOST_DIR/bin/aarch64-linux-objcopy" -O binary "$FB/trampoline.elf" "$FB/trampoline.bin"

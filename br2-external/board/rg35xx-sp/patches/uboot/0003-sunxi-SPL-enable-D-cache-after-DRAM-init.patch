@@ -1,0 +1,55 @@
+From: Francesco <francesco.cozzuto@gmail.com>
+Subject: [PATCH] sunxi: SPL: enable MMU and D-cache after DRAM init (arm64)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+--- a/arch/arm/mach-sunxi/Kconfig	2026-11-21 11:14:19.622888676 +0100
++++ b/arch/arm/mach-sunxi/Kconfig	2026-11-21 11:14:19.647280190 +0100
+@@ -1245,6 +1245,18 @@
+ 	select W1_EEPROM_DS24XXX
+ 	select CMD_EXTENSION
+ 
++config SPL_SUNXI_SPL_DCACHE
++	bool "Enable the MMU and D-cache in the SPL after DRAM init"
++	depends on SPL && ARM64 && !SPL_SYS_DCACHE_OFF
++	help
++	  Speeds up everything the SPL loads from MMC (U-Boot FIT, or a
++	  Linux FIT for fast boot) by an order of magnitude.
++
++config SUNXI_SPL_TLB_ADDR
++	hex "DRAM address of the SPL page tables"
++	depends on SPL_SUNXI_SPL_DCACHE
++	default 0x4f000000
++
+ config SUNXI_FAST_BOOT_SECTOR
+ 	hex "SD/eMMC sector of the fast-boot FIT (0 = disabled)"
+ 	depends on SPL_MMC
+--- a/arch/arm/mach-sunxi/board.c	2026-11-21 11:14:19.619791074 +0100
++++ b/arch/arm/mach-sunxi/board.c	2026-11-21 11:14:19.646946551 +0100
+@@ -530,7 +530,26 @@
+ 	i2c_init(CONFIG_SYS_I2C_SPEED, CONFIG_SYS_I2C_SLAVE);
+ #endif
+ 	sunxi_board_init();
++
++#if CONFIG_IS_ENABLED(SUNXI_SPL_DCACHE)
++	/*
++	 * DRAM is up: turn on the MMU and D-cache. With the MMU off every DRAM
++	 * access is Device-nGnRnE, which makes the SPL's PIO MMC loads ~13x
++	 * slower than in U-Boot proper (about 1.4 MB/s).
++	 */
++	gd->arch.tlb_size = get_page_table_size();
++	gd->arch.tlb_addr = CONFIG_SUNXI_SPL_TLB_ADDR;
++	dcache_enable();
++#endif
+ }
++
++#if CONFIG_IS_ENABLED(SUNXI_SPL_DCACHE)
++/* Clean and disable the D-cache/MMU before handing over to TF-A. */
++void spl_board_prepare_for_boot(void)
++{
++	dcache_disable();
++}
++#endif
+ #endif /* CONFIG_XPL_BUILD */
+ 
+ #if !CONFIG_IS_ENABLED(SYSRESET)

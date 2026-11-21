@@ -11,10 +11,33 @@
 	.global _start
 _start:
 	b	entry
+	/* TF-A must find the DT: with none it calls the PMIC setup with a NULL fdt */
 	.align	3
 	.quad	0x4a000000		/* PRELOADED_BL33_BASE marker for TF-A */
 	.quad	_end - _start		/* image size: DT is at base + size */
 entry:
+#ifdef DEBUG_LED
+	/* Debug: green LED (PI12) off = trampoline reached; Linux's LED driver
+	 * switches it back on once the kernel is up. */
+	ldr	x5, =0x0300b130		/* PIO bank I data register */
+	ldr	w6, [x5]
+	bic	w6, w6, #(1 << 12)
+	str	w6, [x5]
+#endif
+#ifdef DEBUG_BLINK
+	/* Debug: blink the green LED forever instead of starting Linux */
+	ldr	x5, =0x0300b130
+1:	ldr	w6, [x5]
+	eor	w6, w6, #(1 << 12)
+	str	w6, [x5]
+	mrs	x7, cntpct_el0
+	ldr	x8, =6000000		/* 0.25 s at 24 MHz */
+	add	x7, x7, x8
+2:	mrs	x9, cntpct_el0
+	cmp	x9, x7
+	b.lo	2b
+	b	1b
+#endif
 	adr	x0, _end		/* device tree appended by the SPL */
 	mov	x1, xzr
 	mov	x2, xzr
