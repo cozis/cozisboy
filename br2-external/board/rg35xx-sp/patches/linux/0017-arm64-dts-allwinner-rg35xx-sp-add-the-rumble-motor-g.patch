@@ -1,7 +1,7 @@
 From 4e5a2319404543b2b3672b941d7a1009b32b2d33 Mon Sep 17 00:00:00 2001
 From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
 Date: Sat, 21 Nov 2026 12:50:49 +0100
-Subject: [PATCH 17/17] arm64: dts: allwinner: rg35xx-sp: add the rumble motor
+Subject: [PATCH 17/21] arm64: dts: allwinner: rg35xx-sp: add the rumble motor
  (gpio-vibrator on PH2)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

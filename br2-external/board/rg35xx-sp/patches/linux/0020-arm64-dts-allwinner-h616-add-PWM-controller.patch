@@ -1,0 +1,75 @@
+From d4e57469790a91b842c739f560744b624ad29a14 Mon Sep 17 00:00:00 2001
+From: Richard Genoud <richard.genoud@bootlin.com>
+Date: Sat, 21 Nov 2026 12:56:29 +0100
+Subject: [PATCH 20/21] arm64: dts: allwinner: h616: add PWM controller
+
+From the v4 series 'Introduce Allwinner H616 PWM controller' (LKML, 2026-03-05).
+---
+ .../arm64/boot/dts/allwinner/sun50i-h616.dtsi | 47 +++++++++++++++++++
+ 1 file changed, 47 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/allwinner/sun50i-h616.dtsi b/arch/arm64/boot/dts/allwinner/sun50i-h616.dtsi
+index 5f43c2a0b..59bfc4d67 100644
+--- a/arch/arm64/boot/dts/allwinner/sun50i-h616.dtsi
++++ b/arch/arm64/boot/dts/allwinner/sun50i-h616.dtsi
+@@ -335,6 +335,17 @@ watchdog: watchdog@30090a0 {
+ 			clocks = <&osc24M>;
+ 		};
+ 
++		pwm: pwm@300a000 {
++			compatible = "allwinner,sun50i-h616-pwm";
++			reg = <0x0300a000 0x400>;
++			clocks = <&osc24M>, <&ccu CLK_BUS_PWM>;
++			clock-names = "mod", "bus";
++			resets = <&ccu RST_BUS_PWM>;
++			#pwm-cells = <3>;
++			#clock-cells = <1>;
++			status = "disabled";
++		};
++
+ 		pio: pinctrl@300b000 {
+ 			compatible = "allwinner,sun50i-h616-pinctrl";
+ 			reg = <0x0300b000 0x400>;
+@@ -465,6 +476,42 @@ nand_rb1_pin: nand-rb1-pin {
+ 				bias-pull-up;
+ 			};
+ 
++			/omit-if-no-ref/
++			pwm0_pin: pwm0-pin {
++				pins = "PD28";
++				function = "pwm0";
++			};
++
++			/omit-if-no-ref/
++			pwm1_pin: pwm1-pin {
++				pins = "PG19";
++				function = "pwm1";
++			};
++
++			/omit-if-no-ref/
++			pwm2_pin: pwm2-pin {
++				pins = "PH2";
++				function = "pwm2";
++			};
++
++			/omit-if-no-ref/
++			pwm3_pin: pwm3-pin {
++				pins = "PH0";
++				function = "pwm3";
++			};
++
++			/omit-if-no-ref/
++			pwm4_pin: pwm4-pin {
++				pins = "PI14";
++				function = "pwm4";
++			};
++
++			/omit-if-no-ref/
++			pwm5_pin: pwm5-pin {
++				pins = "PA12";
++				function = "pwm5";
++			};
++
+ 			/omit-if-no-ref/
+ 			spi0_pins: spi0-pins {
+ 				pins = "PC0", "PC2", "PC4";

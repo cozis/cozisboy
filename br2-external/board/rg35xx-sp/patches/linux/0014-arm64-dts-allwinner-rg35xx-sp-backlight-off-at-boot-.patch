@@ -1,7 +1,7 @@
 From 607f973b1d89dccc4766392737b6d35321bd3121 Mon Sep 17 00:00:00 2001
 From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
 Date: Sat, 21 Nov 2026 01:03:14 +0100
-Subject: [PATCH 14/17] arm64: dts: allwinner: rg35xx-sp: backlight off at
+Subject: [PATCH 14/21] arm64: dts: allwinner: rg35xx-sp: backlight off at
  boot, owned by userspace
 
 The panel used to switch the backlight on at modeset, showing lit black until

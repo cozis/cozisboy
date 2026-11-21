@@ -54,8 +54,9 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
       when the splash ends; splash leaves its last frame for a flash-free handoff.
 - [ ] Splash -> UI handoff protocol (`/run/splash.stop` exists; wire it up).
 - [ ] **Volume buttons**: map to the mixer (Line Out / DAC volume), show an OSD.
-- [ ] PWM backlight driver (H616 PWM not in mainline): brightness control
-      instead of GPIO on/off.
+- [x] PWM backlight: H616 PWM driver from the upstream v4 series (patches
+      0018-0021), pwm-backlight 0..255, default 160. Verified 255/15/0/128.
+- [ ] Brightness control in the UI (and remember it on /data).
 - [ ] Panel waits: tuned to 5/1/5/25/25/0 ms; re-verify on a cold device.
 - [ ] Check for horizontal ghosting on the panel (looked fine by eye).
 

@@ -1,0 +1,61 @@
+From 5c75521eee30dbb3cd64c9976cfc04fcf63542df Mon Sep 17 00:00:00 2001
+From: Richard Genoud <richard.genoud@bootlin.com>
+Date: Sat, 21 Nov 2026 12:56:28 +0100
+Subject: [PATCH 18/21] dt-bindings: pwm: allwinner: add h616 pwm compatible
+
+From the v4 series 'Introduce Allwinner H616 PWM controller' (LKML, 2026-03-05).
+---
+ .../bindings/pwm/allwinner,sun4i-a10-pwm.yaml | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/pwm/allwinner,sun4i-a10-pwm.yaml b/Documentation/devicetree/bindings/pwm/allwinner,sun4i-a10-pwm.yaml
+index 1197858e4..4f58110ec 100644
+--- a/Documentation/devicetree/bindings/pwm/allwinner,sun4i-a10-pwm.yaml
++++ b/Documentation/devicetree/bindings/pwm/allwinner,sun4i-a10-pwm.yaml
+@@ -14,6 +14,9 @@ properties:
+   "#pwm-cells":
+     const: 3
+ 
++  "#clock-cells":
++    const: 1
++
+   compatible:
+     oneOf:
+       - const: allwinner,sun4i-a10-pwm
+@@ -36,6 +39,7 @@ properties:
+           - const: allwinner,sun50i-h5-pwm
+           - const: allwinner,sun5i-a13-pwm
+       - const: allwinner,sun50i-h6-pwm
++      - const: allwinner,sun50i-h616-pwm
+ 
+   reg:
+     maxItems: 1
+@@ -62,7 +66,9 @@ allOf:
+       properties:
+         compatible:
+           contains:
+-            const: allwinner,sun50i-h6-pwm
++            enum:
++              - allwinner,sun50i-h6-pwm
++              - allwinner,sun50i-h616-pwm
+ 
+     then:
+       properties:
+@@ -83,6 +89,17 @@ allOf:
+         clocks:
+           maxItems: 1
+ 
++  - if:
++      not:
++        properties:
++          compatible:
++            contains:
++              const: allwinner,sun50i-h616-pwm
++
++    then:
++      properties:
++        "#clock-cells": false
++
+ required:
+   - compatible
+   - reg

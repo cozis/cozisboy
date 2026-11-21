@@ -61,12 +61,28 @@ static void sysfs_write(const char *path, const char *val)
 	close(fd);
 }
 
-// The backlight starts powered off (no default-on in the device tree). Its
-// power state gates it independently of brightness, so set both.
+// The backlight starts powered off. Power it on at its default level (PWM
+// backlight: default-brightness-level from the device tree); if no level is
+// set (brightness 0), use the maximum.
 static void backlight_on(void)
 {
+	char buf[16] = "";
+	int fd = open(BACKLIGHT_DIR "brightness", O_RDONLY | O_CLOEXEC);
+	if (fd >= 0) {
+		if (read(fd, buf, sizeof buf - 1) < 0)
+			buf[0] = 0;
+		close(fd);
+	}
+	if (atoi(buf) == 0) {
+		fd = open(BACKLIGHT_DIR "max_brightness", O_RDONLY | O_CLOEXEC);
+		if (fd >= 0) {
+			ssize_t n = read(fd, buf, sizeof buf - 1);
+			buf[n > 0 ? n : 0] = 0;
+			close(fd);
+			sysfs_write(BACKLIGHT_DIR "brightness", buf);
+		}
+	}
 	sysfs_write(BACKLIGHT_DIR "bl_power", "0");
-	sysfs_write(BACKLIGHT_DIR "brightness", "1");
 }
 
 // Start the boot jingle in its own process (fire and forget).
