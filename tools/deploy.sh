@@ -14,6 +14,10 @@ WHAT="${1:-all}"
 
 case "$WHAT" in kernel|rootfs|uboot|all) ;; *) echo "usage: $0 [kernel|rootfs|uboot|all]" >&2; exit 2;; esac
 
+# The root filesystem is read-only at runtime; make it writable for the update.
+ssh "$HOST" 'mount -o remount,rw /'
+trap 'ssh "$HOST" "sync; mount -o remount,ro / 2>/dev/null" || true' EXIT
+
 if [ "$WHAT" = rootfs ] || [ "$WHAT" = all ]; then
 	echo ">>> rootfs"
 	tar -C "$OUT/target" --exclude=./boot --exclude=./dev --exclude=./proc \
@@ -35,6 +39,8 @@ if [ "$WHAT" = uboot ]; then
 fi
 ssh "$HOST" sync
 if [ -z "$NOREBOOT" ]; then
+	trap - EXIT
+	ssh "$HOST" 'mount -o remount,ro /' || true
 	echo ">>> reboot"
 	ssh "$HOST" 'reboot' || true
 fi

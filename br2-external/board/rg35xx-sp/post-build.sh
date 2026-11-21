@@ -14,6 +14,10 @@ sed "s/%PARTUUID%/$PARTUUID/g" "$BOARD_DIR/genimage.cfg" > "$BINARIES_DIR/genima
 install -m 644 "$BINARIES_DIR/Image.lz4" "$TARGET_DIR/boot/Image.lz4"
 rm -f "$TARGET_DIR/boot/Image"
 
+# Not needed on the handheld, and each one costs boot time
+rm -f "$TARGET_DIR"/etc/init.d/S01seedrng "$TARGET_DIR"/etc/init.d/S01syslogd \
+	"$TARGET_DIR"/etc/init.d/S02klogd "$TARGET_DIR"/etc/init.d/S50crond
+
 # SSH key login only
 chmod 700 "$TARGET_DIR/root" "$TARGET_DIR/root/.ssh"
 chmod 600 "$TARGET_DIR/root/.ssh/authorized_keys"

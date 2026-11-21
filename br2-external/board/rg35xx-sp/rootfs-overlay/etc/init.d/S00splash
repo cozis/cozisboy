@@ -1,6 +1,0 @@
-#!/bin/sh
-# Start the boot splash first thing; it runs in the background and follows
-# /run/splash.progress (written by rcS) until the UI takes over.
-[ "$1" = start ] || exit 0
-rm -f /run/splash.progress /run/splash.stop
-/usr/bin/cozisboy-splash 2>/dev/null &

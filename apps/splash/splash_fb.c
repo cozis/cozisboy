@@ -16,6 +16,10 @@
 //
 // The boot jingle (apps/common/sfx, SFX_BOOT) plays on an audio thread with the
 // same t=0 as the animation. No sound card yet -> silently no sound.
+//
+// Started as PID 1 (kernel init=/sbin/preinit, a link to this binary, statically
+// linked so a cold start reads one file), it mounts /sys and /run, forks, hands
+// PID 1 to busybox init in the parent and keeps animating in the child.
 
 #include "sfx.h"
 #include "splash_anim.h"
@@ -34,6 +38,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <time.h>
+#include <sys/mount.h>
 #include <unistd.h>
 
 #ifndef FBIO_WAITFORVSYNC
@@ -173,10 +178,40 @@ static void console_graphics(int on)
 	close(fd);
 }
 
+// As PID 1: mount what the splash needs, then let busybox init take over PID 1
+// while the splash continues in a child process.
+static void preinit(char **argv)
+{
+	mount("sysfs", "/sys", "sysfs", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
+	mount("tmpfs", "/run", "tmpfs", MS_NOSUID | MS_NODEV, "mode=0755");
+	pid_t pid = fork();
+	if (pid != 0) {	// parent (or fork failed): become the real init
+		argv[0] = "init";
+		execv("/sbin/init", argv);
+		_exit(1);
+	}
+	setsid();
+	int log = open("/run/splash.log", O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+	if (log >= 0) {
+		dup2(log, 2);
+		close(log);
+	}
+}
+
 int main(int argc, char **argv)
 {
-	float timeout = argc > 1 ? strtof(argv[1], NULL) : 20.0f;
+	int as_init = getpid() == 1;
+	if (as_init)
+		preinit(argv);
+	float timeout = !as_init && argc > 1 ? strtof(argv[1], NULL) : 20.0f;
 	double t0 = now();
+	// Boot-time accounting: arch counter runs from SoC reset at CNTFRQ.
+	uint64_t cnt, frq;
+	__asm__ volatile("isb; mrs %0, cntvct_el0" : "=r"(cnt));
+	__asm__ volatile("mrs %0, cntfrq_el0" : "=r"(frq));
+	struct timespec bt;
+	clock_gettime(CLOCK_BOOTTIME, &bt);
+	double t0_reset = (double)cnt / frq, t0_boot = bt.tv_sec + bt.tv_nsec / 1e9;
 
 	signal(SIGTERM, on_signal);
 	signal(SIGINT, on_signal);
@@ -254,6 +289,8 @@ int main(int argc, char **argv)
 	// the next program takes over the display without a flash.
 	fprintf(stderr, "splash: %d frames, first after %.1f ms, ran %.2f s\n",
 		frames, first_frame * 1000, now() - t0);
+	fprintf(stderr, "splash: started %.3f s after reset (%.3f s after kernel), first frame %.3f s after reset\n",
+		t0_reset, t0_boot, t0_reset + first_frame);
 	munmap(fbmem, size);
 	close(fb);
 	return 0;
