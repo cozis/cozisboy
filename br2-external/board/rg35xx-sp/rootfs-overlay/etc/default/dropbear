@@ -1,1 +1,9 @@
-DROPBEAR_ARGS="-s"   # key-only: disable password logins
+# Sourced by /etc/init.d/S50dropbear. Switches set from the launcher's Settings:
+#   /data/ssh-off              SSH server off
+#   /data/ssh-password-login   allow password logins (default: keys only)
+[ -f /data/ssh-off ] && [ "$1" = start ] && exit 0
+if [ -f /data/ssh-password-login ]; then
+	DROPBEAR_ARGS=""
+else
+	DROPBEAR_ARGS="-s"   # key-only: disable password logins
+fi

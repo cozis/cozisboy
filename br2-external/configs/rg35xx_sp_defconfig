@@ -90,6 +90,8 @@ BR2_PACKAGE_TINYALSA=y
 BR2_PACKAGE_TINYALSA_TOOLS=y
 BR2_PACKAGE_COZISBOY_SPLASH=y
 BR2_PACKAGE_COZISBOY_WEB=y
+BR2_PACKAGE_MGBA=y
+BR2_PACKAGE_COZISBOY_UI=y
 # HTTPS client for the web app's Homebrew Hub relay (OpenSSL is already there
 # for SSH), with the CA bundle for certificate checks
 BR2_PACKAGE_LIBCURL=y

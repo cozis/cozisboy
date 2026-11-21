@@ -1,2 +1,4 @@
 source "$BR2_EXTERNAL_AMBERNIC_PATH/package/cozisboy-splash/Config.in"
 source "$BR2_EXTERNAL_AMBERNIC_PATH/package/cozisboy-web/Config.in"
+source "$BR2_EXTERNAL_AMBERNIC_PATH/package/mgba/Config.in"
+source "$BR2_EXTERNAL_AMBERNIC_PATH/package/cozisboy-ui/Config.in"

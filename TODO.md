@@ -49,9 +49,17 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
 
 ## Display / splash / UI
 
-- [ ] **Device runner for the launcher UI** (`apps/ui`): DRM/fbdev output,
-      evdev buttons -> `BTN_*`, ALSA sound (alsa-lib, not tinyalsa), started
-      when the splash ends; splash leaves its last frame for a flash-free handoff.
+- [x] Launcher on the device: apps/ui/host_dev.c (fbdev + vsync, evdev
+      buttons, ALSA thread, volume keys, power/lid -> sleep), sys_dev.c (real
+      Wi-Fi via wpa_supplicant, SSH switches), libmgba 0.10.5 package,
+      respawned from inittab (cozisboy-ui-start).
+- [ ] Launcher reads the game library directly (today: cozisboy-ui-start
+      links /data/library/gba into a ROM folder + saves folder).
+- [ ] Launcher uses ~80% of one core in menus (full 640x480 software redraw at
+      60 fps): redraw only on change / lower fps when idle.
+- [ ] Covers in the launcher (library PNG -> the UI's PPM thumbs).
+- [ ] Root password for SSH (needs /etc/shadow on /data).
+- [ ] Time zone (clock shows UTC).
 - [ ] Splash -> UI handoff protocol (`/run/splash.stop` exists; wire it up).
 - [ ] **Volume buttons**: map to the mixer (Line Out / DAC volume), show an OSD.
 - [x] PWM backlight: H616 PWM driver from the upstream v4 series (patches

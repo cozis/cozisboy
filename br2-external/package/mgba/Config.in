@@ -1,0 +1,9 @@
+config BR2_PACKAGE_MGBA
+	bool "mgba"
+	depends on BR2_INSTALL_LIBSTDCPP # cmake checks for a C++ compiler
+	help
+	  mGBA Game Boy / Game Boy Advance emulator, built as a library
+	  (libmgba) for the cozisboy launcher: no frontends, no GL, no
+	  scripting.
+
+	  https://mgba.io

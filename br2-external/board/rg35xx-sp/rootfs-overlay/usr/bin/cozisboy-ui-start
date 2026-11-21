@@ -1,0 +1,24 @@
+#!/bin/sh
+# Start the launcher (from inittab, respawned if it exits).
+#
+# Bridge until the launcher reads the game library (apps/common/library.h): it
+# scans a folder of <name>.gba files and keeps <name>.sav in a saves folder, so
+# both are links into the library. mGBA opens the save with O_CREAT through
+# the link, so a new save is created in the library, where the web app sees it.
+LIB=/data/library/gba
+ROMS=/data/ui/roms
+SAVES=/data/ui/saves
+mkdir -p "$ROMS" "$SAVES" /data/ui/thumbs
+for l in "$ROMS"/* "$SAVES"/*.sav; do
+	[ -L "$l" ] && rm -f "$l"
+done
+for d in "$LIB"/*/; do
+	[ -f "$d/rom.gba" ] || continue
+	name=${d%/}
+	name=${name##*/}
+	ln -s "$d/rom.gba" "$ROMS/$name.gba"
+	[ -e "$SAVES/$name.sav" ] || ln -s "$d/save.sav" "$SAVES/$name.sav"
+done
+
+export COZ_ROMS="$ROMS" COZ_SAVES="$SAVES" COZ_THUMBS=/data/ui/thumbs
+exec /usr/bin/cozisboy-ui 2>>/run/cozisboy-ui.log

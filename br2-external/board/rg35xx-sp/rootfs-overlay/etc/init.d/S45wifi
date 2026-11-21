@@ -5,6 +5,7 @@ CONF=/data/wifi/wpa_supplicant.conf
 export CONF
 
 start() {
+	[ -f /data/wifi/off ] && return 0	# switched off in Settings
 	[ -f $CONF ] || return 0
 	# setsid: survive the hangup when started from an ssh -t session
 	setsid sh -c '

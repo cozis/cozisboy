@@ -1,0 +1,8 @@
+config BR2_PACKAGE_COZISBOY_UI
+	bool "cozisboy-ui"
+	select BR2_PACKAGE_ALSA_LIB
+	select BR2_PACKAGE_MGBA
+	depends on BR2_INSTALL_LIBSTDCPP # mgba
+	help
+	  cozisboy launcher (apps/ui) with its device front end: framebuffer,
+	  evdev buttons, ALSA sound, mGBA for games.
