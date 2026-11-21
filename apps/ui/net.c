@@ -493,41 +493,40 @@ static void draw_lock(canvas *c, int x, int y, uint32_t col)
 	fill(c, x, y + 5, 10, 8, col);
 }
 
-static void draw_net_row(canvas *c, const row_t *r, int x, int w, int y, int rh, int sel,
-			 uint32_t ink)
+// One network: a kit row with signal bars, the name, its state and a lock.
+static void draw_net_row(canvas *c, const row_t *r, int y, int sel, uint32_t col)
 {
 	const char *cur_ssid;
 	int st = sys_wifi_status(&cur_ssid, NULL);
 	const net_t *n = &nets[r->id];
-	int mid = y + (rh - 6) / 2, ty = mid - 7, xr = x + w - 14;
-	uint32_t tc = sel ? ink : 0xdddddd;
-	draw_bars(c, x + 14, mid - 8, n->bars, sel ? ink : WHITE);
-	text(c, x + 46, ty, n->ssid, 2, tc);
+	uint32_t ink = ui_row(c, y, "", sel, col);
+	int mid = y + (UI_ROW - 6) / 2, xr = W - UI_MX - 16;
+	draw_bars(c, UI_MX + 16, mid - 9, n->bars, sel ? ink : WHITE);
 	int connected = st == WIFI_CONNECTED && !strcmp(cur_ssid, n->ssid);
 	int connecting = st == WIFI_CONNECTING && !strcmp(cur_ssid, n->ssid);
 	const char *tag = connected ? "CONNECTED" : connecting ? "..." : n->saved ? "SAVED" : "";
-	int lx = xr - 10;
 	if (n->secure)
-		draw_lock(c, lx, mid - 7, sel ? ink : GREY);
-	text(c, lx - 10 - text_width(tag, 2), ty, tag, 2, sel ? ink : connected ? PAL[3] : GREY);
+		draw_lock(c, xr - 10, mid - 7, sel ? ink : GREY), xr -= 22;
+	if (*tag)
+		text(c, xr - text_width(tag, 2), mid - 7, tag, 2, sel ? ink : connected ? PAL[3] : GREY),
+		    xr -= text_width(tag, 2) + 16;
+	// the name, smaller if it would run into the tag
+	int nx = UI_MX + 50, ns = UI_TS;
+	while (ns > 1 && nx + text_width(n->ssid, ns) > xr)
+		ns--;
+	text(c, nx, mid - 7 * ns / 2, n->ssid, ns, sel ? ink : 0xdddddd);
 }
 
-// Wi-Fi page: a status card (switch + connection) above a separate network list.
+// Wi-Fi page: the switch and the connection, then the networks.
 static void draw_wifi(canvas *c)
 {
-	uint32_t col = PAL[APP_WIFI], ink = wink(col, W_NORMAL);
-	draw_header(c, APP_WIFI, "WI-FI");
+	uint32_t col = PAL[APP_WIFI];
+	int y = ui_page_header(c, APP_WIFI, "WI-FI", NULL);
 	const char *ssid, *ip;
 	int st = sys_wifi_status(&ssid, &ip), on = sys_wifi_enabled();
 
-	// status card
-	const int cx = 20, cy = 126, cw = W - 40, ch = 72;
-	rrect(c, cx, cy, cw, ch, 6, 0x1c1c1c);
-	int sel0 = N.sel == 0;
-	if (sel0)
-		wbox(c, cx + 6, cy + 6, cw - 12, 30, col, W_NORMAL);
-	text(c, cx + 18, cy + 14, "WI-FI", 2, sel0 ? ink : 0xdddddd);
-	draw_toggle(c, cx + cw - 18, cy + 21, on, sel0);
+	ui_row(c, y, "WI-FI", N.sel == 0, col);
+	ui_row_toggle(c, y, on, N.sel == 0);
 	char line[80];
 	uint32_t sc = GREY;
 	switch (st) {
@@ -537,46 +536,43 @@ static void draw_wifi(canvas *c)
 	case WIFI_DISCONNECTED: snprintf(line, sizeof line, "NOT CONNECTED"); break;
 	default: snprintf(line, sizeof line, "WI-FI IS OFF");
 	}
-	fill(c, cx + 20, cy + 49, 8, 8, sc);
-	text(c, cx + 36, cy + 46, line, 2, sc == GREY ? GREY : WHITE);
+	int sy = y + UI_ROW + 4, ls = UI_TS;
+	int room = W - 2 * UI_MX - 44 - (st == WIFI_CONNECTED ? text_width(ip, 2) + 16 : 0);
+	while (ls > 1 && text_width(line, ls) > room)
+		ls--;
+	fill(c, UI_MX + 16, sy + 7, 10, 10, sc);
+	text(c, UI_MX + 34, sy + (UI_TS - ls) * 7 / 2 + 2, line, ls, sc == GREY ? GREY : WHITE);
 	if (st == WIFI_CONNECTED)
-		text(c, cx + cw - 18 - text_width(ip, 2), cy + 46, ip, 2, GREY);
+		text(c, W - UI_MX - 16 - text_width(ip, 2), sy + 6, ip, 2, GREY);
 
-	// section header
-	const int hy = 214;
-	text(c, 24, hy, "NETWORKS", 2, GREY);
-	int lx = 24 + text_width("NETWORKS", 2) + 12, rx = W - 24;
+	// networks
+	int top = ui_section(c, sy + UI_INFO, "NETWORKS");
 	if (on && sys_wifi_scanning()) {
 		static const char *const dots[4] = {"SCANNING", "SCANNING.", "SCANNING..", "SCANNING..."};
 		const char *sl = dots[(int)(ui_time() * 4) % 4];
-		text(c, rx - text_width("SCANNING...", 2), hy, sl, 2, PAL[2]);
-		rx -= text_width("SCANNING...", 2) + 12;
+		int sx = W - UI_MX - text_width("SCANNING...", 2);
+		fill(c, sx - 10, top - 30 + 6, W - UI_MX - sx + 10, 18, BG0);
+		text(c, sx, top - 30 + 8, sl, 2, PAL[2]);
 	}
-	fill(c, lx, hy + 6, rx - lx, 2, 0x2a2a2a);
-
-	// network list
-	const int top = 238, rh = 36, x = 20, w = W - 40, vis = 5;
 	if (!on || nrows <= 1) {
 		const char *m = !on ? "TURN ON WI-FI TO SEE NETWORKS"
 			      : sys_wifi_scanning() ? "LOOKING FOR NETWORKS..." : "NO NETWORKS FOUND";
-		text(c, (W - text_width(m, 2)) / 2, top + 60, m, 2, 0x666666);
+		text(c, (W - text_width(m, UI_TS)) / 2, top + 50, m, UI_TS, 0x666666);
 		return;
 	}
+	const int vis = (H - 44 - top) / UI_ROW;
 	int li = N.sel - 1; // list index of the selection (-1: the switch)
 	if (li >= 0 && li - N.scroll > vis - 1)
 		N.scroll = (float)(li - vis + 1);
 	if (li >= 0 && li < N.scroll)
 		N.scroll = (float)li;
-	if (li >= 0) {
-		float yy = N.sel_y - 1 < 0 ? 0 : N.sel_y - 1;
-		wbox(c, x, top + (int)lrintf((yy - N.scroll) * rh), w, rh - 6, col, W_NORMAL);
-	}
 	for (int i = (int)N.scroll; i < nrows - 1 && i < (int)N.scroll + vis; i++)
-		draw_net_row(c, &rows[i + 1], x, w, top + (i - (int)N.scroll) * rh, rh, i == li, ink);
+		draw_net_row(c, &rows[i + 1], top + (i - (int)N.scroll) * UI_ROW, i == li, col);
 	if (nrows - 1 > vis) { // scroll indicator
-		int th = 5 * rh * vis / (nrows - 1), tt = top + (int)(5 * rh * N.scroll / (nrows - 1));
-		fill(c, W - 12, top, 3, 5 * rh, 0x2a2a2a);
-		fill(c, W - 12, tt, 3, th, GREY);
+		int lh = vis * UI_ROW - 6;
+		int th = lh * vis / (nrows - 1), tt = top + (int)(lh * N.scroll / (nrows - 1));
+		fill(c, W - 8, top, 3, lh, 0x2a2a2a);
+		fill(c, W - 8, tt, 3, th, GREY);
 	}
 }
 
