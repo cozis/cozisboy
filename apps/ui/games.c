@@ -1438,6 +1438,8 @@ static void game_update(unsigned p, unsigned held, float dt)
 				in->boot -= steps, in->fade = 0;
 			} else {
 				in->boot = 0;
+				if (ui_transitioning())
+					in->fade = 1; // the transition reveals it already
 			}
 		} else if (in->fade < 1) {
 			in->fade += dt * 4;
@@ -2935,4 +2937,9 @@ void games_prefs_apply(void)
 	G.screen_mode = av_items[AV_SCREEN].val;
 	G.filter = av_items[AV_FILTER].val;
 	emu_set_color_fix(av_items[AV_COLOR].val);
+}
+
+int games_starting(void)
+{
+	return cur >= 0 && cur < nrun && run[cur].boot > 0;
 }

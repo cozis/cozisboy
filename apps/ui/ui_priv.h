@@ -53,6 +53,8 @@ void draw_background(canvas *c);
 void draw_tile(canvas *c, int app, int x, int y, int size, int scale, int dim);
 void draw_header(canvas *c, int app, const char *title);
 void ui_page_anim(int back); // animate a page change just made (Look > TRANSITION)
+int ui_transitioning(void);  // a transition is running
+int games_starting(void);    // the game on screen is still booting (blank screen)
 
 /* ---- saved settings: <saves>/settings, "key=value" lines ---- */
 typedef struct {

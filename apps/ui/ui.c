@@ -479,7 +479,7 @@ static item_t look_items[] = {
 	{"GAMES LAYOUT", IT_CHOICE, 1, 3, HUB_STYLES, NULL, NULL}, // COVERS, picked 2026-11-21
 	{"CONTROL CENTER", IT_CHOICE, 0, 3, CC_STYLES, NULL, NULL},
 	{"WIDGET STYLE", IT_CHOICE, 0, 4, W_STYLES, NULL, NULL},
-	{"TRANSITION", IT_CHOICE, 0, NTR, T_STYLES, NULL, NULL},
+	{"TRANSITION", IT_CHOICE, TR_CROSSFADE, NTR, T_STYLES, NULL, NULL}, // picked 2026-11-21
 };
 static item_t power_items[] = {
 	{"SLEEP", IT_ACTION, 0, 0, NULL, "DEMO: WOULD SLEEP NOW", NULL},
@@ -513,6 +513,7 @@ static struct {
 	int trans_x, trans_y;
 	int trans_style, trans_back, snap_pending; // snapshot: copy the old frame next draw
 	int trans_page; // a page change inside the same screen (already done: the old page is the snapshot)
+	float trans_hold; // time spent holding the old screen while a game boots
 	// toast message
 	const char *toast;
 	float toast_t;
@@ -616,6 +617,11 @@ void ui_init(void)
 	emu_set_volume(settings_items[SET_VOLUME].val / 10.0f);
 	games_set_style(look_items[SET_HUB].val, look_items[SET_CC].val);
 	prefs_load();
+}
+
+int ui_transitioning(void)
+{
+	return S.trans != 0;
 }
 
 float ui_time(void)
@@ -723,6 +729,7 @@ void go(int to, uint32_t col, int x, int y)
 {
 	S.trans = 1;
 	S.trans_t = 0;
+	S.trans_hold = 0;
 	S.trans_style = look_items[SET_TRANS].val;
 	S.trans_back = to == SCR_HOME;
 	S.trans_to = to;
@@ -916,6 +923,15 @@ static void update(unsigned p, unsigned held, float dt)
 		S.toast = NULL;
 
 	if (S.trans) {
+		// Opening a game: it boots during the transition, and the old screen
+		// stays until it draws its first picture (at most 1.2 s).
+		int to_game = !S.trans_page && S.trans_to == SCR_GAME;
+		if (to_game)
+			games_update(SCR_GAME, 0, 0, dt);
+		if (S.trans == 2 && to_game && games_starting() && S.trans_hold < 1.2f) {
+			S.trans_hold += dt;
+			return;
+		}
 		S.trans_t += dt;
 		if (S.trans == 1 && S.trans_t >= TR_TIME[S.trans_style][0]) {
 			if (!S.trans_page) {
