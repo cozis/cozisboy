@@ -403,10 +403,12 @@ footer a { cursor: pointer; text-decoration: underline; }
 
 
 /* ======================================================== add games popup */
-.modal-bg { position: fixed; inset: 0; z-index: 25; background: rgba(6,6,10,.62); backdrop-filter: blur(6px) saturate(.8); display: grid; place-items: center; animation: fadein .15s ease-out; }
+.modal-bg { position: fixed; inset: 0; z-index: 25; background: rgba(6,6,10,.62); backdrop-filter: blur(6px) saturate(.8); display: grid; place-items: center; }
+.modal-bg.anim { animation: fadein .15s ease-out; }
 @keyframes fadein { from { opacity: 0; } }
 @keyframes popin { from { transform: translateY(14px) scale(.98); opacity: 0; } }
-.modal { width: min(1120px, 94vw); height: min(760px, 88vh); background: #131316; border: 4px solid #000; box-shadow: 0 0 0 3px #2c2c32, 12px 12px 0 rgba(0,0,0,.7); display: grid; grid-template-columns: 260px 1fr; grid-template-rows: auto 1fr; animation: popin .18s ease-out; overflow: hidden; }
+.modal { width: min(1120px, 94vw); height: min(760px, 88vh); background: #131316; border: 4px solid #000; box-shadow: 0 0 0 3px #2c2c32, 12px 12px 0 rgba(0,0,0,.7); display: grid; grid-template-columns: 260px 1fr; grid-template-rows: auto 1fr; overflow: hidden; }
+.modal.anim { animation: popin .18s ease-out; }
 .modal .mh { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 18px 22px; border-bottom: 3px solid #000; background: #18181c; }
 .modal .mh .x { margin-left: auto; background: #2a2a2e; border: 0; cursor: pointer; padding: 8px 12px; }
 .modal .side { border-right: 3px solid #000; padding: 14px 0; background: #101013; overflow-y: auto; }
@@ -454,7 +456,8 @@ footer a { cursor: pointer; text-decoration: underline; }
 
 
 /* ======================================================== structured shell (no glows, no blur) */
-.shell { display: grid; grid-template-columns: 250px 1fr; grid-template-rows: 64px 1fr; height: 100vh; background: #101012; color: #fff; }
+.shell { display: grid; grid-template-columns: 250px 1fr; grid-template-rows: 64px 1fr; max-width: 1280px; height: calc(100vh - 48px); margin: 24px auto; border: 2px solid #26262b; background: #101012; color: #fff; overflow: hidden; }
+.wrap.full { background: #0b0b0d; min-height: 100vh; padding: 0 24px; }
 .shell .hd { grid-column: 1 / -1; display: flex; align-items: center; gap: 18px; padding: 0 24px; background: #17171a; border-bottom: 2px solid #26262b; }
 .shell .hd .logo { height: 30px; cursor: pointer; }
 .shell .hd .grow { flex: 1; }
@@ -484,7 +487,8 @@ footer a { cursor: pointer; text-decoration: underline; }
 .shell .empty { color: #77777f; padding: 40px 0; }
 .modal-bg.solid { backdrop-filter: none; background: rgba(8,8,10,.78); }
 @media (max-width: 800px) {
-	.shell { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; }
+	.shell { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; margin: 0 auto; height: 100vh; border: 0; }
+	.wrap.full { padding: 0; }
 	.shell .snav { flex-direction: row; overflow-x: auto; padding: 0; border-right: 0; border-bottom: 2px solid #26262b; }
 	.shell .snav .lbl, .shell .snav .spacer, .shell .snav .meter { display: none; }
 	.shell .snav button { width: auto; white-space: nowrap; border-left: 0; border-bottom: 4px solid transparent; }
@@ -513,6 +517,8 @@ footer a { cursor: pointer; text-decoration: underline; }
 </head>
 <body>
 <div class="wrap" id="root"></div>
+<div id="layer"></div>
+<div id="trayc"></div>
 <div id="switch">
 	<span>style</span>
 	<button data-s="launcher">A · Launcher</button>
@@ -1042,7 +1048,7 @@ function navHTML() {
 function go(v) { view = v; cvStates = false; render(); scrollTo(0, 0); }
 function trayHTML() {
 	if (!uploads.length) return "";
-	return `<div class="tray notch"><div style="display:flex;justify-content:space-between">${PX("Adding " + uploads.length, 2, "shadow")}<a style="cursor:pointer;color:#888" onclick="uploads=[];render()">✕</a></div>` +
+	return `<div class="tray notch"><div style="display:flex;justify-content:space-between">${PX("Adding " + uploads.length, 2, "shadow")}<a style="cursor:pointer;color:#888" onclick="uploads=[];renderTray()">✕</a></div>` +
 		uploads.map(u => `<div class="row"><span>${esc(u.name)}</span><span>${u.p >= 1 ? "added" : Math.round(u.p * 100) + "%"}</span></div>
 			<div class="segs" style="--c:${u.p >= 1 ? "var(--green)" : "var(--yellow)"}">${Array.from({ length: 8 }, (_, i) => `<i class="${u.p * 8 > i ? "on" : ""}"></i>`).join("")}</div>`).join("") + `</div>`;
 }
@@ -1050,19 +1056,20 @@ function fakeUpload(names) {	// mock: progress, then the games appear
 	const now = performance.now();
 	names.forEach((n, i) => uploads.push({ name: n, p: 0, t0: now + i * 500 }));
 	const tick = () => {
-		let live = false;
+		let live = false, added = false;
 		for (const u of uploads) {
 			const p = Math.max(0, Math.min(1, (performance.now() - u.t0) / 1400));
 			if (u.p < 1 && p >= 1) {
 				const title = u.name.replace(/\.(gba|gbc|gb|zip)$/i, "").replace(/ \(.*$/, "");
-				MOCK_GAMES.push({ id: "u" + Math.random(), sys: /gbc$/i.test(u.name) ? "gbc" : /gb$/i.test(u.name) ? "gb" : "gba", name: u.name, title, region: "", cover: null, rom_size: 4 << 20, added: MOCK_NOW, save: null, states: [] });
+				added = true;
+				MOCK_GAMES.push({ id: "u" + Math.random(), sys: /gbc$/i.test(u.name) ? "gbc" : /gb$/i.test(u.name) ? "gb" : "gba", name: u.name.replace(/\.(gba|gbc|gb|zip)$/i, ""), title, region: "", cover: null, rom_size: 4 << 20, added: MOCK_NOW, save: null, states: [] });
 			}
 			u.p = p; if (p < 1) live = true;
 		}
-		render();
-		if (live) requestAnimationFrame(tick); else setTimeout(() => { uploads = []; render(); }, 2500);
+		if (added) render(); else renderTray();	// the grid only changes when a game lands
+		if (live) setTimeout(tick, 33); else setTimeout(() => { uploads = []; renderTray(); }, 2500);
 	};
-	requestAnimationFrame(tick);
+	setTimeout(tick, 33);	// a timer, not animation frames: those stop in background tabs
 }
 
 function gridItem(it, kind, i) {
@@ -1091,7 +1098,10 @@ function gridItem(it, kind, i) {
 }
 function focusGame(id) { shelf = "mine"; cvSel.mine = cvItems().findIndex(x => x.id === id); view = "focus"; render(); }
 function hhFocus(i) { shelf = "get"; cvSel.get = i; view = "focus"; render(); }
-function hhInstall(slug) { const e = MOCK_HH.find(x => x.slug === slug); fakeUpload([e.title + "." + e.platform.toLowerCase()]); }
+function hhInstall(slug) {
+	const e = MOCK_HH.find(x => x.slug === slug);
+	fakeUpload([e.title + "." + e.platform.toLowerCase()]);
+}
 
 let libFilter = "all";	// all | recent | gba | gbc | gb
 function pageAll() {
@@ -1143,7 +1153,6 @@ function pageAll() {
 				<div class="grow"></div><button class="pb go" onclick="openAdd()">${PX("+ Add games", 2)}</button></div>
 			<div class="ct">${body || `<p class="empty">No game here yet.</p>`}</div>
 		</section>
-		${trayHTML()}${addPopup()}
 	</div>`;
 }
 
@@ -1183,44 +1192,73 @@ function pageSrc(k) {
 
 // ---------------------------------------------------------------- add games popup (over My games)
 let addOpen = false, addSrc = "pc", hhPick = null;
-function openAdd(src) { addOpen = true; if (src) addSrc = src; hhPick = null; render(); }
-function closeAdd() { addOpen = false; render(); }
-function addPopup() {
-	if (!addOpen) return "";
-	const SIDES = [["pc", "Your computer", "Drop or pick files"], ["hh", "Homebrew Hub", "Free homebrew · gbdev"], ["itch", "itch.io", "Indie Game Boy games"], ["link", "From a link", "Paste a URL"]];
-	const side = SIDES.map(([k, n, l]) => `<button class="${addSrc === k ? "on" : ""}" style="--c:var(${SRC[k].col})" onclick="addSrc='${k}';hhPick=null;render()">
-		<span class="ic notch">${PX(n[0], 3, "arcade", "#ffffff")}</span><span>${PX(n, 2, "shadow", addSrc === k ? "#ffffff" : "#bbbbbb")}<small>${esc(l)}</small></span></button>`).join("");
-	let body;
-	if (addSrc === "pc") {
-		body = `<div class="dropzone notch">${PX("Drop files here", 4, "arcade", "#ffffff")}
+let hq = "";	// popup search (Homebrew Hub), separate from the page's search
+function openAdd(src) { addOpen = true; if (src) addSrc = src; hhPick = null; renderPopup(true); }
+function closeAdd() { addOpen = false; renderPopup(); }
+function setSrc(k) { addSrc = k; hhPick = null; renderPopup(); }
+function pickHH(i) { hhPick = i; renderPopup(); $("layer").querySelector(".body").scrollTop = 0; }
+const SIDES = [["pc", "Your computer", "Drop or pick files"], ["hh", "Homebrew Hub", "Free homebrew · gbdev"], ["itch", "itch.io", "Indie Game Boy games"], ["link", "From a link", "Paste a URL"]];
+function popupSide() {
+	return SIDES.map(([k, n, l]) => `<button class="${addSrc === k ? "on" : ""}" style="--c:var(${SRC[k].col})" onclick="setSrc('${k}')">
+		<span class="ic">${PX(n[0], 3, "plain", "#000000")}</span><span>${PX(n, 2, "plain", addSrc === k ? "#ffffff" : "#bbbbbb")}<small>${esc(l)}</small></span></button>`).join("");
+}
+function hhGridHTML() {
+	const list = MOCK_HH.filter(e => (srcFilter === "ALL" || e.platform === srcFilter) && (!hq || e.title.toLowerCase().includes(hq)));
+	return list.length ? list.map(e => gridItem(e, "hh", MOCK_HH.indexOf(e)).replace(/onclick="hhFocus\((\d+)\)"/, 'onclick="pickHH($1)"')).join("")
+		: `<p class="note">No game matches.</p>`;
+}
+function popupBody() {
+	if (addSrc === "pc")
+		return `<div class="dropzone">${PX("Drop files here", 4, "plain", "#ffffff")}
 			<p>.gba  .gbc  .gb  ·  .sav saves go to the matching game  ·  .zip is unpacked for you</p>
-			<button class="pb go notch" onclick="fakeUpload(['Alien Hominid (USA).gba','Tetris DX (World).gbc'])">${PX("Choose files", 2)}</button></div>
+			<button class="pb go" onclick="fakeUpload(['Alien Hominid (USA).gba','Tetris DX (World).gbc'])">${PX("Choose files", 2)}</button></div>
 			<p class="note">Tip: you can drop files anywhere on the page, even with this window closed.</p>`;
-	} else if (addSrc === "hh" && hhPick != null) {
+	if (addSrc === "hh" && hhPick != null) {
 		const e = MOCK_HH[hhPick], have = installedNames().has(e.title);
-		body = `<button class="pb dim notch" onclick="hhPick=null;render()" style="margin-bottom:18px">${PX("< Back", 2, "plain", "#cccccc")}</button>
+		return `<button class="pb dim" onclick="hhPick=null;renderPopup()" style="margin-bottom:18px">${PX("< Back", 2, "plain", "#cccccc")}</button>
 			<div class="hhd"><div class="shots">${e.screenshots.map(f => `<img src="${esc(hhImg(e, f))}" alt="">`).join("")}</div>
-			<div>${PX(e.title, e.title.length > 20 ? 3 : 4, "arcade", pal(`--sys-${e.platform.toLowerCase()}`))}
+			<div>${PX(e.title, e.title.length > 20 ? 3 : 4, "plain", pal(`--sys-${e.platform.toLowerCase()}`))}
 				<p class="muted" style="margin:10px 0 0">${esc(e.platform)} · by ${esc(e.developer || "unknown")}${e.date ? " · " + e.date.slice(0, 4) : ""}</p>
 				<div class="desc">${esc(e.description || "No description.")}</div>
-				${have ? PX("On your console", 2, "shadow", pal("--green")) : `<button class="pb go notch" onclick="hhInstall('${e.slug}');render()">${PX("+ Install", 3)}</button>`}</div></div>`;
-	} else if (addSrc === "hh") {
-		const list = MOCK_HH.filter(e => (srcFilter === "ALL" || e.platform === srcFilter) && (!q || e.title.toLowerCase().includes(q)));
-		body = `<div class="ctl" style="margin-top:0"><input class="pxsearch notch" placeholder="Search Homebrew Hub" value="${esc(q)}" oninput="q=this.value.toLowerCase();render();this.focus();this.setSelectionRange(this.value.length,this.value.length)">
-			<div class="chips">${["ALL", "GBA", "GBC", "GB"].map(f => `<button class="chip notch ${srcFilter === f ? "on" : ""}" onclick="srcFilter='${f}';render()">${PX(f, 2, "plain", srcFilter === f ? "#000000" : "#cccccc")}</button>`).join("")}</div></div>
-			<div class="cg" style="margin-top:22px">${list.map(e => gridItem(e, "hh", MOCK_HH.indexOf(e)).replace(/onclick="hhFocus\((\d+)\)"/, 'onclick="hhPick=$1;render()"')).join("")}</div>`;
-	} else if (addSrc === "itch") {
-		body = `<p class="note" style="margin-top:0">itch.io has no download API: <b>Get on itch</b> opens the game's page in a new tab. Download it there (often a .zip), then drop the file on this page.</p>
-			<div class="cg" style="margin-top:22px">${ITCH.length ? ITCH.map(e => gridItem(e, "itch")).join("") : `<p class="note">(mock: itch.io data not loaded; it rate-limited the snapshot)</p>`}</div>`;
-	} else {
-		body = `<p class="note" style="margin-top:0">A direct link to a .gba, .gbc, .gb or .zip file. The console downloads it itself.</p>
-			<div class="linkrow"><input class="pxsearch notch" style="max-width:none" placeholder="https://example.com/my-game.gba"><button class="pb go notch" onclick="fakeUpload(['my-game.gba'])">${PX("Download", 2)}</button></div>`;
+				${have ? PX("On your console", 2, "plain", pal("--green")) : `<button class="pb go" onclick="hhInstall('${e.slug}')">${PX("+ Install", 3)}</button>`}</div></div>`;
 	}
-	return `<div class="modal-bg solid" onclick="if(event.target===this)closeAdd()"><div class="modal notch" role="dialog" aria-label="Add games">
-		<div class="mh">${PX("Add games", 4, "arcade", pal("--yellow"))}<button class="x notch" onclick="closeAdd()">${PX("ESC", 2, "plain", "#cccccc")}</button></div>
-		<nav class="side">${side}</nav><div class="body">${body}</div></div></div>`;
+	if (addSrc === "hh")
+		return `<div class="ctl" style="margin-top:0"><input class="pxsearch" id="hq" placeholder="Search Homebrew Hub" value="${esc(hq)}" oninput="hq=this.value.toLowerCase();$('hhgrid').innerHTML=hhGridHTML();renderPixelText($('hhgrid'))">
+			<div class="chips">${["ALL", "GBA", "GBC", "GB"].map(f => `<button class="chip ${srcFilter === f ? "on" : ""}" onclick="srcFilter='${f}';renderPopup()">${PX(f, 2, "plain", srcFilter === f ? "#000000" : "#cccccc")}</button>`).join("")}</div></div>
+			<div class="cg" id="hhgrid" style="margin-top:22px">${hhGridHTML()}</div>`;
+	if (addSrc === "itch")
+		return `<p class="note" style="margin-top:0">itch.io has no download API: <b>Get on itch</b> opens the game's page in a new tab. Download it there (often a .zip), then drop the file on this page.</p>
+			<div class="cg" style="margin-top:22px">${ITCH.length ? ITCH.map(e => gridItem(e, "itch")).join("") : `<p class="note">(mock: itch.io data not loaded; it rate-limited the snapshot)</p>`}</div>`;
+	return `<p class="note" style="margin-top:0">A direct link to a .gba, .gbc, .gb or .zip file. The console downloads it itself.</p>
+		<div class="linkrow"><input class="pxsearch" style="max-width:none" placeholder="https://example.com/my-game.gba"><button class="pb go" onclick="fakeUpload(['my-game.gba'])">${PX("Download", 2)}</button></div>`;
 }
-document.addEventListener("keydown", ev => { if (addOpen && ev.key === "Escape") { if (hhPick != null) { hhPick = null; render(); } else closeAdd(); } });
+// The popup lives in its own layer: updates keep its scroll position and focus,
+// and the opening animation only plays when it opens.
+function renderPopup(opening) {
+	const L = $("layer");
+	if (!addOpen || layout !== "console") { L.innerHTML = ""; return; }
+	if (!opening && L.querySelector(".modal")) {
+		const body = L.querySelector(".body"), top = body.scrollTop;
+		L.querySelector(".side").innerHTML = popupSide();
+		const focused = document.activeElement && document.activeElement.id === "hq";
+		body.innerHTML = popupBody();
+		body.scrollTop = top;
+		const i = focused && $("hq");	// the detail view has no search box
+		if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+	} else {
+		L.innerHTML = `<div class="modal-bg solid anim flat" onclick="if(event.target===this)closeAdd()"><div class="modal anim" role="dialog" aria-label="Add games">
+			<div class="mh">${PX("Add games", 4, "plain", pal("--yellow"))}<button class="x" onclick="closeAdd()">${PX("ESC", 2, "plain", "#cccccc")}</button></div>
+			<nav class="side">${popupSide()}</nav><div class="body">${popupBody()}</div></div></div>`;
+	}
+	renderPixelText(L);
+}
+function renderTray() {
+	const T = $("trayc");
+	T.innerHTML = layout === "console" ? `<div class="flat">${trayHTML()}</div>` : "";
+	renderPixelText(T);
+}
+function addPopup() { return ""; }	// (popup is rendered into #layer)
+document.addEventListener("keydown", ev => { if (addOpen && ev.key === "Escape") { if (hhPick != null) { hhPick = null; renderPopup(); } else closeAdd(); } });
 
 // ---------------------------------------------------------------- shell
 function glow(sys) { document.documentElement.style.setProperty("--glow", `var(--sys-${sys})`); }
@@ -1234,8 +1272,10 @@ function render() {
 		(m = h.match(/^#\/game\/(.+)/)) ? pageGame(m[1]) :
 		(m = h.match(/^#\/discover\/(.+)/)) ? pageHhGame(m[1]) :
 		h === "#/discover" ? pageDiscover() :
-		h === "#/pair" ? pagePair() : layout === "console" ? (view === "focus" ? pageConsole() + trayHTML() : pageAll()) : layout === "trio" ? pageTrio() : layout === "split" ? pageSplit() : pageLibrary();
+		h === "#/pair" ? pagePair() : layout === "console" ? (view === "focus" ? pageConsole() : pageAll()) : layout === "trio" ? pageTrio() : layout === "split" ? pageSplit() : pageLibrary();
 	renderPixelText($("root"));
+	renderPopup();
+	renderTray();
 	document.querySelectorAll(".pane-list").forEach((el, i) => { if (scrolls[i]) el.scrollTop = scrolls[i]; });
 	document.querySelectorAll("#switch [data-s]").forEach(b => b.classList.toggle("on", b.dataset.s === style()));
 	document.querySelectorAll("#switch [data-p]").forEach(b => b.classList.toggle("on", b.dataset.p === h.replace(/\/discover\/.+/, "/discover")));
