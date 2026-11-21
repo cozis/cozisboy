@@ -1,7 +1,7 @@
 From c0559548230212cd67a99f3fdb4f40ed94d8dc22 Mon Sep 17 00:00:00 2001
 From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
 Date: Sat, 21 Nov 2026 02:00:58 +0100
-Subject: [PATCH 15/16] drm/panel: rg35xx-sp-boe: shorter power-up waits (325
+Subject: [PATCH 15/17] drm/panel: rg35xx-sp-boe: shorter power-up waits (325
  -> 61 ms), runtime tunable
 
 Measured on hardware: clean picture at 5/1/1/20/20/0 ms, garbled below; use

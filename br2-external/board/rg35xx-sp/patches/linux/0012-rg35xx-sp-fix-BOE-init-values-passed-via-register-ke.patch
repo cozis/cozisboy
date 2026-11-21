@@ -1,7 +1,7 @@
 From 949839407b3423822873c2af38fff874c7184fa1 Mon Sep 17 00:00:00 2001
 From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
 Date: Fri, 20 Nov 2026 23:17:32 +0100
-Subject: [PATCH 12/16] rg35xx-sp: fix BOE init values passed via register;
+Subject: [PATCH 12/17] rg35xx-sp: fix BOE init values passed via register;
  keep USB PHY0 in device mode
 
 - 8 of 102 panel commands had bytes the compiler passed as 'mov w0, w19'

@@ -1,0 +1,29 @@
+From 4e5a2319404543b2b3672b941d7a1009b32b2d33 Mon Sep 17 00:00:00 2001
+From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
+Date: Sat, 21 Nov 2026 12:50:49 +0100
+Subject: [PATCH 17/17] arm64: dts: allwinner: rg35xx-sp: add the rumble motor
+ (gpio-vibrator on PH2)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HAivEfkKvP8urtyVqdwu3J
+---
+ .../boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts   | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts b/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts
+index 731bedf98..ce184842f 100644
+--- a/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts
++++ b/arch/arm64/boot/dts/allwinner/sun50i-h700-anbernic-rg35xx-sp.dts
+@@ -17,6 +17,12 @@ aliases {
+ 		mmc1 = &mmc1;
+ 	};
+ 
++	/* Rumble motor, driven on/off (stock firmware: moto_pwm_gpio = PH2) */
++	vibrator {
++		compatible = "gpio-vibrator";
++		enable-gpios = <&pio 7 2 GPIO_ACTIVE_HIGH>; /* PH2 */
++	};
++
+ 	/*
+ 	 * Off at boot and not tied to the panel: userspace (the boot splash)
+ 	 * switches it on together with its first frame, so the screen never

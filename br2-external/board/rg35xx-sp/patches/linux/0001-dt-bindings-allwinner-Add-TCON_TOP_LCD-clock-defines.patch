@@ -1,7 +1,7 @@
 From a731ba402f71fe43674d679a00e81c28ecc59556 Mon Sep 17 00:00:00 2001
 From: Ryan Walklin <ryan@testtoast.com>
 Date: Fri, 20 Nov 2026 19:11:39 +0100
-Subject: [PATCH 01/16] dt-bindings: allwinner: Add TCON_TOP_LCD clock defines
+Subject: [PATCH 01/17] dt-bindings: allwinner: Add TCON_TOP_LCD clock defines
 
 The Allwinner H700 exposes RGB and LVDS pins as well as a HDMI
 connector. This requires additional clocks for the TCON_TOP as per the

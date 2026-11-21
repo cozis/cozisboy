@@ -1,7 +1,7 @@
 From 32f3172acf5edccffcafe72c623195f69de0152b Mon Sep 17 00:00:00 2001
 From: Francesco Cozzuto <francesco.cozzuto@gmail.com>
 Date: Fri, 20 Nov 2026 22:52:49 +0100
-Subject: [PATCH 11/16] arm64: dts: allwinner: rg35xx-sp: DRAM supply 1.2 V for
+Subject: [PATCH 11/17] arm64: dts: allwinner: rg35xx-sp: DRAM supply 1.2 V for
  LPDDR3
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

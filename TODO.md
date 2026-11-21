@@ -75,7 +75,8 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
       power button, USB gadget re-attached via soft_connect.
 - [ ] Hook sleep to the power button / lid in the UI; measure s2idle drain.
 - [ ] TF2 slot (`mmc2`?) not described in the mainline device tree.
-- [ ] Rumble motor (PH2), HDMI out.
+- [x] Rumble motor: gpio-vibrator on PH2, force feedback via evdev (FF_RUMBLE).
+- [ ] HDMI out.
 
 ## System
 
