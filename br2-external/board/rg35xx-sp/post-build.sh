@@ -18,6 +18,11 @@ rm -f "$TARGET_DIR/boot/Image"
 rm -f "$TARGET_DIR"/etc/init.d/S01seedrng "$TARGET_DIR"/etc/init.d/S01syslogd \
 	"$TARGET_DIR"/etc/init.d/S02klogd "$TARGET_DIR"/etc/init.d/S50crond
 
+# SSH host keys live on the writable data partition (generated once, kept)
+rm -rf "$TARGET_DIR/etc/dropbear"
+ln -s /data/dropbear "$TARGET_DIR/etc/dropbear"
+mkdir -p "$TARGET_DIR/data"
+
 # SSH key login only
 chmod 700 "$TARGET_DIR/root" "$TARGET_DIR/root/.ssh"
 chmod 600 "$TARGET_DIR/root/.ssh/authorized_keys"

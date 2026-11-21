@@ -1,0 +1,13 @@
+#!/bin/sh
+# Writable data partition (the root filesystem is read-only): SSH host keys
+# now, settings and saves later.
+case "$1" in
+start)
+	mkdir -p /data
+	mount -t ext4 -o noatime /dev/mmcblk0p2 /data || exit 0
+	mkdir -p /data/dropbear
+	;;
+stop)
+	umount /data 2>/dev/null
+	;;
+esac

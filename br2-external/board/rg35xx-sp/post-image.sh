@@ -25,4 +25,8 @@ cp "$BOARD_DIR/fastboot/fastboot.its" "$FB/"
 cp "$FB/fastboot.itb" "$BINARIES_DIR/fastboot.itb"
 ls -l "$BINARIES_DIR/fastboot.itb"
 
+# Empty writable data partition (mounted at /data)
+rm -f "$BINARIES_DIR/data.ext4"
+"$HOST_DIR/sbin/mkfs.ext4" -q -L data -O ^metadata_csum "$BINARIES_DIR/data.ext4" 64M
+
 exec support/scripts/genimage.sh -c "$BINARIES_DIR/genimage.cfg"
