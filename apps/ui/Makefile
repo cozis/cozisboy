@@ -6,15 +6,15 @@
 CFLAGS ?= -O2 -g
 CFLAGS += -Wall -Wextra -std=c11 -D_DEFAULT_SOURCE -I../common
 CORE = ui.c games.c net.c sys_mock.c emu.c gfx.c ../common/sfx.c
-HDRS = ui.h ui_priv.h gfx.h emu.h sys.h libretro_min.h ../common/sfx.h
+HDRS = ui.h ui_priv.h gfx.h emu.h sys.h ../common/sfx.h
 
 all: cozisboy-preview cozisboy-shot sfx-demo
 
 cozisboy-preview: host_sdl.c $(CORE) $(HDRS)
-	$(CC) $(CFLAGS) -o $@ host_sdl.c $(CORE) $(shell pkg-config --cflags --libs sdl2) -lm -ldl
+	$(CC) $(CFLAGS) -o $@ host_sdl.c $(CORE) $(shell pkg-config --cflags --libs sdl2) -lm -lmgba
 
 cozisboy-shot: host_shot.c $(CORE) $(HDRS)
-	$(CC) $(CFLAGS) -o $@ host_shot.c $(CORE) -lm -ldl
+	$(CC) $(CFLAGS) -o $@ host_shot.c $(CORE) -lm -lmgba
 
 sfx-demo: sfx_demo.c ../common/sfx.c ../common/sfx.h
 	$(CC) $(CFLAGS) -o $@ sfx_demo.c ../common/sfx.c -lm

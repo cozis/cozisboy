@@ -1,95 +1,116 @@
-#include "emu.h"
+// GBA emulation on libmgba. See emu.h.
+#include <mgba/flags.h> // must come first: libmgba's struct layouts depend on it
+#include <mgba/core/blip_buf.h>
+#include <mgba/core/core.h>
+#include <mgba/core/lockstep.h>
+#include <mgba/internal/gba/gba.h>
+#include <mgba/internal/gba/sio/lockstep.h>
+#include <mgba-util/vfs.h>
 
-#include "libretro_min.h"
+#include "emu.h"
 #include "ui.h"
 
-#include <dlfcn.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
-/* ---- core entry points ---------------------------------------------------- */
+#define OUT_RATE 48000
+#define MAX_GROUP 4
 
-static struct {
-	void *so;
-	void (*init)(void);
-	unsigned (*api_version)(void);
-	void (*get_system_info)(struct retro_system_info *);
-	void (*get_system_av_info)(struct retro_system_av_info *);
-	void (*set_environment)(retro_environment_t);
-	void (*set_video_refresh)(retro_video_refresh_t);
-	void (*set_audio_sample)(retro_audio_sample_t);
-	void (*set_audio_sample_batch)(retro_audio_sample_batch_t);
-	void (*set_input_poll)(retro_input_poll_t);
-	void (*set_input_state)(retro_input_state_t);
-	void (*set_controller_port_device)(unsigned, unsigned);
-	void (*reset)(void);
-	void (*run)(void);
-	size_t (*serialize_size)(void);
-	bool (*serialize)(void *, size_t);
-	bool (*unserialize)(const void *, size_t);
-	bool (*load_game)(const struct retro_game_info *);
-	void (*unload_game)(void);
-	void *(*get_memory_data)(unsigned);
-	size_t (*get_memory_size)(unsigned);
-} core;
+struct group;
 
-static int ready, loaded, need_fullpath;
-static enum retro_pixel_format pixfmt = RETRO_PIXEL_FORMAT_0RGB1555;
-static uint32_t frame[EMU_W * EMU_H];
-static unsigned cur_buttons;
-static int keep_audio;
-static double core_rate = 32768;
-static void *rom_data;
+struct emu_game {
+	struct mCore *core;
+	color_t video[EMU_W * EMU_H];
+	uint32_t out[EMU_W * EMU_H];
+	struct group *grp;
+	// link cable (lockstep) state, as in mGBA's MultiplayerController
+	struct GBASIOLockstepNode node;
+	int awake;
+	int32_t cycles_posted;
+	unsigned wait_mask;
+};
 
-/* ---- audio ring (main thread writes, audio thread reads) ------------------- */
+struct group {
+	struct GBASIOLockstep cable; // first member: callbacks cast mLockstep* back to the group
+	emu_game *g[MAX_GROUP];
+	int n;
+};
 
-#define RING 16384
-static int16_t ring[RING];
-static atomic_uint r_head, r_tail;
+static int ready;
 static _Atomic float volume = 0.8f;
-static double rs_pos; // resampler phase
-static int16_t rs_last;
-#define OUT_RATE 48000.0
-#define TARGET_FILL 3200 // ~65 ms at 48 kHz
+static int color_fix;
 
-static unsigned ring_fill(void)
+/* ---- logging: errors only ------------------------------------------------------ */
+
+static void quiet_log(struct mLogger *l, int cat, enum mLogLevel level, const char *fmt, va_list ap)
 {
-	return atomic_load(&r_head) - atomic_load(&r_tail);
+	(void)l, (void)cat;
+	if (level & (mLOG_FATAL | mLOG_ERROR)) {
+		fprintf(stderr, "[mgba] ");
+		vfprintf(stderr, fmt, ap);
+		fputc('\n', stderr);
+	}
+}
+static struct mLogger quiet = {quiet_log, NULL};
+
+int emu_init(void)
+{
+	mLogSetDefaultLogger(&quiet);
+	ready = 1;
+	return 0;
 }
 
-// Linear resample stereo core audio to mono OUT_RATE, nudging the ratio to keep
-// the ring near TARGET_FILL (core and display clocks differ slightly).
-static void push_audio(const int16_t *data, size_t frames)
+int emu_available(void)
 {
-	if (!keep_audio)
-		return;
-	unsigned fill = ring_fill();
-	double adjust = 1.0 + 0.005 * ((double)TARGET_FILL - fill) / TARGET_FILL;
-	double step = core_rate / (OUT_RATE * adjust);
-	unsigned h = atomic_load_explicit(&r_head, memory_order_relaxed);
+	return ready;
+}
+
+/* ---- audio ring (main thread writes 48 kHz mono, audio thread reads) ---------- */
+
+#define RING 16384
+#define TARGET_FILL 3200 // ~65 ms
+static int16_t ring[RING];
+static atomic_uint r_head, r_tail;
+
+static void push_audio(emu_game *g, int keep)
+{
+	struct blip_t *l = g->core->getAudioChannel(g->core, 0);
+	struct blip_t *r = g->core->getAudioChannel(g->core, 1);
+	int16_t bl[1024], br[1024];
 	for (;;) {
-		size_t i = (size_t)rs_pos;
-		if (i >= frames)
+		int n = blip_samples_avail(l);
+		if (n <= 0)
 			break;
-		int16_t cur = (int16_t)((data[2 * i] + data[2 * i + 1]) / 2);
-		int16_t prev = i ? (int16_t)((data[2 * i - 2] + data[2 * i - 1]) / 2) : rs_last;
-		double f = rs_pos - (double)i;
-		int16_t s = (int16_t)(prev + (cur - prev) * f);
-		if (h - atomic_load(&r_tail) < RING)
-			ring[h++ % RING] = s;
-		rs_pos += step;
+		if (n > 1024)
+			n = 1024;
+		blip_read_samples(l, bl, n, 0);
+		blip_read_samples(r, br, n, 0);
+		if (!keep)
+			continue;
+		unsigned h = atomic_load_explicit(&r_head, memory_order_relaxed);
+		unsigned fill = h - atomic_load(&r_tail);
+		for (int i = 0; i < n; i++) {
+			// the emulator and the sound card clocks drift: drop a sample now
+			// and then when the buffer runs too full
+			if (fill > 2 * TARGET_FILL && (i & 31) == 0)
+				continue;
+			if (fill >= RING)
+				break;
+			ring[h++ % RING] = (int16_t)((bl[i] + br[i]) / 2);
+			fill++;
+		}
+		atomic_store_explicit(&r_head, h, memory_order_release);
 	}
-	rs_pos -= (double)frames;
-	rs_last = (int16_t)((data[2 * frames - 2] + data[2 * frames - 1]) / 2);
-	atomic_store_explicit(&r_head, h, memory_order_release);
 }
 
 void emu_audio_mix(int16_t *out, int frames, int rate)
 {
-	(void)rate; // the ring is produced at OUT_RATE (48 kHz), like the UI sounds
+	(void)rate; // produced at 48 kHz, like the UI sounds
 	float v = atomic_load(&volume);
 	unsigned t = atomic_load_explicit(&r_tail, memory_order_relaxed);
 	unsigned h = atomic_load_explicit(&r_head, memory_order_acquire);
@@ -105,338 +126,353 @@ void emu_set_volume(float v)
 	atomic_store(&volume, v);
 }
 
-/* ---- core options (answers the core's GET_VARIABLE queries) ---------------- */
+/* ---- games ---------------------------------------------------------------------- */
 
-#define MAXOPT 16
-static struct {
-	char key[48], val[32];
-} opts[MAXOPT];
-static int nopts, opts_dirty;
-
-void emu_set_option(const char *key, const char *val)
+static int copy_file(const char *from, const char *to)
 {
-	int i = 0;
-	while (i < nopts && strcmp(opts[i].key, key))
-		i++;
-	if (i == nopts) {
-		if (nopts == MAXOPT)
-			return;
-		nopts++;
+	FILE *a = fopen(from, "rb");
+	if (!a)
+		return -1;
+	FILE *b = fopen(to, "wb");
+	if (!b) {
+		fclose(a);
+		return -1;
 	}
-	snprintf(opts[i].key, sizeof opts[i].key, "%s", key);
-	snprintf(opts[i].val, sizeof opts[i].val, "%s", val);
-	opts_dirty = 1;
-}
-
-static const char *get_option(const char *key)
-{
-	for (int i = 0; i < nopts; i++)
-		if (!strcmp(opts[i].key, key))
-			return opts[i].val;
-	return NULL; // not set: the core keeps its default
-}
-
-/* ---- callbacks ------------------------------------------------------------- */
-
-static void core_log(enum retro_log_level level, const char *fmt, ...)
-{
-	if (level < RETRO_LOG_WARN)
-		return;
-	va_list ap;
-	va_start(ap, fmt);
-	fprintf(stderr, "[core] ");
-	vfprintf(stderr, fmt, ap);
-	va_end(ap);
-}
-
-static bool environment(unsigned cmd, void *data)
-{
-	static const char *dir = NULL;
-	if (!dir)
-		dir = getenv("COZ_SAVES") ? getenv("COZ_SAVES") : "saves";
-	switch (cmd) {
-	case RETRO_ENVIRONMENT_GET_CAN_DUPE:
-		*(bool *)data = true;
-		return true;
-	case RETRO_ENVIRONMENT_SET_PIXEL_FORMAT: {
-		enum retro_pixel_format f = *(const enum retro_pixel_format *)data;
-		if (f != RETRO_PIXEL_FORMAT_XRGB8888 && f != RETRO_PIXEL_FORMAT_RGB565 &&
-		    f != RETRO_PIXEL_FORMAT_0RGB1555)
-			return false;
-		pixfmt = f;
-		return true;
-	}
-	case RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY:
-	case RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY:
-		*(const char **)data = dir;
-		return true;
-	case RETRO_ENVIRONMENT_GET_LOG_INTERFACE:
-		((struct retro_log_callback *)data)->log = core_log;
-		return true;
-	case RETRO_ENVIRONMENT_GET_VARIABLE: {
-		struct retro_variable *v = data;
-		v->value = v->key ? get_option(v->key) : NULL;
-		return v->value != NULL;
-	}
-	case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE:
-		*(bool *)data = opts_dirty;
-		opts_dirty = 0;
-		return true;
-	}
-	return false; // everything else: not supported, core uses its defaults
-}
-
-static void video_refresh(const void *data, unsigned w, unsigned h, size_t pitch)
-{
-	if (!data) // duplicate of the previous frame
-		return;
-	if (w > EMU_W)
-		w = EMU_W;
-	if (h > EMU_H)
-		h = EMU_H;
-	for (unsigned y = 0; y < h; y++) {
-		const uint8_t *row = (const uint8_t *)data + y * pitch;
-		uint32_t *out = frame + y * EMU_W;
-		if (pixfmt == RETRO_PIXEL_FORMAT_XRGB8888) {
-			memcpy(out, row, w * 4);
-			continue;
-		}
-		const uint16_t *p = (const uint16_t *)row;
-		for (unsigned x = 0; x < w; x++) {
-			unsigned v = p[x], r, g, b;
-			if (pixfmt == RETRO_PIXEL_FORMAT_RGB565)
-				r = (v >> 11) & 31, g = (v >> 5) & 63, b = v & 31, g = (g << 2) | (g >> 4);
-			else
-				r = (v >> 10) & 31, g = (v >> 5) & 31, b = v & 31, g = (g << 3) | (g >> 2);
-			r = (r << 3) | (r >> 2), b = (b << 3) | (b >> 2);
-			out[x] = r << 16 | g << 8 | b;
-		}
-	}
-}
-
-static void audio_sample(int16_t l, int16_t r)
-{
-	int16_t s[2] = {l, r};
-	push_audio(s, 1);
-}
-
-static size_t audio_batch(const int16_t *data, size_t frames)
-{
-	if (frames)
-		push_audio(data, frames);
-	return frames;
-}
-
-static void input_poll(void)
-{
-}
-
-static int16_t input_state(unsigned port, unsigned device, unsigned index, unsigned id)
-{
-	(void)index;
-	if (port || device != RETRO_DEVICE_JOYPAD)
-		return 0;
-	unsigned b = cur_buttons;
-	switch (id) {
-	case RETRO_DEVICE_ID_JOYPAD_A: return (b & BTN_A) != 0;
-	case RETRO_DEVICE_ID_JOYPAD_B: return (b & BTN_B) != 0;
-	case RETRO_DEVICE_ID_JOYPAD_X: return (b & BTN_X) != 0;
-	case RETRO_DEVICE_ID_JOYPAD_Y: return (b & BTN_Y) != 0;
-	case RETRO_DEVICE_ID_JOYPAD_L: return (b & BTN_L) != 0;
-	case RETRO_DEVICE_ID_JOYPAD_R: return (b & BTN_R) != 0;
-	case RETRO_DEVICE_ID_JOYPAD_START: return (b & BTN_START) != 0;
-	case RETRO_DEVICE_ID_JOYPAD_SELECT: return (b & BTN_SELECT) != 0;
-	case RETRO_DEVICE_ID_JOYPAD_UP: return (b & BTN_UP) != 0;
-	case RETRO_DEVICE_ID_JOYPAD_DOWN: return (b & BTN_DOWN) != 0;
-	case RETRO_DEVICE_ID_JOYPAD_LEFT: return (b & BTN_LEFT) != 0;
-	case RETRO_DEVICE_ID_JOYPAD_RIGHT: return (b & BTN_RIGHT) != 0;
-	}
+	char buf[8192];
+	size_t n;
+	while ((n = fread(buf, 1, sizeof buf, a)) > 0)
+		fwrite(buf, 1, n, b);
+	fclose(a);
+	fclose(b);
 	return 0;
 }
 
-/* ---- public API -------------------------------------------------------------- */
-
-#define SYM(name)                                                            \
-	do {                                                                 \
-		*(void **)&core.name = dlsym(core.so, "retro_" #name);       \
-		if (!core.name) {                                            \
-			fprintf(stderr, "emu: core lacks retro_%s\n", #name); \
-			return -1;                                           \
-		}                                                            \
-	} while (0)
-
-int emu_init(const char *path)
+emu_game *emu_open(const char *rom, const char *sav_in, const char *sav_out)
 {
-	core.so = dlopen(path, RTLD_NOW | RTLD_LOCAL);
-	if (!core.so) {
-		fprintf(stderr, "emu: %s\n", dlerror());
-		return -1;
-	}
-	SYM(init);
-	SYM(api_version);
-	SYM(get_system_info);
-	SYM(get_system_av_info);
-	SYM(set_environment);
-	SYM(set_video_refresh);
-	SYM(set_audio_sample);
-	SYM(set_audio_sample_batch);
-	SYM(set_input_poll);
-	SYM(set_input_state);
-	SYM(set_controller_port_device);
-	SYM(reset);
-	SYM(run);
-	SYM(serialize_size);
-	SYM(serialize);
-	SYM(unserialize);
-	SYM(load_game);
-	SYM(unload_game);
-	SYM(get_memory_data);
-	SYM(get_memory_size);
-	if (core.api_version() != RETRO_API_VERSION) {
-		fprintf(stderr, "emu: unexpected libretro API version\n");
-		return -1;
-	}
-	core.set_environment(environment);
-	core.init();
-	core.set_video_refresh(video_refresh);
-	core.set_audio_sample(audio_sample);
-	core.set_audio_sample_batch(audio_batch);
-	core.set_input_poll(input_poll);
-	core.set_input_state(input_state);
-	struct retro_system_info si = {0};
-	core.get_system_info(&si);
-	need_fullpath = si.need_fullpath;
-	if (getenv("COZ_DEBUG"))
-		fprintf(stderr, "emu: %s %s\n", si.library_name, si.library_version);
-	ready = 1;
-	return 0;
-}
-
-int emu_available(void)
-{
-	return ready;
-}
-
-int emu_loaded(void)
-{
-	return loaded;
-}
-
-static void *read_file(const char *path, size_t *size)
-{
-	FILE *f = fopen(path, "rb");
-	if (!f)
+	emu_game *g = calloc(1, sizeof *g);
+	if (!g)
 		return NULL;
-	fseek(f, 0, SEEK_END);
-	long n = ftell(f);
-	fseek(f, 0, SEEK_SET);
-	void *buf = n > 0 ? malloc((size_t)n) : NULL;
-	if (buf && fread(buf, 1, (size_t)n, f) != (size_t)n) {
-		free(buf);
-		buf = NULL;
+	g->core = mCoreFind(rom);
+	if (!g->core || !g->core->init(g->core)) {
+		free(g);
+		return NULL;
 	}
-	fclose(f);
-	*size = buf ? (size_t)n : 0;
-	return buf;
+	mCoreInitConfig(g->core, NULL);
+	g->core->setVideoBuffer(g->core, g->video, EMU_W);
+	g->core->setAudioBufferSize(g->core, 2048);
+	if (!mCoreLoadFile(g->core, rom)) {
+		g->core->deinit(g->core);
+		free(g);
+		return NULL;
+	}
+	blip_set_rates(g->core->getAudioChannel(g->core, 0), g->core->frequency(g->core), OUT_RATE);
+	blip_set_rates(g->core->getAudioChannel(g->core, 1), g->core->frequency(g->core), OUT_RATE);
+	// battery save: mGBA writes it straight to sav_out as the game saves
+	if (sav_out) {
+		if (access(sav_out, F_OK) != 0 && sav_in)
+			copy_file(sav_in, sav_out);
+		struct VFile *vf = VFileOpen(sav_out, O_CREAT | O_RDWR);
+		if (vf)
+			g->core->loadSave(g->core, vf);
+	}
+	g->core->reset(g->core);
+	g->awake = 1;
+	return g;
 }
 
-void emu_write_sav(const char *sav_path)
+static void unlink_game(emu_game *g);
+
+void emu_close(emu_game *g)
 {
-	if (!loaded || !sav_path)
+	if (!g)
 		return;
-	void *p = core.get_memory_data(RETRO_MEMORY_SAVE_RAM);
-	size_t n = core.get_memory_size(RETRO_MEMORY_SAVE_RAM);
-	if (!p || !n)
-		return;
-	FILE *f = fopen(sav_path, "wb");
-	if (!f)
-		return;
-	fwrite(p, 1, n, f);
-	fclose(f);
+	unlink_game(g);
+	g->core->unloadROM(g->core); // flushes the battery save
+	g->core->deinit(g->core);
+	free(g);
 }
 
-void emu_unload(const char *sav_path)
+void emu_reset(emu_game *g)
 {
-	if (!loaded)
-		return;
-	emu_write_sav(sav_path);
-	core.unload_game();
-	free(rom_data);
-	rom_data = NULL;
-	loaded = 0;
+	g->core->reset(g->core);
 }
 
-int emu_load(const char *rom_path, const void *state, size_t state_size, const char *sav_path)
+size_t emu_state_size(emu_game *g)
 {
-	if (!ready)
+	return g->core->stateSize(g->core);
+}
+
+int emu_save_state(emu_game *g, void *buf, size_t size)
+{
+	return size >= emu_state_size(g) && g->core->saveState(g->core, buf) ? 0 : -1;
+}
+
+int emu_load_state(emu_game *g, const void *buf, size_t size)
+{
+	return size >= emu_state_size(g) && g->core->loadState(g->core, buf) ? 0 : -1;
+}
+
+/* ---- colour ---------------------------------------------------------------------- */
+
+// GBA screen colour correction as a 15-bit -> XRGB table. The GBA's LCD showed
+// colours darker and less saturated than they're stored; this approximates it
+// in linear light.
+static uint32_t lut_fix[32768], lut_raw[32768];
+
+static void build_luts(void)
+{
+	static const float m[3][3] = {{0.82f, 0.24f, -0.06f}, {0.13f, 0.67f, 0.20f}, {0.17f, 0.17f, 0.66f}};
+	for (int i = 0; i < 32768; i++) {
+		int c5[3] = {i & 31, (i >> 5) & 31, (i >> 10) & 31};
+		float lin[3], o[3];
+		for (int k = 0; k < 3; k++)
+			lin[k] = powf(c5[k] / 31.0f, 2.2f);
+		for (int k = 0; k < 3; k++) {
+			o[k] = m[k][0] * lin[0] + m[k][1] * lin[1] + m[k][2] * lin[2];
+			o[k] = powf(o[k] < 0 ? 0 : o[k] > 1 ? 1 : o[k], 1 / 2.2f) * 0.94f;
+		}
+		lut_fix[i] = (uint32_t)(o[0] * 255) << 16 | (uint32_t)(o[1] * 255) << 8 | (uint32_t)(o[2] * 255);
+		int r = c5[0] << 3 | c5[0] >> 2, gg = c5[1] << 3 | c5[1] >> 2, b = c5[2] << 3 | c5[2] >> 2;
+		lut_raw[i] = (uint32_t)(r << 16 | gg << 8 | b);
+	}
+}
+
+void emu_set_color_fix(int on)
+{
+	color_fix = on;
+}
+
+const uint32_t *emu_frame(emu_game *g)
+{
+	static int luts;
+	if (!luts)
+		build_luts(), luts = 1;
+	const uint32_t *lut = color_fix ? lut_fix : lut_raw;
+	for (int i = 0; i < EMU_W * EMU_H; i++) {
+		color_t c = g->video[i]; // mGBA: XBGR8888, 5-bit channels in each byte's top bits
+		unsigned idx = ((c >> 3) & 31) | (((c >> 11) & 31) << 5) | (((c >> 19) & 31) << 10);
+		g->out[i] = lut[idx];
+	}
+	return g->out;
+}
+
+/* ---- link cable: lockstep callbacks (one thread: wait/wake are flags) ----------- */
+
+static struct group *cable_group(struct mLockstep *l)
+{
+	return (struct group *)l;
+}
+
+static emu_game *member(struct group *gr, int id)
+{
+	for (int i = 0; i < gr->n; i++)
+		if (gr->g[i]->node.id == id)
+			return gr->g[i];
+	return gr->g[0];
+}
+
+static bool ls_signal(struct mLockstep *l, unsigned mask)
+{
+	emu_game *p = member(cable_group(l), 0);
+	p->wait_mask &= ~mask;
+	if (!p->wait_mask && p->awake < 1) {
+		p->awake = 1;
+		return true;
+	}
+	return false;
+}
+
+static bool ls_wait(struct mLockstep *l, unsigned mask)
+{
+	emu_game *p = member(cable_group(l), 0);
+	p->wait_mask |= mask;
+	if (p->awake > 0) {
+		p->awake = 0;
+		return true;
+	}
+	return false;
+}
+
+static void ls_add_cycles(struct mLockstep *l, int id, int32_t cycles)
+{
+	struct group *gr = cable_group(l);
+	if (cycles < 0)
+		return;
+	if (id) {
+		member(gr, id)->cycles_posted += cycles;
+		return;
+	}
+	for (int i = 1; i < gr->n; i++) {
+		emu_game *p = member(gr, i);
+		if (p->node.d.p->mode > SIO_MULTI)
+			continue;
+		p->cycles_posted += cycles;
+		if (p->awake < 1)
+			p->node.nextEvent += p->cycles_posted;
+		p->awake = 1;
+	}
+}
+
+static int32_t ls_use_cycles(struct mLockstep *l, int id, int32_t cycles)
+{
+	emu_game *p = member(cable_group(l), id);
+	p->cycles_posted -= cycles;
+	if (p->cycles_posted <= 0)
+		p->awake = 0;
+	return p->cycles_posted;
+}
+
+static int32_t ls_unused_cycles(struct mLockstep *l, int id)
+{
+	return member(cable_group(l), id)->cycles_posted;
+}
+
+static void ls_unload(struct mLockstep *l, int id)
+{
+	struct group *gr = cable_group(l);
+	if (id) {
+		member(gr, id)->cycles_posted = 0;
+		emu_game *m = member(gr, 0); // release the master if it waits for this one
+		m->wait_mask &= ~(1u << id);
+		if (!m->wait_mask && m->awake < 1)
+			m->awake = 1;
+		return;
+	}
+	for (int i = 1; i < gr->n; i++) {
+		emu_game *p = member(gr, i);
+		p->cycles_posted += gr->cable.players[0]->eventDiff;
+		if (p->awake < 1) {
+			p->node.nextEvent += p->cycles_posted;
+			p->awake = 1;
+		}
+	}
+}
+
+static void attach(struct group *gr, emu_game *g)
+{
+	struct GBA *gba = g->core->board;
+	GBASIOLockstepNodeCreate(&g->node);
+	GBASIOLockstepAttachNode(&gr->cable, &g->node);
+	GBASIOSetDriver(&gba->sio, &g->node.d, SIO_MULTI);
+	GBASIOSetDriver(&gba->sio, &g->node.d, SIO_NORMAL_32);
+	gr->g[gr->n++] = g;
+	g->grp = gr;
+}
+
+int emu_link(emu_game *a, emu_game *b)
+{
+	if (b->grp || (a->grp && a->grp->n >= MAX_GROUP))
 		return -1;
-	emu_unload(NULL); // callers write the previous game's .sav themselves
-	struct retro_game_info gi = {rom_path, NULL, 0, NULL};
-	if (!need_fullpath) {
-		rom_data = read_file(rom_path, &gi.size);
-		if (!rom_data)
+	if (!a->grp) {
+		struct group *gr = calloc(1, sizeof *gr);
+		if (!gr)
 			return -1;
-		gi.data = rom_data;
+		GBASIOLockstepInit(&gr->cable);
+		gr->cable.d.signal = ls_signal;
+		gr->cable.d.wait = ls_wait;
+		gr->cable.d.addCycles = ls_add_cycles;
+		gr->cable.d.useCycles = ls_use_cycles;
+		gr->cable.d.unusedCycles = ls_unused_cycles;
+		gr->cable.d.unload = ls_unload;
+		attach(gr, a);
 	}
-	if (!core.load_game(&gi)) {
-		free(rom_data);
-		rom_data = NULL;
-		return -1;
-	}
-	loaded = 1;
-	struct retro_system_av_info av = {0};
-	core.get_system_av_info(&av);
-	if (av.timing.sample_rate > 0)
-		core_rate = av.timing.sample_rate;
-	core.set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
-	// battery save
-	size_t sn;
-	void *sav = sav_path ? read_file(sav_path, &sn) : NULL;
-	void *p = core.get_memory_data(RETRO_MEMORY_SAVE_RAM);
-	size_t n = core.get_memory_size(RETRO_MEMORY_SAVE_RAM);
-	if (sav && p && n)
-		memcpy(p, sav, sn < n ? sn : n);
-	free(sav);
-	if (state && state_size)
-		core.unserialize(state, state_size);
-	memset(frame, 0, sizeof frame);
+	attach(a->grp, b);
 	return 0;
 }
 
-size_t emu_state_size(void)
+static void unlink_game(emu_game *g)
 {
-	return loaded ? core.serialize_size() : 0;
-}
-
-int emu_save_state(void *buf, size_t size)
-{
-	return loaded && core.serialize(buf, size) ? 0 : -1;
-}
-
-int emu_load_state(const void *buf, size_t size)
-{
-	return loaded && core.unserialize(buf, size) ? 0 : -1;
-}
-
-void emu_reset(void)
-{
-	if (loaded)
-		core.reset();
-}
-
-void emu_run(unsigned buttons, int frames)
-{
-	if (!loaded)
+	struct group *gr = g->grp;
+	if (!gr)
 		return;
-	cur_buttons = buttons;
-	for (int i = 0; i < frames; i++) {
-		keep_audio = i == 0;
-		core.run();
+	struct GBA *gba = g->core->board;
+	GBASIOSetDriver(&gba->sio, NULL, SIO_MULTI);
+	GBASIOSetDriver(&gba->sio, NULL, SIO_NORMAL_32);
+	GBASIOLockstepDetachNode(&gr->cable, &g->node);
+	for (int i = 0; i < gr->n; i++)
+		if (gr->g[i] == g) {
+			memmove(&gr->g[i], &gr->g[i + 1], (size_t)(gr->n - i - 1) * sizeof *gr->g);
+			gr->n--;
+			break;
+		}
+	g->grp = NULL;
+	g->awake = 1;
+	if (gr->n <= 1) { // a group of one is no group
+		for (int i = 0; i < gr->n; i++) {
+			emu_game *o = gr->g[i];
+			struct GBA *ogba = o->core->board;
+			GBASIOSetDriver(&ogba->sio, NULL, SIO_MULTI);
+			GBASIOSetDriver(&ogba->sio, NULL, SIO_NORMAL_32);
+			GBASIOLockstepDetachNode(&gr->cable, &o->node);
+			o->grp = NULL, o->awake = 1;
+		}
+		free(gr);
 	}
-	keep_audio = 1;
 }
 
-const uint32_t *emu_frame(void)
+int emu_linked(emu_game *g)
 {
-	return frame;
+	return g->grp ? g->grp->n : 1;
+}
+
+/* ---- running ----------------------------------------------------------------------- */
+
+static unsigned gba_keys(unsigned b)
+{
+	unsigned k = 0;
+	if (b & BTN_A) k |= 1 << 0;
+	if (b & BTN_B) k |= 1 << 1;
+	if (b & BTN_SELECT) k |= 1 << 2;
+	if (b & BTN_START) k |= 1 << 3;
+	if (b & BTN_RIGHT) k |= 1 << 4;
+	if (b & BTN_LEFT) k |= 1 << 5;
+	if (b & BTN_UP) k |= 1 << 6;
+	if (b & BTN_DOWN) k |= 1 << 7;
+	if (b & BTN_R) k |= 1 << 8;
+	if (b & BTN_L) k |= 1 << 9;
+	return k;
+}
+
+// One frame of a link group: interleave the cores in runLoop() slices. Player 0
+// (the link master) runs while awake; the others run while awake and behind, or
+// while the master waits on them.
+static void run_group_frame(struct group *gr)
+{
+	emu_game *m = member(gr, 0);
+	uint32_t target = m->core->frameCounter(m->core) + 1;
+	for (int guard = 0; guard < 4000000; guard++) {
+		int ran = 0;
+		if (m->awake && m->core->frameCounter(m->core) < target)
+			m->core->runLoop(m->core), ran = 1;
+		for (int i = 1; i < gr->n; i++) {
+			emu_game *p = member(gr, i);
+			int needed = m->wait_mask & (1u << p->node.id);
+			if (p->awake && (needed || p->core->frameCounter(p->core) < target))
+				p->core->runLoop(p->core), ran = 1;
+		}
+		int done = m->core->frameCounter(m->core) >= target;
+		for (int i = 1; done && i < gr->n; i++) {
+			emu_game *p = member(gr, i);
+			if (p->awake && p->core->frameCounter(p->core) < target && p->node.d.p->mode > SIO_MULTI)
+				done = 0; // unlinked-mode followers keep their own pace
+		}
+		if (done || !ran)
+			break;
+	}
+}
+
+void emu_run(emu_game *g, unsigned buttons, int frames)
+{
+	g->core->setKeys(g->core, gba_keys(buttons));
+	for (int f = 0; f < frames; f++) {
+		if (g->grp)
+			run_group_frame(g->grp);
+		else
+			g->core->runFrame(g->core);
+		push_audio(g, f == 0);
+		if (g->grp) // linked games make sound too; only g's is heard
+			for (int i = 0; i < g->grp->n; i++)
+				if (g->grp->g[i] != g)
+					push_audio(g->grp->g[i], 0);
+	}
 }

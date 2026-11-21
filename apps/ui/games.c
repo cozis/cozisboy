@@ -75,8 +75,7 @@ typedef struct {
 	int game;
 	int last_used;
 	gstate_t st;           // mock scene state
-	uint8_t *state;        // emulator snapshot while not live in the core
-	size_t state_n;
+	emu_game *eg;          // the emulator running this game (NULL: mock scene)
 	uint32_t frame[GW * GH];
 } inst_t;
 
@@ -415,64 +414,15 @@ static int find_running(int game)
 	return -1;
 }
 
-/* Only one game can be loaded in the emulator core: `live` is the open game
- * currently in it. Switching snapshots the live game and restores the other. */
-static int live = -1;
-
 static int is_emu(int g)
 {
 	return lib[g].rom != NULL;
 }
 
-static const char *sav_read_path(int g)
-{
-	return access(lib[g].sav_out, R_OK) == 0 ? lib[g].sav_out : lib[g].sav_in;
-}
-
-static void snapshot_live(void)
-{
-	if (live < 0)
-		return;
-	inst_t *in = &run[live];
-	size_t n = emu_state_size();
-	if (n) {
-		if (in->state_n != n) {
-			free(in->state);
-			in->state = malloc(n);
-			in->state_n = in->state ? n : 0;
-		}
-		if (in->state && emu_save_state(in->state, n))
-			in->state_n = 0;
-	}
-	emu_write_sav(lib[in->game].sav_out);
-}
-
-// Put open game i into the core. Returns 0 on success.
-static int make_live(int i)
-{
-	if (live == i)
-		return 0;
-	snapshot_live();
-	int g = run[i].game;
-	live = -1;
-	if (emu_load(lib[g].rom, run[i].state, run[i].state_n, sav_read_path(g)))
-		return -1;
-	live = i;
-	return 0;
-}
-
 static void close_running(int i)
 {
-	if (is_emu(run[i].game)) {
-		if (live == i) {
-			emu_unload(lib[run[i].game].sav_out);
-			live = -1;
-		}
-		free(run[i].state);
-		run[i].state = NULL, run[i].state_n = 0;
-	}
-	if (live > i)
-		live--;
+	emu_close(run[i].eg); // writes the battery save
+	run[i].eg = NULL;
 	memcpy(lastshot[run[i].game], run[i].frame, sizeof run[i].frame);
 	has_lastshot[run[i].game] = 1;
 	lib[run[i].game].last = "JUST NOW";
@@ -501,12 +451,6 @@ static int running_order(int *v)
 
 static void enter_game(int i, int x, int y)
 {
-	if (is_emu(run[i].game) && make_live(i)) {
-		snprintf(toast_buf, sizeof toast_buf, "COULD NOT START %s", lib[run[i].game].title);
-		sfx_play(SFX_BUMP, 0);
-		toast(toast_buf);
-		return;
-	}
 	cur = i;
 	run[i].last_used = ++use_counter;
 	lib[run[i].game].recent = ++recent_counter;
@@ -542,7 +486,9 @@ static void open_game(int game, int slot, int x, int y)
 	}
 	slot_t *sl = slot >= 0 ? &slots[game][slot] : NULL;
 	if (is_emu(game)) {
-		if (make_live(i)) {
+		if (!run[i].eg)
+			run[i].eg = emu_open(lib[game].rom, lib[game].sav_in, lib[game].sav_out);
+		if (!run[i].eg) {
 			snprintf(toast_buf, sizeof toast_buf, "COULD NOT START %s", lib[game].title);
 			sfx_play(SFX_BUMP, 0);
 			toast(toast_buf);
@@ -550,7 +496,7 @@ static void open_game(int game, int slot, int x, int y)
 			return;
 		}
 		if (sl && sl->valid)
-			emu_load_state(sl->blob, sl->n);
+			emu_load_state(run[i].eg, sl->blob, sl->n);
 	} else {
 		if (sl && sl->valid)
 			run[i].st = sl->st;
@@ -1173,10 +1119,8 @@ static void game_update(unsigned p, unsigned held, float dt)
 	(void)dt;
 	int steps = G.ff ? 3 : 1;
 	if (is_emu(in->game)) {
-		if (make_live(cur))
-			return;
-		emu_run(map_buttons(held), steps);
-		memcpy(in->frame, emu_frame(), sizeof in->frame);
+		emu_run(in->eg, map_buttons(held), steps);
+		memcpy(in->frame, emu_frame(in->eg), sizeof in->frame);
 		return;
 	}
 	for (int k = 0; k < steps; k++)
@@ -1258,13 +1202,13 @@ static void quick_action(int a)
 	switch (a) {
 	case QA_SAVE:
 		if (is_emu(in->game)) {
-			size_t n = emu_state_size();
+			size_t n = emu_state_size(in->eg);
 			if (sl->n != n) {
 				free(sl->blob);
 				sl->blob = malloc(n);
 				sl->n = sl->blob ? n : 0;
 			}
-			if (!sl->blob || emu_save_state(sl->blob, sl->n)) {
+			if (!sl->blob || emu_save_state(in->eg, sl->blob, sl->n)) {
 				toast("SAVE STATE FAILED");
 				break;
 			}
@@ -1285,7 +1229,7 @@ static void quick_action(int a)
 			sfx_play(SFX_BUMP, 0);
 		} else {
 			if (is_emu(in->game)) {
-				emu_load_state(sl->blob, sl->n);
+				emu_load_state(in->eg, sl->blob, sl->n);
 			} else {
 				in->st = sl->st;
 				game_render(&in->st, in->game, in->frame, 1);
@@ -1311,7 +1255,7 @@ static void quick_action(int a)
 	}
 	case QA_RESET:
 		if (is_emu(in->game))
-			emu_reset();
+			emu_reset(in->eg);
 		else
 			game_reset(&in->st);
 		G.cc = 0;
@@ -1406,7 +1350,7 @@ static void apply_options(void)
 	static int color = -1;
 	if (color != av_items[AV_COLOR].val) {
 		color = av_items[AV_COLOR].val;
-		emu_set_option("mgba_color_correction", color ? "GBA" : "OFF");
+		emu_set_color_fix(color);
 	}
 }
 
@@ -1973,7 +1917,7 @@ void games_cc_update(unsigned p, float dt)
 		static int color = -1;
 		if (color != av_items[AV_COLOR].val) {
 			color = av_items[AV_COLOR].val;
-			emu_set_option("mgba_color_correction", color ? "GBA" : "OFF");
+			emu_set_color_fix(color);
 		}
 		return;
 	}
@@ -2298,9 +2242,8 @@ void games_init(void)
 {
 	memset(&G, 0, sizeof G);
 	G.screen_mode = av_items[AV_SCREEN].val; // FULL: fill the width
-	const char *core = getenv("COZ_CORE") ? getenv("COZ_CORE") : "/usr/lib/libretro/mgba_libretro.so";
 	nlib = 0;
-	if (emu_init(core) == 0) {
+	if (emu_init() == 0) {
 		mkdir_p(getenv("COZ_SAVES") ? getenv("COZ_SAVES") : "saves");
 		scan_roms();
 		history_load();
