@@ -486,8 +486,8 @@ static item_t power_items[] = {
 	{"REBOOT", IT_ACTION, 0, 0, NULL, "DEMO: WOULD REBOOT NOW", NULL},
 	{"SHUT DOWN", IT_ACTION, 0, 0, NULL, "DEMO: WOULD POWER OFF", NULL},
 };
-static list_t settings_list = {settings_items, 7, 0, 0, 0};
-static list_t look_list = {look_items, 3, 0, 0, 0};
+static list_t settings_list = {settings_items, (int)(sizeof settings_items / sizeof *settings_items), 0, 0, 0};
+static list_t look_list = {look_items, (int)(sizeof look_items / sizeof *look_items), 0, 0, 0};
 static list_t power_list = {power_items, 3, 0, 0, 0};
 
 static list_t *app_list(int app)
