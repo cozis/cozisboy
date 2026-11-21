@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en" data-style="launcher">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cozisboy web — style mock</title>
+<link rel="icon" href="../favicon.png">
+<!--
+	Static style sandbox for the web app: same pages as apps/web/index.html,
+	fake data (data.js), no server: open apps/web/mock/index.html in a browser
+	(file:// works), or serve apps/ (not apps/web: covers come from apps/ui/thumbs):
+	  python3 -m http.server -d apps 8000   ->  http://localhost:8000/web/mock/
+	Pick a style with the switcher (bottom left) or ?style=launcher|arcade|soft;
+	pages with #/, #/game/<id>, #/discover, #/discover/<slug>, #/pair.
+-->
+<style>
+/* ======================================================== shared tokens */
+:root {
+	--red: #ff4a4a; --orange: #ff9a2e; --yellow: #ffd93d; --green: #59d65a;
+	--cyan: #3dc6ff; --blue: #6a7dff; --purple: #c56bff; --pink: #ff6bc1;
+	--sys-gb: var(--green); --sys-gbc: var(--purple); --sys-gba: var(--blue);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: var(--font); min-height: 100vh; }
+button, input { font: inherit; color: inherit; }
+a { color: inherit; }
+img.pix { image-rendering: pixelated; }
+.hidden { display: none !important; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 22px 90px; position: relative; }
+
+/* ======================================================== style A: launcher */
+[data-style="launcher"] {
+	--bg: #121212; --panel: #1c1c1c; --panel2: #262626; --line: #000; --text: #f2f2f2;
+	--dim: #a0a0a0; --faint: #6a6a6a; --accent: var(--yellow);
+	--font: 15px/1.5 system-ui, sans-serif;
+}
+[data-style="launcher"] body { background: radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--glow, var(--blue)) 26%, transparent), transparent 70%), var(--bg); transition: background .4s; }
+/* pixel-notched corners like rrect() */
+[data-style="launcher"] .notch { clip-path: polygon(6px 0, calc(100% - 6px) 0, calc(100% - 6px) 3px, calc(100% - 3px) 3px, calc(100% - 3px) 6px, 100% 6px, 100% calc(100% - 6px), calc(100% - 3px) calc(100% - 6px), calc(100% - 3px) calc(100% - 3px), calc(100% - 6px) calc(100% - 3px), calc(100% - 6px) 100%, 6px 100%, 6px calc(100% - 3px), 3px calc(100% - 3px), 3px calc(100% - 6px), 0 calc(100% - 6px), 0 6px, 3px 6px, 3px 3px, 6px 3px); }
+[data-style="launcher"] .btn { background: #fff; color: #000; border: 0; padding: 10px 16px; box-shadow: none; position: relative; }
+[data-style="launcher"] .btn::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 -4px 0 rgba(0,0,0,.25); pointer-events: none; }
+[data-style="launcher"] .btn.go { background: var(--yellow); }
+[data-style="launcher"] .btn.ghost { background: transparent; color: var(--dim); }
+[data-style="launcher"] .btn.ghost::after { display: none; }
+[data-style="launcher"] .btn:active { transform: translateY(2px); }
+[data-style="launcher"] .btn.danger { background: var(--red); color: #fff; }
+[data-style="launcher"] .card { background: #0b0b0b; border: 3px solid #000; outline: 3px solid #2a2a2a; }
+[data-style="launcher"] .cover { border: 4px solid #000; outline: 3px solid #fff0; transition: transform .12s, outline-color .12s; }
+[data-style="launcher"] .game:hover .cover, [data-style="launcher"] .game:focus-visible .cover { outline-color: #fff; transform: translateY(-4px); }
+[data-style="launcher"] .search { background: #0b0b0b; border: 3px solid #000; outline: 3px solid #2a2a2a; border-radius: 0; }
+[data-style="launcher"] .search:focus { outline-color: var(--yellow); }
+[data-style="launcher"] .tabs a.on { background: #fff; color: #000; }
+[data-style="launcher"] .tag { border-radius: 0; }
+[data-style="launcher"] .sys-head .bar { display: block; }
+
+/* ======================================================== style B: arcade */
+[data-style="arcade"] {
+	--bg: #101012; --panel: #1a1a1e; --panel2: #232329; --line: #2f2f37; --text: #f4f4f4;
+	--dim: #9d9daa; --faint: #62626e; --accent: var(--yellow);
+	--font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+[data-style="arcade"] .btn { background: var(--panel2); border: 2px solid #000; border-radius: 8px; box-shadow: 3px 3px 0 #000; padding: 8px 16px; }
+[data-style="arcade"] .btn:hover { background: #2c2c34; }
+[data-style="arcade"] .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+[data-style="arcade"] .btn.go { background: var(--yellow); color: #111; }
+[data-style="arcade"] .btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--dim); }
+[data-style="arcade"] .btn.danger { color: var(--red); }
+[data-style="arcade"] .card { background: var(--panel); border: 2px solid #000; box-shadow: 4px 4px 0 #000; border-radius: 10px; }
+[data-style="arcade"] .cover { border: 2px solid #000; box-shadow: 4px 4px 0 #000; border-radius: 8px; transition: transform .12s, box-shadow .12s; }
+[data-style="arcade"] .game:hover .cover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #000; }
+[data-style="arcade"] .search { background: var(--panel); border: 2px solid var(--line); border-radius: 8px; }
+[data-style="arcade"] .search:focus { border-color: var(--cyan); }
+[data-style="arcade"] .tabs { border-bottom: 2px solid var(--line); }
+[data-style="arcade"] .tabs a.on { border-bottom: 3px solid var(--yellow); margin-bottom: -2px; }
+[data-style="arcade"] .sys-head .sq { display: inline-block; }
+
+/* ======================================================== style C: soft */
+[data-style="soft"] {
+	--bg: #f4f2ee; --panel: #ffffff; --panel2: #efece6; --line: #e2ded6; --text: #1d1b19;
+	--dim: #6f6a63; --faint: #a39d94; --accent: #1d1b19;
+	--font: 15px/1.55 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+	--sys-gb: #2f9e44; --sys-gbc: #9c36b5; --sys-gba: #3b5bdb;
+}
+@media (prefers-color-scheme: dark) {
+	[data-style="soft"] { --bg: #16161a; --panel: #1f1f24; --panel2: #2a2a30; --line: #2f2f36; --text: #ececf0; --dim: #9b9ba6; --faint: #686872; --accent: #ececf0; }
+}
+[data-style="soft"] .btn { background: var(--panel2); border: 0; border-radius: 999px; padding: 9px 18px; font-weight: 600; }
+[data-style="soft"] .btn:hover { filter: brightness(.97); }
+[data-style="soft"] .btn.go { background: var(--accent); color: var(--bg); }
+[data-style="soft"] .btn.ghost { background: transparent; color: var(--dim); }
+[data-style="soft"] .btn.danger { color: #e03131; }
+[data-style="soft"] .card { background: var(--panel); border-radius: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05); }
+[data-style="soft"] .cover { border-radius: 14px; box-shadow: 0 2px 6px rgba(0,0,0,.08), 0 10px 30px rgba(0,0,0,.08); transition: transform .2s; }
+[data-style="soft"] .game:hover .cover { transform: translateY(-3px); }
+[data-style="soft"] .search { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding-left: 20px; }
+[data-style="soft"] .search:focus { border-color: var(--dim); }
+[data-style="soft"] .tabs a.on { background: var(--panel); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+[data-style="soft"] .tabs { background: var(--panel2); border-radius: 999px; padding: 4px; display: inline-flex; }
+[data-style="soft"] .tabs a { border-radius: 999px; }
+[data-style="soft"] .tag { background: var(--panel2) !important; color: var(--dim) !important; }
+[data-style="soft"] .cover .ph b { text-shadow: none; -webkit-text-stroke: 0; }
+[data-style="soft"] .sys-head .dot { display: inline-block; }
+
+/* ======================================================== layout (all styles) */
+header { display: flex; align-items: center; gap: 16px; padding: 20px 0 18px; }
+header .logo { height: 38px; cursor: pointer; }
+header .grow { flex: 1; }
+.status { display: flex; gap: 16px; color: var(--dim); font-size: 13px; align-items: center; }
+.status b { color: var(--text); }
+.batt { display: inline-block; width: 22px; height: 11px; border: 2px solid currentColor; position: relative; vertical-align: -1px; margin-right: 6px; }
+.batt::after { content: ""; position: absolute; right: -5px; top: 2px; width: 2px; height: 3px; background: currentColor; }
+.batt i { position: absolute; left: 1px; top: 1px; bottom: 1px; background: var(--green); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; cursor: pointer; text-decoration: none; white-space: nowrap; color: inherit; }
+.btn.small { padding: 6px 12px; font-size: 13px; }
+.btn.big { padding: 13px 28px; font-size: 17px; }
+
+.tabs { display: flex; gap: 6px; margin: 0 0 26px; }
+.tabs a { padding: 9px 16px; font-weight: 700; color: var(--dim); text-decoration: none; cursor: pointer; }
+.tabs a.on { color: var(--text); }
+.tabs a .n { opacity: .55; font-weight: 500; margin-left: 6px; }
+
+.toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.search { flex: 1; min-width: 200px; padding: 10px 14px; outline: none; color: var(--text); }
+
+.sys-head { display: flex; align-items: center; gap: 12px; margin: 34px 0 16px; }
+.sys-head h2 { margin: 0; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; }
+.sys-head .n { color: var(--faint); font-size: 13px; }
+.sys-head .sq { display: none; width: 12px; height: 12px; background: var(--c); box-shadow: 2px 2px 0 #000; }
+.sys-head .dot { display: none; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.sys-head .bar { display: none; width: 6px; height: 22px; background: var(--c); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 26px 20px; }
+.game { cursor: pointer; min-width: 0; outline: none; }
+.cover { aspect-ratio: 1; background: var(--panel); overflow: hidden; position: relative; display: grid; place-items: center; }
+.cover img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.cover.shot img { object-fit: cover; image-rendering: pixelated; }
+.cover .ph { width: 100%; height: 100%; display: grid; place-items: center; background: var(--c); }
+.cover .ph b { font: 900 46px/1 ui-monospace, Menlo, monospace; color: #fff; text-shadow: 3px 3px 0 #000; -webkit-text-stroke: 2px #000; paint-order: stroke fill; }
+.cover .tags { position: absolute; left: 7px; bottom: 7px; display: flex; gap: 4px; }
+.tag { font-size: 11px; font-weight: 800; letter-spacing: .05em; background: #000c; color: #fff; padding: 3px 7px; border-radius: 4px; }
+.tag.ok { background: var(--green); color: #000; }
+.game .t { margin-top: 11px; font-weight: 650; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.game .r { color: var(--faint); font-size: 12px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.back { margin: -4px 0 20px -12px; }
+.hero { display: flex; gap: 36px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 36px; }
+.hero .cover { width: 280px; flex: none; }
+.hero .info { flex: 1; min-width: 260px; }
+.hero h1 { margin: 8px 0 4px; font-size: 34px; line-height: 1.12; }
+.hero .sub { color: var(--dim); }
+.badge { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .1em; color: #000; background: var(--c); padding: 3px 9px; }
+[data-style="arcade"] .badge { border-radius: 4px; box-shadow: 2px 2px 0 #000; }
+[data-style="soft"] .badge { border-radius: 999px; color: #fff; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 5px 20px; margin: 20px 0 24px; color: var(--dim); font-size: 14px; }
+.facts b { color: var(--text); font-weight: 550; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.card { padding: 22px 24px; margin-bottom: 28px; }
+.card > h2 { margin: 0 0 16px; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.saveline { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.saveline .what { flex: 1; min-width: 200px; }
+.saveline .what b { display: block; font-size: 17px; }
+.saveline .what span { color: var(--dim); font-size: 13px; }
+.states { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 22px; }
+.state .shot { aspect-ratio: 3/2; background: #000; overflow: hidden; }
+[data-style="launcher"] .state .shot { border: 4px solid #000; }
+[data-style="arcade"] .state .shot { border: 2px solid #000; border-radius: 6px; box-shadow: 3px 3px 0 #000; }
+[data-style="soft"] .state .shot { border-radius: 12px; }
+.state .shot img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; display: block; }
+.state .when { margin: 10px 0 8px; }
+.state .when b { display: block; }
+.state .when span { color: var(--faint); font-size: 12px; }
+.muted { color: var(--dim); }
+.shots { display: flex; gap: 14px; overflow-x: auto; padding: 4px 4px 14px; margin: 0 -4px 22px; }
+.shots img { height: 210px; flex: none; image-rendering: pixelated; background: #000; }
+[data-style="launcher"] .shots img { border: 4px solid #000; }
+[data-style="arcade"] .shots img { border: 2px solid #000; border-radius: 6px; box-shadow: 3px 3px 0 #000; }
+[data-style="soft"] .shots img { border-radius: 12px; }
+.desc { white-space: pre-wrap; line-height: 1.65; max-width: 75ch; }
+.seg { display: inline-flex; gap: 4px; }
+.seg button { border: 0; padding: 8px 14px; font-weight: 800; cursor: pointer; background: var(--panel2); color: var(--dim); }
+.seg button.on { background: var(--c); color: #000; }
+[data-style="arcade"] .seg button { border: 2px solid #000; border-radius: 6px; box-shadow: 2px 2px 0 #000; }
+[data-style="soft"] .seg button { border-radius: 999px; }
+[data-style="soft"] .seg button.on { color: #fff; }
+
+#pair { max-width: 430px; margin: 12vh auto 0; text-align: center; }
+#pair .logo { height: 56px; margin-bottom: 30px; }
+#code { width: 100%; font: 800 38px ui-monospace, Menlo, monospace; letter-spacing: .45em; text-align: center; padding: 14px 0 14px .45em; background: var(--panel2); border: 0; margin: 14px 0 12px; outline: none; color: var(--text); }
+[data-style="arcade"] #code { border: 2px solid #000; box-shadow: 4px 4px 0 #000; border-radius: 10px; }
+[data-style="soft"] #code { border-radius: 14px; }
+
+footer { margin-top: 56px; color: var(--faint); font-size: 13px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
+footer a { cursor: pointer; text-decoration: underline; }
+
+/* style switcher (mock only) */
+#switch { position: fixed; left: 14px; bottom: 14px; z-index: 50; display: flex; gap: 6px; align-items: center;
+	background: #000; color: #fff; padding: 6px 8px; border-radius: 10px; font: 600 12px system-ui; box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+#switch button { background: #333; color: #fff; border: 0; border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; }
+#switch button.on { background: var(--yellow); color: #000; }
+#switch span { opacity: .6; margin: 0 4px; }
+
+@media (max-width: 600px) {
+	.wrap { padding: 0 14px 90px; }
+	.grid { grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 20px 12px; }
+	.hero .cover { width: 100%; max-width: 320px; }
+	.hero h1 { font-size: 26px; }
+	.status .storage { display: none; }
+}
+</style>
+<script src="font5x7.js"></script>
+<script src="pixel.js"></script>
+<script src="data.js"></script>
+</head>
+<body>
+<div class="wrap" id="root"></div>
+<div id="switch">
+	<span>style</span>
+	<button data-s="launcher">A · Launcher</button>
+	<button data-s="arcade">B · Arcade</button>
+	<button data-s="soft">C · Soft</button>
+	<span>page</span>
+	<button data-p="#/">Library</button>
+	<button data-p="#/game/g00">Game</button>
+	<button data-p="#/discover">Discover</button>
+	<button data-p="#/pair">Pair</button>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const style = () => document.documentElement.dataset.style;
+const SYS = { gba: ["GBA", "Game Boy Advance"], gbc: ["GBC", "Game Boy Color"], gb: ["GB", "Game Boy"] };
+const PALETTE = ["--red", "--orange", "--yellow", "--green", "--cyan", "--blue", "--purple", "--pink"];
+
+function size(n) { const u = ["B", "KB", "MB", "GB"]; let i = 0; while (n >= 1024 && i < 3) n /= 1024, i++; return (n < 10 && i ? n.toFixed(1) : Math.round(n)) + " " + u[i]; }
+function ago(t) {
+	const s = MOCK_NOW - t, rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+	if (s < 3600) return rtf.format(-Math.max(1, Math.round(s / 60)), "minute");
+	if (s < 86400) return rtf.format(-Math.round(s / 3600), "hour");
+	return rtf.format(-Math.round(s / 86400), "day");
+}
+const initials = t => (t.match(/[A-Za-z0-9]+/g) || ["?"]).slice(0, 2).map(w => w[0].toUpperCase()).join("");
+const hhImg = (e, f) => `https://hh3.gbdev.io/static/${e.basepath}/entries/${e.slug}/${f}`;
+
+// Headings: pixel font in style A, normal text otherwise.
+function title(text, { scale = 4, look = "arcade", color = "var(--yellow)", tag = "h1" } = {}) {
+	if (style() !== "launcher") return `<${tag}>${esc(text)}</${tag}>`;
+	const c = getComputedStyle(document.documentElement).getPropertyValue(color.slice(4, -1)) || color;
+	return `<${tag} style="margin:8px 0 6px"><span class="px" data-scale="${scale}" data-look="${look}" data-color="${c.trim()}">${esc(text.toUpperCase())}</span></${tag}>`;
+}
+function label(text, scale = 2) {
+	scale = Math.max(2, scale);	// 1x pixel text is unreadable
+	return style() === "launcher" ? `<span class="px" data-scale="${scale}" data-look="shadow">${esc(text.toUpperCase())}</span>` : esc(text);
+}
+function cover(g) {
+	const img = g.cover ? `<img src="${esc(g.cover)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph',style:'--c:var(--sys-${g.sys})',innerHTML:'<b>${esc(initials(g.title))}</b>'}))">`
+		: `<div class="ph" style="--c:var(--sys-${g.sys})"><b>${esc(initials(g.title))}</b></div>`;
+	return img;
+}
+function header() {
+	const b = MOCK_STATUS.battery;
+	return `<header>
+		<img class="logo pix" src="../logo.png" alt="cozisboy" onclick="location.hash='#/'">
+		<div class="grow"></div>
+		<div class="status">
+			<span><span class="batt"><i style="width:${b.capacity * 18 / 100}px"></i></span><b>${b.capacity}%</b></span>
+			<span class="storage"><b>${size(MOCK_STATUS.storage.free)}</b> free</span>
+		</div>
+	</header>
+	<nav class="tabs">
+		<a class="notch ${/^#\/(game|)?/.test(location.hash) && !/discover/.test(location.hash) ? "on" : ""}" href="#/">${label("On this cozisboy")}<span class="n">${MOCK_GAMES.length}</span></a>
+		<a class="notch ${/discover/.test(location.hash) ? "on" : ""}" href="#/discover">${label("Discover")}</a>
+	</nav>`;
+}
+
+// ---------------------------------------------------------------- pages
+function pageLibrary() {
+	let html = header() + `<div class="toolbar"><input class="search notch" placeholder="Search games"><button class="btn go notch">${label("+ Add games")}</button></div>`;
+	for (const k of ["gba", "gbc", "gb"]) {
+		const gs = MOCK_GAMES.filter(g => g.sys === k);
+		if (!gs.length) continue;
+		html += `<div class="sys-head" style="--c:var(--sys-${k})"><span class="sq"></span><span class="dot"></span><span class="bar"></span><h2>${label(SYS[k][1])}</h2><span class="n">${gs.length}</span></div><div class="grid">`;
+		for (const g of gs) {
+			const tags = (g.save ? `<span class="tag">SAVE</span>` : "") + (g.states.length ? `<span class="tag">${g.states.length} STATE${g.states.length > 1 ? "S" : ""}</span>` : "");
+			html += `<div class="game" tabindex="0" onclick="location.hash='#/game/${g.id}'" onmouseenter="glow('${k}')">
+				<div class="cover notch">${cover(g)}<div class="tags">${tags}</div></div>
+				<div class="t">${esc(g.title)}</div><div class="r">${esc(g.region)}</div></div>`;
+		}
+		html += `</div>`;
+	}
+	html += `<footer><span>${MOCK_GAMES.length} games</span><span><a>Back up all saves</a> · <a>saves and states</a> · <a>Find missing covers</a> · <a>Disconnect this browser</a></span></footer>`;
+	return html;
+}
+
+function pageGame(id) {
+	const g = MOCK_GAMES.find(x => x.id === id) || MOCK_GAMES[0];
+	glow(g.sys);
+	const FLOPPY = `<svg width="34" height="34" viewBox="0 0 16 16" shape-rendering="crispEdges"><path fill="#000" d="M1 1h12l2 2v12H1z"/><path fill="var(--cyan)" d="M2 2h10l2 2v10H2z"/><path fill="#fff" d="M4 2h7v4H4z"/><path fill="#000" d="M9 3h1v2H9z"/><path fill="#e8e8e8" d="M4 9h8v5H4z"/></svg>`;
+	const save = g.save
+		? `<div class="saveline">${FLOPPY}<div class="what"><b>Saved ${ago(g.save.time)}</b><span>${size(g.save.size)}</span></div>
+			<a class="btn small notch">${label("Download", 1)}</a><a class="btn small notch">${label("Replace…", 1)}</a><a class="btn small danger notch">${label("Hold to delete", 1)}</a></div>`
+		: `<div class="saveline">${FLOPPY}<div class="what"><b>No save yet</b><span>The game creates one the first time you save in it.</span></div><a class="btn small notch">${label("Upload a save…", 1)}</a></div>`;
+	const states = g.states.length
+		? `<div class="states">` + g.states.map(s => `<div class="state"><div class="shot notch"><img src="${esc(s.thumb)}" alt=""></div>
+			<div class="when"><b>${ago(s.time)}</b><span>${new Date(s.time * 1000).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })}</span></div>
+			<div class="row"><a class="btn small notch">${label("Download", 1)}</a><a class="btn small danger notch">${label("Hold to delete", 1)}</a></div></div>`).join("") + `</div>`
+		: `<p class="muted" style="margin:0">No save states yet.</p>`;
+	return header() + `
+		<button class="btn ghost back" onclick="location.hash='#/'">← ${label("All games")}</button>
+		<div class="hero">
+			<div class="cover notch">${cover(g)}</div>
+			<div class="info">
+				<span class="badge notch" style="--c:var(--sys-${g.sys})">${SYS[g.sys][0]}</span>
+				${title(g.title)}
+				<div class="sub">${SYS[g.sys][1]}${g.region ? " · " + esc(g.region) : ""}</div>
+				<div class="facts">
+					<span>Battery save</span><b>${g.save ? "saved " + ago(g.save.time) : "none yet"}</b>
+					<span>Save states</span><b>${g.states.length || "none"}</b>
+					<span>Game size</span><b>${size(g.rom_size)}</b>
+					<span>Added</span><b>${ago(g.added)}</b>
+				</div>
+				<div class="row">${g.save ? `<a class="btn notch">${label("Download save")}</a>` : ""}<a class="btn notch">${label("Download game")}</a></div>
+			</div>
+		</div>
+		<div class="card notch"><h2>${label("Battery save")}</h2>${save}</div>
+		<div class="card notch"><h2>${label("Save states")}</h2>${states}</div>
+		<div class="card notch"><h2>${label("Game")}</h2>
+			<div class="row"><input class="search notch" value="${esc(g.name)}" style="flex:1"><a class="btn small notch">${label("Rename", 1)}</a></div>
+			<div class="row" style="margin-top:16px"><a class="btn small notch">${label("Find cover online", 1)}</a><a class="btn small notch">${label("Upload cover…", 1)}</a></div>
+			<div class="row" style="margin-top:20px"><span class="muted" style="flex:1;font-size:14px">Delete the game with its save and all its save states.</span><a class="btn small danger notch">${label("Hold to delete game", 1)}</a></div>
+		</div>`;
+}
+
+let hhSys = "GBA";
+function pageDiscover() {
+	const list = MOCK_HH.filter(e => e.platform === hhSys);
+	const have = new Set(MOCK_GAMES.map(g => g.name));
+	return header() + `
+		<div class="toolbar"><input class="search notch" placeholder="Search free games">
+			<div class="seg">${["GBA", "GBC", "GB"].map(k => `<button class="notch ${k === hhSys ? "on" : ""}" style="--c:var(--sys-${k.toLowerCase()})" onclick="hhSys='${k}';render()">${k}</button>`).join("")}</div></div>
+		<p class="muted" style="font-size:13px;margin:4px 0 22px">Free homebrew games made by the community, from Homebrew Hub.</p>
+		<div class="grid">` + list.map(e => `<div class="game" tabindex="0" onclick="location.hash='#/discover/${e.slug}'">
+			<div class="cover shot notch"><img src="${esc(hhImg(e, e.screenshots[0]))}" alt="" loading="lazy">${have.has(e.title) ? `<div class="tags"><span class="tag ok">INSTALLED</span></div>` : ""}</div>
+			<div class="t">${esc(e.title)}</div><div class="r">${esc(e.developer)}</div></div>`).join("") + `</div>`;
+}
+
+function pageHhGame(slug) {
+	const e = MOCK_HH.find(x => x.slug === slug) || MOCK_HH[0];
+	glow(e.platform.toLowerCase());
+	return header() + `
+		<button class="btn ghost back" onclick="history.back()">← ${label("Discover")}</button>
+		<div class="hero">
+			<div class="cover shot notch"><img src="${esc(hhImg(e, e.screenshots[0]))}" alt=""></div>
+			<div class="info">
+				<span class="badge notch" style="--c:var(--sys-${e.platform.toLowerCase()})">${e.platform}</span>
+				${title(e.title)}
+				<div class="sub">by ${esc(e.developer || "unknown")}${e.date ? " · " + e.date.slice(0, 4) : ""}</div>
+				<div class="row" style="margin:16px 0 20px">${e.tags.map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>
+				<button class="btn go big notch">${label("Install", 3)}</button>
+			</div>
+		</div>
+		<div class="shots">${e.screenshots.map(f => `<img class="notch" src="${esc(hhImg(e, f))}" alt="">`).join("")}</div>
+		${e.description ? `<div class="card notch"><h2>${label("About")}</h2><div class="desc">${esc(e.description)}</div></div>` : ""}`;
+}
+
+function pagePair() {
+	return `<section id="pair"><img class="logo pix" src="../logo.png" alt="cozisboy">
+		<div class="card notch"><h2>${label("Connect to your cozisboy")}</h2>
+		<p class="muted">Enter the 6-digit code shown on the console.</p>
+		<input id="code" class="notch" inputmode="numeric" maxlength="6" placeholder="······">
+		<button class="btn go notch" style="width:100%">${label("Connect")}</button></div></section>`;
+}
+
+// ---------------------------------------------------------------- shell
+function glow(sys) { document.documentElement.style.setProperty("--glow", `var(--sys-${sys})`); }
+function render() {
+	const h = location.hash || "#/";
+	let m;
+	$("root").innerHTML =
+		(m = h.match(/^#\/game\/(.+)/)) ? pageGame(m[1]) :
+		(m = h.match(/^#\/discover\/(.+)/)) ? pageHhGame(m[1]) :
+		h === "#/discover" ? pageDiscover() :
+		h === "#/pair" ? pagePair() : pageLibrary();
+	renderPixelText($("root"));
+	document.querySelectorAll("#switch [data-s]").forEach(b => b.classList.toggle("on", b.dataset.s === style()));
+	document.querySelectorAll("#switch [data-p]").forEach(b => b.classList.toggle("on", b.dataset.p === h.replace(/\/discover\/.+/, "/discover")));
+}
+function setStyle(s) {
+	document.documentElement.dataset.style = s;
+	try { localStorage.setItem("mock-style", s); } catch {}
+	const u = new URL(location); u.searchParams.set("style", s); history.replaceState(null, "", u);
+	render();
+}
+document.querySelectorAll("#switch [data-s]").forEach(b => b.onclick = () => setStyle(b.dataset.s));
+document.querySelectorAll("#switch [data-p]").forEach(b => b.onclick = () => { location.hash = b.dataset.p; });
+window.addEventListener("hashchange", () => { render(); scrollTo(0, 0); });
+let initial = new URLSearchParams(location.search).get("style");
+try { initial = initial || localStorage.getItem("mock-style"); } catch {}
+document.documentElement.dataset.style = ["launcher", "arcade", "soft"].includes(initial) ? initial : "launcher";
+render();
+</script>
+</body>
+</html>
