@@ -1,0 +1,47 @@
+# Freeze frames of the UI: one state per line,  name | button script.
+# Script steps (see host_shot.c): w<sec> wait, p<keys> tap, h<keys>,<sec> hold,
+# l<hub><cc> layout variation. Keys: U D L R A B X Y, M menu, S select, [ ] L/R.
+# Every frame starts from a fresh UI. Render with: make frames
+#
+# Home carousel order: open games (or the last played game), then
+# GAMES SETTINGS.
+
+# shortcut used below: two games open (Pokemon Emerald, then Super Mario World), in game
+@TWO = pR w0.4 pA w0.9 pA w0.9 hR,0.5 hM,0.6 w0.9 pR pA w0.9 pR pR pA w0.9 hR,0.3
+
+01-home-last-played  | w1
+02-home-games-app    | pR w1
+03-home-two-open     | @TWO hM,0.6 w1
+04-home-after-close  | @TWO hM,0.6 w1 pX w0.4 pX w2.6
+05-settings          | pR pR w0.5 pA w1 pD w0.6
+06-settings-wifi     | pR pR w0.5 pA w1 pA w1.6
+07-wifi-password     | pR pR w0.5 pA w1 pA w1.6 pD pD pD pA w0.3 pA pR pA pR pA pY pA pD pR pR pA w0.3
+08-settings-ssh      | pR pR w0.5 pA w1 pD pA w0.6
+09-settings-look     | pR pR w0.5 pA w1 pD pD pD pD pD pA w0.6
+10-hub-nothing-open  | pR w0.4 pA w1.2
+11-hub-open-selected | @TWO hM,0.6 w0.9 pR pR pA w1.2
+12-hub-library-sel   | @TWO hM,0.6 w0.9 pR pR pA w1 pR pR w0.8
+20-game              | @TWO w0.5
+21-game-fill-lcd     | @TWO pM w0.6 pD pR pR pR pR pA w0.1 pR pA pB w2.6
+30-cc-bottom-bar     | l10 @TWO pM w0.6
+31-cc-side-panel     | l11 @TWO pM w0.6
+32-cc-card-fan       | l12 @TWO pM w0.6
+33-cc-from-home      | @TWO hM,0.6 w0.9 pM w0.6
+
+# widget style variations: g<style>  (0 arcade, 1 soft, 2 bevel, 3 neon)
+80-arcade-home       | g0 @TWO hM,0.6 w1 pR pR w0.8
+81-arcade-hub        | g0 @TWO hM,0.6 w0.9 pR pR pA w1.2
+82-arcade-settings   | g0 pR pR w0.5 pA w1 pD w0.6
+83-arcade-cc         | g0 @TWO pM w0.6
+84-soft-home         | g1 @TWO hM,0.6 w1 pR pR w0.8
+85-soft-hub          | g1 @TWO hM,0.6 w0.9 pR pR pA w1.2
+86-soft-settings     | g1 pR pR w0.5 pA w1 pD w0.6
+87-soft-cc           | g1 @TWO pM w0.6
+88-bevel-home        | g2 @TWO hM,0.6 w1 pR pR w0.8
+89-bevel-hub         | g2 @TWO hM,0.6 w0.9 pR pR pA w1.2
+90-bevel-settings    | g2 pR pR w0.5 pA w1 pD w0.6
+91-bevel-cc          | g2 @TWO pM w0.6
+92-neon-home         | g3 @TWO hM,0.6 w1 pR pR w0.8
+93-neon-hub          | g3 @TWO hM,0.6 w0.9 pR pR pA w1.2
+94-neon-settings     | g3 pR pR w0.5 pA w1 pD w0.6
+95-neon-cc           | g3 @TWO pM w0.6
