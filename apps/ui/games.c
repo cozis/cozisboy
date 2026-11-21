@@ -85,7 +85,6 @@ typedef struct {
 #define MAXRUN 8 // open games (each: last frame + snapshot, under 1 MB)
 static inst_t run[MAXRUN];
 static int nrun, cur = -1, use_counter;
-static int nplayed; // played games that aren't open (counted by hub_order)
 static int nopen;   // open games, each counted once even with copies (hub_order)
 
 #define NSLOTS 8 // save states per game
@@ -744,8 +743,8 @@ static void hub_select(int it)
 	G.hri = item_run(it);
 }
 
-// Order: open copies (most recently used first), then played games (most
-// recent first), then never-played games A-Z.
+// Order: open copies (most recently used first), then all other games: most
+// recently played first, never-played ones A-Z at the end.
 static int hub_order(int *v)
 {
 	int n = 0;
@@ -770,9 +769,6 @@ static int hub_order(int *v)
 				break;
 			v[j - 1] = b, v[j] = a;
 		}
-	nplayed = 0;
-	for (int i = first; i < n; i++)
-		nplayed += lib[v[i]].recent != 0;
 	return n;
 }
 
@@ -786,8 +782,7 @@ static int index_of(const int *v, int n, int g)
 
 #define GRID_COLS 5
 
-// Covers layout: hub_order sorts open games, then played games (most recent
-// first), then never-played games (A-Z). Each group starts after a gap.
+// Covers layout: open games, a gap with a dashed line, then all other games.
 #define COVER_SP 150
 #define COVER_GAP 70
 
@@ -795,8 +790,6 @@ static float cover_pos(int i)
 {
 	float x = (float)(i * COVER_SP);
 	if (nopen && i >= nopen)
-		x += COVER_GAP;
-	if (nplayed && i >= nopen + nplayed)
 		x += COVER_GAP;
 	return x;
 }
@@ -1101,19 +1094,9 @@ static void hub_draw_covers(canvas *c, const int *v, int n)
 				fill(c, dx, yy, 3, 6, 0x666666);
 		}
 	}
-	if (nplayed) {
+	if (nopen < n) {
 		int x = W / 2 + (int)lrintf(cover_pos(nopen) - G.camx) - small / 2;
-		text(c, x, top + 2, "RECENT", 2, 0xdddddd);
-		if (nopen + nplayed < n) {
-			int dx = W / 2 + (int)lrintf(cover_pos(nopen + nplayed) - G.camx) - COVER_GAP / 2 -
-				 small / 2 - 30;
-			for (int yy = top; yy < cy + big / 2; yy += 10)
-				fill(c, dx, yy, 3, 6, 0x666666);
-		}
-	}
-	if (nopen + nplayed < n) {
-		int x = W / 2 + (int)lrintf(cover_pos(nopen + nplayed) - G.camx) - small / 2;
-		text(c, x, top + 2, nopen + nplayed ? "NOT PLAYED" : "ALL GAMES", 2, 0xaaaaaa);
+		text(c, x, top + 2, "ALL GAMES", 2, 0xdddddd);
 	}
 
 	for (int pass = 0; pass < 2; pass++) // neighbours first, selection on top
