@@ -82,6 +82,7 @@ typedef struct {
 	emu_game *eg;          // its emulator while loaded (NULL: unloaded or mock scene)
 	uint8_t *state;        // snapshot while unloaded (paused, not linked)
 	size_t state_n;
+	int boot;              // frames left of "starting up": blank frames show as black
 	uint32_t frame[GW * GH];
 } inst_t;
 
@@ -700,6 +701,7 @@ static void open_game(int game, int slot, int x, int y)
 		i = nrun++;
 		memset(&run[i], 0, sizeof run[i]);
 		run[i].game = game;
+		run[i].boot = 120;
 		game_reset(&run[i].st);
 	}
 	slot_t *sl = slot >= 0 ? &slots[game][slot] : NULL;
@@ -1404,6 +1406,15 @@ static void game_update(unsigned p, unsigned held, float dt)
 	if (is_emu(in->game)) {
 		emu_run(in->eg, map_buttons(held), steps);
 		memcpy(in->frame, emu_frame(in->eg), sizeof in->frame);
+		if (in->boot > 0) { // a starting GBA blanks its screen (white): show black until it draws
+			int blank = 1;
+			for (int k = 1; k < GW * GH && blank; k++)
+				blank = in->frame[k] == in->frame[0];
+			if (blank)
+				memset(in->frame, 0, sizeof in->frame), in->boot -= steps;
+			else
+				in->boot = 0;
+		}
 		for (int k = 0; k < nrun; k++) // linked games ran too: keep their pictures live
 			if (linked_with_cur(k))
 				memcpy(run[k].frame, emu_frame(run[k].eg), sizeof run[k].frame);
@@ -1555,7 +1566,7 @@ static void quick_action(int a)
 	}
 	case QA_RESET:
 		if (is_emu(in->game))
-			emu_reset(in->eg);
+			emu_reset(in->eg), in->boot = 120;
 		else
 			game_reset(&in->st);
 		G.cc = 0;
@@ -1995,7 +2006,7 @@ static void open_copy_of(int orig, int from_mine)
 	}
 	int i = nrun++;
 	memset(&run[i], 0, sizeof run[i]);
-	run[i].game = g, run[i].copy = n, run[i].eg = eg;
+	run[i].game = g, run[i].copy = n, run[i].eg = eg, run[i].boot = 120;
 	emu_link(run[orig].eg, eg);
 	G.cc = 0;
 	enter_game(i, W / 2, H / 2);
