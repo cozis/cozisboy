@@ -8,6 +8,7 @@ LOG=/run/sleep.log
 
 wifi_was_up=0
 [ -d /sys/class/net/wlan0 ] && wifi_was_up=1
+/etc/init.d/S45wifi stop
 ip link set wlan0 down 2>/dev/null
 rmmod rtw88_8821cs rtw88_8821c rtw88_sdio 2>/dev/null
 echo 4 > $BL/bl_power
@@ -23,5 +24,8 @@ if [ -n "$UDC" ]; then
 	sleep 1
 	echo connect > /sys/class/udc/$UDC/soft_connect 2>/dev/null
 fi
-[ $wifi_was_up = 1 ] && modprobe rtw88_8821cs
+if [ $wifi_was_up = 1 ]; then
+	modprobe rtw88_8821cs
+	/etc/init.d/S45wifi restart
+fi
 exit 0

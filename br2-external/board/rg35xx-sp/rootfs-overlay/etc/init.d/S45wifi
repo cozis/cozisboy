@@ -1,0 +1,33 @@
+#!/bin/sh
+# Wi-Fi: connect in the background with the networks saved on /data
+# (see cozisboy-wifi-add). Does not delay boot.
+CONF=/data/wifi/wpa_supplicant.conf
+export CONF
+
+start() {
+	[ -f $CONF ] || return 0
+	# setsid: survive the hangup when started from an ssh -t session
+	setsid sh -c '
+		for i in $(seq 1 50); do
+			[ -d /sys/class/net/wlan0 ] && break
+			sleep 0.2
+		done
+		wpa_supplicant -B -i wlan0 -c $CONF -P /run/wpa_supplicant.pid
+		# retry every second (default: 3 tries, then a 20 s pause)
+		udhcpc -b -S -t 30 -T 1 -A 1 -i wlan0 -p /run/udhcpc.wlan0.pid
+	' </dev/null >/dev/null 2>&1 &
+}
+
+stop() {
+	for p in /run/udhcpc.wlan0.pid /run/wpa_supplicant.pid; do
+		[ -f $p ] && kill $(cat $p) 2>/dev/null
+		rm -f $p
+	done
+}
+
+case "$1" in
+	start) start ;;
+	stop) stop ;;
+	restart) stop; sleep 0.5; start ;;
+	*) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
+esac

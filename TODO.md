@@ -64,7 +64,14 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
 
 - [x] Wi-Fi (RTL8821CS on mmc1): works (scan OK). Fix: CONFIG_RESET_GPIO must
       be OFF (its reset-gpios fallback only supports 2-cell GPIOs; sunxi has 3).
-- [ ] Wi-Fi: connect (wpa_supplicant config on /data), DHCP, start in background.
+- [x] Wi-Fi connects at boot in the background (S45wifi: wpa_supplicant +
+      udhcpc), IP ~10 s after power-on. Add networks with
+      `ssh -t root@<ip> cozisboy-wifi-add "SSID"` (hidden prompt, PSK hash in
+      /data/wifi). Reconnects after sleep.
+- [ ] Wi-Fi: first scan takes ~5 s (association at ~9 s): remember the last
+      channel (`scan_freq`) for a faster reconnect; Wi-Fi page in the UI.
+- [ ] Clock: no RTC time at boot (date is 1970): NTP once Wi-Fi is up, and
+      check whether the H616 RTC keeps time across power-off.
 - [x] GPU (Panfrost): kernel side works (Mali-G31, /dev/dri/renderD128). Fix:
       CONFIG_SUN50I_H6_PRCM_PPU (GPU power domain) was missing.
 - [ ] GPU userspace: Mesa (panfrost gallium, GLES) for emulators/UI.

@@ -1,0 +1,55 @@
+#!/bin/sh
+# Save a Wi-Fi network on /data and connect. Asks for the passphrase with
+# echo off, so it never appears on a command line or in shell history; only
+# the derived PSK hash is stored.
+#   ssh -t root@10.55.0.2 cozisboy-wifi-add "SSID"
+[ $# -eq 1 ] || { echo "usage: $0 SSID" >&2; exit 1; }
+DIR=/data/wifi; CONF=$DIR/wpa_supplicant.conf
+
+ask() {
+	printf '%s' "$1"
+	stty -echo 2>/dev/null
+	read -r REPLY
+	stty echo 2>/dev/null
+	echo
+}
+ask "Password for \"$1\": "; pass=$REPLY
+ask "Again: "; again=$REPLY
+if [ "$pass" != "$again" ]; then
+	pass= again=
+	echo "Passwords don't match, nothing saved." >&2
+	exit 1
+fi
+again=
+
+block=$(printf '%s\n' "$pass" | wpa_passphrase "$1" | grep -v '^[[:space:]]*#psk=')
+pass=
+case "$block" in
+	*psk=*) ;;
+	*) echo "$block" >&2; exit 1 ;;
+esac
+
+mkdir -p $DIR && chmod 700 $DIR
+[ -f $CONF ] || printf 'ctrl_interface=/run/wpa_supplicant\nupdate_config=1\n\n' > $CONF
+# Replace any earlier entry for this SSID
+awk -v want="ssid=\"$1\"" '
+	/^network=\{/ { buf = $0 "\n"; inblk = 1; drop = 0; next }
+	inblk { buf = buf $0 "\n"; s = $0; gsub(/^[ \t]+/, "", s)
+		if (s == want) drop = 1
+		if ($0 ~ /^\}/) { inblk = 0; if (!drop) printf "%s", buf }
+		next }
+	{ print }
+' $CONF > $CONF.new && mv $CONF.new $CONF
+printf '%s\n' "$block" >> $CONF
+chmod 600 $CONF
+sync
+/etc/init.d/S45wifi restart
+echo "Saved. Connecting..."
+for i in $(seq 1 20); do
+	sleep 1
+	st=$(wpa_cli -p /run/wpa_supplicant -i wlan0 status 2>/dev/null | sed -n 's/^wpa_state=//p')
+	ip=$(ip -4 addr show wlan0 2>/dev/null | sed -n 's/.*inet \([0-9.]*\).*/\1/p')
+	if [ -n "$ip" ]; then echo "Connected: $ip"; exit 0; fi
+done
+echo "Not connected after 20 s (state: ${st:-unknown}). Wrong password?" >&2
+exit 1
