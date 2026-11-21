@@ -83,6 +83,7 @@ typedef struct {
 	uint8_t *state;        // snapshot while unloaded (paused, not linked)
 	size_t state_n;
 	int boot;              // frames left of "starting up": blank frames show as black
+	float fade;            // 0..1: the picture fades in when a start-up ends
 	uint32_t frame[GW * GH];
 } inst_t;
 
@@ -701,7 +702,7 @@ static void open_game(int game, int slot, int x, int y)
 		i = nrun++;
 		memset(&run[i], 0, sizeof run[i]);
 		run[i].game = game;
-		run[i].boot = 120;
+		run[i].boot = lib[game].rom ? 120 : 0, run[i].fade = lib[game].rom ? 0 : 1;
 		game_reset(&run[i].st);
 	}
 	slot_t *sl = slot >= 0 ? &slots[game][slot] : NULL;
@@ -1406,14 +1407,28 @@ static void game_update(unsigned p, unsigned held, float dt)
 	if (is_emu(in->game)) {
 		emu_run(in->eg, map_buttons(held), steps);
 		memcpy(in->frame, emu_frame(in->eg), sizeof in->frame);
-		if (in->boot > 0) { // a starting GBA blanks its screen (white): show black until it draws
-			int blank = 1;
-			for (int k = 1; k < GW * GH && blank; k++)
-				blank = in->frame[k] == in->frame[0];
-			if (blank)
-				memset(in->frame, 0, sizeof in->frame), in->boot -= steps;
-			else
+		if (in->boot > 0) {
+			// A starting game blanks its screen (white on a GBA), sometimes with
+			// a stray line: while 90% of it is one colour, show black, then
+			// fade the first real picture in.
+			uint32_t ref[3] = {in->frame[0], in->frame[GW * GH / 2 + GW / 2], in->frame[GW * GH - 1]};
+			int best = 0, total = 0;
+			for (int r = 0; r < 3; r++) {
+				int same = 0;
+				total = 0;
+				for (int k = 0; k < GW * GH; k += 7, total++)
+					same += in->frame[k] == ref[r];
+				if (same > best)
+					best = same;
+			}
+			if (best * 10 >= total * 9) {
+				memset(in->frame, 0, sizeof in->frame);
+				in->boot -= steps, in->fade = 0;
+			} else {
 				in->boot = 0;
+			}
+		} else if (in->fade < 1) {
+			in->fade += dt * 4;
 		}
 		for (int k = 0; k < nrun; k++) // linked games ran too: keep their pictures live
 			if (linked_with_cur(k))
@@ -1566,7 +1581,7 @@ static void quick_action(int a)
 	}
 	case QA_RESET:
 		if (is_emu(in->game))
-			emu_reset(in->eg), in->boot = 120;
+			emu_reset(in->eg), in->boot = 120, in->fade = 0;
 		else
 			game_reset(&in->st);
 		G.cc = 0;
@@ -2006,7 +2021,7 @@ static void open_copy_of(int orig, int from_mine)
 	}
 	int i = nrun++;
 	memset(&run[i], 0, sizeof run[i]);
-	run[i].game = g, run[i].copy = n, run[i].eg = eg, run[i].boot = 120;
+	run[i].game = g, run[i].copy = n, run[i].eg = eg, run[i].boot = 120, run[i].fade = 0;
 	emu_link(run[orig].eg, eg);
 	G.cc = 0;
 	enter_game(i, W / 2, H / 2);
@@ -2758,6 +2773,8 @@ void games_draw(canvas *c, int screen)
 			return;
 		}
 		draw_game_view(c, &run[cur]);
+		if (run[cur].fade < 1) // a game that just started fades in
+			darken(c, 0, 0, W, H, 1 - clampf(run[cur].fade, 0, 1));
 		if (is_linked(cur) && !G.cc) // in the black border, never over the game
 		{
 			// LINKED, plus which copy this is (#1 = the original) in yellow
