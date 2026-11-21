@@ -2704,7 +2704,6 @@ void games_hints(canvas *c, int screen, int *x)
 	if (ri >= 0)
 		draw_hint(c, x, "X", "CLOSE", PAL[4]);
 	draw_hint(c, x, "B", "BACK", PAL[0]);
-	draw_hint(c, x, "MENU", "CONTROL", 0xdddddd);
 }
 
 /* ---- home carousel tiles --------------------------------------------------- */

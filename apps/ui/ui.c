@@ -849,7 +849,8 @@ static void update(unsigned p, unsigned held, float dt)
 		return; // no input during transitions
 	}
 
-	menu_gesture(held, dt);
+	if (S.screen != SCR_LIBRARY) // the game list doesn't use Menu
+		menu_gesture(held, dt);
 	p &= ~BTN_MENU;
 	if (games_cc_active()) {
 		games_cc_update(p, dt);
