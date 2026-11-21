@@ -5,9 +5,12 @@
 set -e
 TOP="$(cd "$(dirname "$0")/.." && pwd)"
 HOST="${HOST:-root@10.55.0.2}"
+# The device regenerates its SSH host key at every boot (read-only root, keys in
+# RAM) and is only reachable over the USB link: don't pin the host key.
+SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 OUT="${1:-$TOP/output/screenshots/$(date +%Y%m%d-%H%M%S).png}"
 mkdir -p "$(dirname "$OUT")"
-ssh "$HOST" 'set -e; f=/sys/class/graphics/fb0; echo "$(cat $f/virtual_size),$(cat $f/stride),$(cat $f/bits_per_pixel)"; cat /dev/fb0' > "$OUT.raw"
+ssh $SSH_OPTS "$HOST" 'set -e; f=/sys/class/graphics/fb0; echo "$(cat $f/virtual_size),$(cat $f/stride),$(cat $f/bits_per_pixel)"; cat /dev/fb0' > "$OUT.raw"
 python3 - "$OUT.raw" "$OUT" <<'PY'
 import sys
 from PIL import Image

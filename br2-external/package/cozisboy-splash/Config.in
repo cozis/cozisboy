@@ -1,6 +1,6 @@
 config BR2_PACKAGE_COZISBOY_SPLASH
 	bool "cozisboy-splash"
-	select BR2_PACKAGE_TINYALSA
+	select BR2_PACKAGE_ALSA_LIB
 	help
-	  cozisboy animated boot splash (fbdev) with boot jingle,
-	  started first thing in init.
+	  cozisboy animated boot splash (fbdev, static, runs as PID 1 pre-init)
+	  and its boot jingle player (cozisboy-chime, alsa-lib).
