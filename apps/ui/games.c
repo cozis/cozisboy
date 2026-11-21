@@ -196,6 +196,9 @@ static struct {
 	int row, btn, card;
 	float cam, changed; // tile scroll, time since the selection changed
 	float camx;         // covers layout: scroll in pixels (has a gap between groups)
+	float bump;         // time since bumping into an end (wiggle, as on the home screen)
+	int bump_dir;
+	float bump_off, bump_offx; // wiggle currently added to cam / camx
 	// settings applied to every game
 	int ff, screen_mode, filter, slot;
 	int cc_sub; // 0 none, QA_AV or QA_INPUT: popup open
@@ -838,8 +841,15 @@ static void hub_update(unsigned p, float dt)
 	int idx = index_of(v, n, hub_sel_item());
 	int g = G.game, ri = hub_sel_run();
 	G.changed += dt;
+	G.cam -= G.bump_off, G.camx -= G.bump_offx; // last frame's wiggle
 	G.cam += (idx - G.cam) * (1 - expf(-dt * 14));
 	G.camx += (cover_pos(idx) - G.camx) * (1 - expf(-dt * 14));
+	// bumping into an end nudges the row that way and springs back (home screen does the same)
+	G.bump += dt;
+	float wig = G.bump < 0.3f ? G.bump_dir * 0.12f * sinf(G.bump / 0.3f * PI) : 0;
+	G.bump_off = wig;
+	G.bump_offx = wig * (n > 1 ? fabsf(cover_pos(1) - cover_pos(0)) : 100);
+	G.cam += G.bump_off, G.camx += G.bump_offx;
 
 	int d = (p & BTN_RIGHT) ? 1 : (p & BTN_LEFT) ? -1 : 0;
 	int ni = idx;
@@ -879,6 +889,8 @@ static void hub_update(unsigned p, float dt)
 			sfx_play(SFX_MOVE, ni);
 		} else {
 			sfx_play(SFX_BUMP, 0);
+			G.bump = 0;
+			G.bump_dir = ni > idx ? 1 : -1;
 		}
 		return;
 	}
