@@ -102,6 +102,7 @@ void games_ref_tile(canvas *c, int ref, int x, int y, int size, int dim);
 const char *games_ref_title(int ref);
 uint32_t games_ref_col(int ref);
 void games_ref_status(int ref, char *buf, int n);
+void games_open_pill(canvas *c, int cx, int y, int ri);
 void games_ref_open(int ref, int x, int y);
 void games_ref_close(int ref);
 void games_ref_draw_bg(canvas *c, int ref); // full-screen dimmed game frame

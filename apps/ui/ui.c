@@ -1340,8 +1340,10 @@ static void draw_home(canvas *c)
 		char s1[2] = {name[i], 0};
 		text_arcade(c, nx + i * 6 * scale, 306 + off, s1, scale, col);
 	}
-	uint32_t dcol = h->app < 0 && h->game >= 0 ? PAL[3] : GREY;
-	text(c, (W - text_width(desc, 2)) / 2, 368, desc, 2, dcol);
+	if (h->app < 0 && h->game >= 0) // an open game: same pill as the games view
+		games_open_pill(c, W / 2, 362, h->game);
+	else
+		text(c, (W - text_width(desc, 2)) / 2, 368, desc, 2, GREY);
 }
 
 static void draw_app(canvas *c)

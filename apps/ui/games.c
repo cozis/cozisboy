@@ -1149,14 +1149,7 @@ static void hub_draw_covers(canvas *c, const int *v, int n)
 	text_arcade(c, (W - tw) / 2, 254 + (4 - ts) * 7, title, ts, lib[g].col);
 	char buf[64];
 	if (ri >= 0) { // status pill: open
-		int lk = is_linked(ri);
-		const char *st = lk ? "OPEN - LINKED" : "OPEN - PAUSED";
-		uint32_t sc = lk ? LINK_COL : PAL[3];
-		int w = text_width(st, 2) + 34;
-		int x = (W - w) / 2;
-		rrect(c, x, 296, w, 26, 4, mix(sc, BLACK, 0.6f));
-		fill(c, x + 10, 305, 8, 8, sc);
-		text(c, x + 24, 302, st, 2, sc);
+		games_open_pill(c, W / 2, 296, ri);
 	} else {
 		if (lib[g].recent)
 			snprintf(buf, sizeof buf, "LAST PLAYED %s", last_text(g));
@@ -2742,6 +2735,19 @@ void games_ref_tile(canvas *c, int ref, int x, int y, int size, int dim)
 	skip_frame = 0;
 	if (dim)
 		darken(c, x - 2, y - 2, size + 4, size + 4, 0.45f);
+}
+
+// "OPEN - PAUSED" (green) / "OPEN - LINKED" (cyan) pill for open game ri,
+// centred on cx, top at y.
+void games_open_pill(canvas *c, int cx, int y, int ri)
+{
+	int lk = is_linked(ri);
+	const char *st = lk ? "OPEN - LINKED" : "OPEN - PAUSED";
+	uint32_t sc = lk ? LINK_COL : PAL[3];
+	int w = text_width(st, 2) + 34, x = cx - w / 2;
+	rrect(c, x, y, w, 26, 4, mix(sc, BLACK, 0.6f));
+	fill(c, x + 10, y + 9, 8, 8, sc);
+	text(c, x + 24, y + 6, st, 2, sc);
 }
 
 const char *games_ref_title(int ref)
