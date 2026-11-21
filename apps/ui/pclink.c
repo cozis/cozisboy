@@ -1,5 +1,6 @@
 // PC LINK: the web app (apps/web) that manages games and saves from a browser.
-// The page opens on a choice, USB or Wi-Fi. The web app runs only while the
+// The page opens on a choice (two cards), USB or Wi-Fi; hold X there forgets
+// every paired browser. The web app runs only while the
 // USB or the Wi-Fi screen is open, and lets in only browsers coming that way
 // (cable or Wi-Fi). Browsers paired before just connect; new ones pair there:
 //   USB   waits for the cable to be plugged into a computer; then any browser
@@ -42,8 +43,62 @@ const char *const ICON_PCLINK24[ICON_MAX] = {
 	"........................",
 };
 
+// 24-cell icons for the two choices
+static const char *const ICON_USB24[ICON_MAX] = {
+	"........................",
+	"........................",
+	"........llllllll........",
+	"........lddddddl........",
+	"........lddddddl........",
+	"........llllllll........",
+	"........lldlldll........",
+	"........lldlldll........",
+	"........llllllll........",
+	"......wwwwwwwwwwww......",
+	"......wwwwwwwwwwww......",
+	"......wwggggggggww......",
+	"......wwggccccggww......",
+	"......wwggccccggww......",
+	"......wwggccccggww......",
+	"......wwggggggggww......",
+	"......wwwwwwwwwwww......",
+	"......wwwwwwwwwwww......",
+	"..........dddd..........",
+	"..........dddd..........",
+	"...........dd...........",
+	"...........dd...........",
+	"...........dd...........",
+	"...........dd...........",
+};
+static const char *const ICON_WIFI24[ICON_MAX] = {
+	"........................",
+	"........................",
+	"........................",
+	".......wwwwwwwwww.......",
+	".....wwwwwwwwwwwwww.....",
+	"...wwww..........wwww...",
+	"..www..............www..",
+	".ww..................ww.",
+	".w....................w.",
+	"........wwwwwwww........",
+	"......wwwwwwwwwwww......",
+	".....www........www.....",
+	"....ww............ww....",
+	"....w..............w....",
+	"........................",
+	".........wwwwww.........",
+	"........wwwwwwww........",
+	".......ww......ww.......",
+	".......w........w.......",
+	"........................",
+	"..........yyyy..........",
+	"..........yyyy..........",
+	"..........yyyy..........",
+	"........................",
+};
+
 enum { V_CHOOSE, V_USB, V_WIFI };	// what the page shows
-enum { ROW_USB, ROW_WIFI, ROW_FORGET, NROWS };
+enum { CH_USB, CH_WIFI, NCH };
 
 static struct {
 	int view, sel;
@@ -102,49 +157,57 @@ int pclink_update(unsigned p, float dt)
 		sfx_play(SFX_BACK, 0);
 		return 1;
 	}
-	int d = (p & BTN_DOWN) ? 1 : (p & BTN_UP) ? -1 : 0;
-	if (d) {
+	int d = (p & (BTN_DOWN | BTN_RIGHT)) ? 1 : (p & (BTN_UP | BTN_LEFT)) ? -1 : 0;
+	if (d) {	// two cards: one is always selected
 		int s = L.sel + d;
-		if (s >= 0 && s < NROWS)
-			L.sel = s, L.hold = 0, sfx_play(SFX_TICK, 0);
+		if (s >= 0 && s < NCH)
+			L.sel = s, sfx_play(SFX_TICK, 0);
 		else
 			sfx_play(SFX_BUMP, 0);
 	}
-	if (L.sel == ROW_USB && (p & BTN_A)) {
+	if (p & BTN_A) {
 		sfx_play(SFX_OPEN, APP_PCLINK);
-		set_view(V_USB);
-	} else if (L.sel == ROW_WIFI && (p & BTN_A)) {
-		sfx_play(SFX_OPEN, APP_PCLINK);
-		set_view(V_WIFI);
-	} else if (L.sel == ROW_FORGET) {	// hold A: every browser has to pair again
-		if ((ui_held() & BTN_A) && !L.held_done && sys_web_browsers()) {
-			L.hold += dt;
-			if (L.hold >= 1.0f) {
-				sys_web_forget_browsers();
-				sfx_play(SFX_TOGGLE_OFF, 0);
-				toast("BROWSERS FORGOTTEN");
-				L.held_done = 1, L.hold = 0;
-			}
-		} else if (!(ui_held() & BTN_A)) {
-			L.hold = 0, L.held_done = 0;
+		set_view(L.sel == CH_USB ? V_USB : V_WIFI);
+	}
+	// hold X: every browser has to pair again
+	if ((ui_held() & BTN_X) && !L.held_done && sys_web_browsers()) {
+		L.hold += dt;
+		if (L.hold >= 1.0f) {
+			sys_web_forget_browsers();
+			sfx_play(SFX_TOGGLE_OFF, 0);
+			toast("BROWSERS FORGOTTEN");
+			L.held_done = 1, L.hold = 0;
 		}
+	} else if (!(ui_held() & BTN_X)) {
+		L.hold = 0, L.held_done = 0;
 	}
 	return 0;
 }
 
-// One address in a box: the URL on the left, what it is on the right.
-static int address_box(canvas *c, int y, const char *url, const char *tag, int ok)
+// One address in a big box: the URL at scale 4 (scale 3 if it doesn't fit).
+static int address_box(canvas *c, int y, const char *url, const char *tag)
 {
-	rrect(c, UI_MX, y + 2, W - 2 * UI_MX, 42, 6, 0x0c0c0c);
-	text(c, UI_MX + 16, y + 13, url, UI_TS, ok ? PAL[3] : GREY);
+	int sc = text_width(url, 4) <= W - 2 * UI_MX - 40 - (tag ? text_width(tag, 2) + 20 : 0) ? 4 : 3;
+	rrect(c, UI_MX, y, W - 2 * UI_MX, 64, 6, 0x0c0c0c);
+	text(c, UI_MX + 20, y + 32 - 7 * sc / 2, url, sc, PAL[3]);
 	if (tag)
-		text(c, W - UI_MX - 16 - text_width(tag, 2), y + 16, tag, 2, GREY);
-	return y + 48;
+		text(c, W - UI_MX - 18 - text_width(tag, 2), y + 25, tag, 2, GREY);
+	return y + 64;
 }
 
 static void center(canvas *c, int y, const char *s, int scale, uint32_t col)
 {
 	text(c, (W - text_width(s, scale)) / 2, y, s, scale, col);
+}
+
+// A numbered step label: a coloured number chip, then the text.
+static void step(canvas *c, int y, int n, const char *s)
+{
+	char num[4];
+	snprintf(num, sizeof num, "%d", n);
+	rrect(c, UI_MX, y, 30, 30, 4, PAL[APP_PCLINK]);
+	text(c, UI_MX + 15 - text_width(num, 2) / 2, y + 8, num, 2, BLACK);
+	text(c, UI_MX + 44, y + 4, s, UI_TS, WHITE);
 }
 
 // "WAITING..." with animated dots
@@ -156,18 +219,17 @@ static void waiting(canvas *c, int y, const char *what)
 	center(c, y, s, 2, GREY);
 }
 
-// Bottom line of the USB / Wi-Fi screens: "PAIRED!" for a moment, then how
-// many browsers are paired.
-static void paired_line(canvas *c, int y)
+// Bottom status: "PAIRED!" for a moment, else waiting + how many are paired.
+static void status_line(canvas *c, int y)
 {
 	if (L.paired_t > 0) {
-		text_arcade(c, (W - text_width("PAIRED!", 4)) / 2, y, "PAIRED!", 4, PAL[3]);
+		text_arcade(c, (W - text_width("PAIRED!", 4)) / 2, y - 6, "PAIRED!", 4, PAL[3]);
 		return;
 	}
 	int n = sys_web_browsers();
-	char s[40];
-	snprintf(s, sizeof s, n ? "%d PAIRED BROWSER%s" : "NO PAIRED BROWSERS YET", n, n == 1 ? "" : "S");
-	center(c, y + 8, s, 2, GREY);
+	char s[48];
+	snprintf(s, sizeof s, n ? "WAITING FOR A BROWSER - %d PAIRED" : "WAITING FOR A BROWSER", n);
+	waiting(c, y, s);
 }
 
 static const char *usb_url(void)
@@ -177,66 +239,86 @@ static const char *usb_url(void)
 	return u;
 }
 
-void pclink_draw(canvas *c)
+static void big_icon(canvas *c, const char *const *rows, int x, int y, int scale, uint32_t detail)
+{
+	icon_t ic;
+	icon_from_rows(&ic, rows, 24);
+	draw_icon(c, &ic, x, y, scale, WHITE, detail, BLACK);
+}
+
+// The choice widget: a big card with an icon, a title and a line under it.
+// Exactly one card is selected (filled with the page colour).
+static void choice_card(canvas *c, int y, int h, const char *const *icon, const char *title,
+			const char *line, const char *status, uint32_t scol, int sel)
 {
 	uint32_t col = PAL[APP_PCLINK];
+	uint32_t fillc = sel ? col : 0x222222;
+	wbox(c, UI_MX, y, W - 2 * UI_MX, h, fillc, sel ? W_SEL : W_NORMAL);
+	uint32_t ink = sel ? wink(fillc, W_SEL) : WHITE;
+	int is = 4, isz = 24 * is;
+	big_icon(c, icon, UI_MX + 22, y + (h - isz) / 2, is, sel ? mix(col, BLACK, 0.45f) : 0x444444);
+	int tx = UI_MX + 22 + isz + 26;
+	text_arcade(c, tx, y + 26, title, 4, sel ? WHITE : col);
+	text(c, tx, y + 72, line, 2, sel ? ink : GREY);
+	if (status)
+		text(c, tx, y + 100, status, 2, sel ? ink : scol);
+}
+
+void pclink_draw(canvas *c)
+{
 	const char *ip, *ssid;
 	int wifi = wifi_ip(&ip);
 	sys_wifi_status(&ssid, NULL);
 
 	if (L.view == V_USB) {
 		int y = ui_page_header(c, APP_PCLINK, "USB CABLE", NULL);
-		if (!sys_usb_connected()) {
-			center(c, y + 40, "PLUG THE USB CABLE", UI_TS, WHITE);
-			center(c, y + 76, "INTO YOUR COMPUTER", UI_TS, WHITE);
-			waiting(c, y + 140, "WAITING FOR THE CABLE");
+		if (!sys_usb_connected()) {	// waiting for the cable: the plug, big
+			big_icon(c, ICON_USB24, (W - 24 * 6) / 2, y + 6, 6, 0x444444);
+			center(c, y + 172, "PLUG THE USB CABLE", UI_TS, WHITE);
+			center(c, y + 208, "INTO YOUR COMPUTER", UI_TS, WHITE);
+			waiting(c, y + 262, "WAITING FOR THE CABLE");
 			return;
 		}
-		center(c, y + 20, "ON YOUR COMPUTER, OPEN", UI_TS, WHITE);
-		address_box(c, y + 60, usb_url(), "USB", 1);
-		center(c, y + 132, "IN A BROWSER. NO CODE NEEDED.", 2, GREY);
-		paired_line(c, y + 250);
+		step(c, y + 6, 1, "ON YOUR COMPUTER, OPEN");
+		address_box(c, y + 46, usb_url(), "USB");
+		step(c, y + 128, 2, "NO CODE: THE CABLE IS THE KEY");
+		big_icon(c, ICON_PCLINK24, (W - 24 * 4) / 2, y + 170, 4, 0x444444);
+		status_line(c, y + 290);
 		return;
 	}
 	if (L.view == V_WIFI) {
 		int y = ui_page_header(c, APP_PCLINK, "WI-FI", NULL);
 		if (!wifi) {
-			center(c, y + 40, "WI-FI IS NOT CONNECTED", UI_TS, WHITE);
-			center(c, y + 90, "CONNECT IN SETTINGS > WI-FI,", 2, GREY);
-			center(c, y + 118, "THEN COME BACK HERE.", 2, GREY);
+			big_icon(c, ICON_WIFI24, (W - 24 * 6) / 2, y + 6, 6, 0x444444);
+			center(c, y + 172, "WI-FI IS NOT CONNECTED", UI_TS, WHITE);
+			center(c, y + 214, "CONNECT IN SETTINGS > WI-FI,", 2, GREY);
+			center(c, y + 240, "THEN COME BACK HERE.", 2, GREY);
 			return;
 		}
 		char wurl[40];
 		snprintf(wurl, sizeof wurl, "http://%s", ip);
-		center(c, y + 10, "ON YOUR COMPUTER OR PHONE, OPEN", 2, WHITE);
-		address_box(c, y + 36, wurl, ssid && *ssid ? ssid : "WI-FI", 1);
-		center(c, y + 104, "A NEW BROWSER ASKS FOR THIS CODE", 2, WHITE);
+		step(c, y + 6, 1, "OPEN, ON THE SAME WI-FI");
+		address_box(c, y + 46, wurl, ssid && *ssid ? ssid : NULL);
+		step(c, y + 128, 2, "ENTER THIS CODE");
 		const char *code = sys_web_code();
 		char shown[16];
 		if (strlen(code) == 6)
 			snprintf(shown, sizeof shown, "%.3s %.3s", code, code + 3);
 		else
 			snprintf(shown, sizeof shown, "...");
-		text_arcade(c, (W - text_width(shown, 7)) / 2, y + 134, shown, 7, WHITE);
-		paired_line(c, y + 250);
+		text_arcade(c, (W - text_width(shown, 10)) / 2, y + 176, shown, 10, WHITE);
+		status_line(c, y + 290);
 		return;
 	}
 
-	// the choice
-	int y = ui_page_header(c, APP_PCLINK, "PC LINK", NULL);
-	y = ui_section(c, y, "CONNECT WITH");
-	ui_row(c, y, "USB CABLE", L.sel == ROW_USB, col);
-	ui_row_value(c, y, "NO CODE", 1, L.sel == ROW_USB, col, GREY);
-	y += UI_ROW;
-	ui_row(c, y, "WI-FI", L.sel == ROW_WIFI, col);
-	ui_row_value(c, y, wifi && ssid && *ssid ? ssid : "NOT CONNECTED", 1, L.sel == ROW_WIFI, col,
-		     wifi ? PAL[3] : GREY);
-	y += UI_ROW;
-	y = ui_section(c, y + 10, "PAIRED BROWSERS");
-	int n = sys_web_browsers();
-	char lbl[40];
-	snprintf(lbl, sizeof lbl, n ? "FORGET %d BROWSER%s" : "NO PAIRED BROWSERS", n, n == 1 ? "" : "S");
-	ui_row_hold(c, y, lbl, L.sel == ROW_FORGET, PAL[0], L.hold);
+	// the choice: two cards, one selected
+	int y = ui_page_header(c, APP_PCLINK, "PC LINK", NULL) + 4;
+	int h = (H - 48 - y - 14) / 2;
+	choice_card(c, y, h, ICON_USB24, "USB CABLE", "PLUG INTO A COMPUTER", "NO CODE NEEDED", GREY,
+		    L.sel == CH_USB);
+	choice_card(c, y + h + 14, h, ICON_WIFI24, "WI-FI", "COMPUTER OR PHONE",
+		    wifi ? (ssid && *ssid ? ssid : "CONNECTED") : "NOT CONNECTED", wifi ? PAL[3] : GREY,
+		    L.sel == CH_WIFI);
 }
 
 void pclink_hints(canvas *c, int *x)
@@ -245,7 +327,13 @@ void pclink_hints(canvas *c, int *x)
 		draw_hint(c, x, "B", "BACK", PAL[0]);
 		return;
 	}
-	draw_hint(c, x, "^V", "MOVE", 0xdddddd);
-	draw_hint(c, x, "A", L.sel == ROW_FORGET ? "HOLD" : "SELECT", PAL[3]);
+	draw_hint(c, x, "^V", "CHOOSE", 0xdddddd);
+	draw_hint(c, x, "A", "OPEN", PAL[3]);
+	int n = sys_web_browsers();
+	if (n) {
+		char s[32];
+		snprintf(s, sizeof s, L.hold > 0 ? "FORGETTING..." : "HOLD: FORGET %d", n);
+		draw_hint(c, x, "X", s, PAL[4]);
+	}
 	draw_hint(c, x, "B", "CLOSE", PAL[0]);
 }
