@@ -47,4 +47,4 @@ CONFIG_ENV_IS_NOWHERE=y
 CONFIG_BOOTSTAGE=y
 CONFIG_BOOTSTAGE_FDT=y
 # Direct boot: fixed paths, LZ4 kernel, no device/partition scanning.
-CONFIG_BOOTCOMMAND="setenv bootargs root=/dev/mmcblk0p1 rootwait rootfstype=ext4 console=tty0 g_ether.dev_addr=02:a8:b0:00:00:02 g_ether.host_addr=02:a8:b0:00:00:01; load mmc 0:1 ${fdt_addr_r} /boot/allwinner/sun50i-h700-anbernic-rg35xx-sp.dtb; load mmc 0:1 ${kernel_addr_r} /boot/Image.lz4; setenv kernel_comp_addr_r 0x44000000; setenv kernel_comp_size ${filesize}; booti ${kernel_addr_r} - ${fdt_addr_r}; run distro_bootcmd"
+CONFIG_BOOTCOMMAND="setenv bootargs root=/dev/mmcblk0p1 rootwait rootfstype=ext4 console=ttyS0,115200 quiet loglevel=3 logo.nologo vt.global_cursor_default=0 g_ether.dev_addr=02:a8:b0:00:00:02 g_ether.host_addr=02:a8:b0:00:00:01; load mmc 0:1 ${fdt_addr_r} /boot/allwinner/sun50i-h700-anbernic-rg35xx-sp.dtb; load mmc 0:1 ${kernel_addr_r} /boot/Image.lz4; setenv kernel_comp_addr_r 0x44000000; setenv kernel_comp_size ${filesize}; booti ${kernel_addr_r} - ${fdt_addr_r}; run distro_bootcmd"

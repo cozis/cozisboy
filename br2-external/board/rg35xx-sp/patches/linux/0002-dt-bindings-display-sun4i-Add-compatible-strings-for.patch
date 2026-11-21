@@ -1,7 +1,7 @@
 From 6e3dff3c52b9bd1d54d7aac28eaf11be74247a1e Mon Sep 17 00:00:00 2001
 From: Ryan Walklin <ryan@testtoast.com>
 Date: Fri, 20 Nov 2026 19:11:42 +0100
-Subject: [PATCH 02/13] dt-bindings: display: sun4i: Add compatible strings for
+Subject: [PATCH 02/14] dt-bindings: display: sun4i: Add compatible strings for
  H616 DE
 
 Add compatible strings for allwinner,sun50i-h616-display-engine. The

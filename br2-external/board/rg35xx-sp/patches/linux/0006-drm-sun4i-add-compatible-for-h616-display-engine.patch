@@ -1,7 +1,7 @@
 From 0c15736afdb7036e7daadc99a0fe53fe80d0d9cb Mon Sep 17 00:00:00 2001
 From: Ryan Walklin <ryan@testtoast.com>
 Date: Fri, 20 Nov 2026 19:11:47 +0100
-Subject: [PATCH 06/13] drm: sun4i: add compatible for h616 display engine
+Subject: [PATCH 06/14] drm: sun4i: add compatible for h616 display engine
 
 As discussed on list in the previous version of this patch [1], H616 DE
 compatible could be added using the H6 as a fallback, however all other

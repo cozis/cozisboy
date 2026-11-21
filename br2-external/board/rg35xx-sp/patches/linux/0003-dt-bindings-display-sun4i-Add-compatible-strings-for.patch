@@ -1,7 +1,7 @@
 From 43a6093b09c4f466e067f88ccc826387b776396f Mon Sep 17 00:00:00 2001
 From: Ryan Walklin <ryan@testtoast.com>
 Date: Fri, 20 Nov 2026 19:11:43 +0100
-Subject: [PATCH 03/13] dt-bindings: display: sun4i: Add compatible strings for
+Subject: [PATCH 03/14] dt-bindings: display: sun4i: Add compatible strings for
  H616 TCON TOP
 
 Add compatible string for allwinner,sun50i-h616-tcon-top with a

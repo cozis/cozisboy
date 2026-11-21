@@ -126,9 +126,6 @@ CONFIG_DRM_PANFROST=m
 CONFIG_SUN8I_CE=m
 CONFIG_RTW88=m
 CONFIG_RTW88_8821CS=m
-CONFIG_SND=m
-CONFIG_SND_SOC=m
-CONFIG_SND_SUN4I_CODEC=m
 # Server/desktop/container features with no use on a handheld
 # CONFIG_BPF_SYSCALL is not set
 # CONFIG_BPF_JIT is not set
@@ -191,3 +188,13 @@ CONFIG_CC_OPTIMIZE_FOR_SIZE=y
 # CONFIG_REGULATOR_FAN53555 is not set
 # CONFIG_REGULATOR_PWM is not set
 # CONFIG_REGULATOR_VCTRL is not set
+# Nothing but our splash/UI may draw on the screen: no text console, no logo.
+# Kernel messages: SSH (dmesg) or the serial port.
+# CONFIG_FRAMEBUFFER_CONSOLE is not set
+# CONFIG_LOGO is not set
+# Audio built in, so the boot jingle can start together with the splash
+CONFIG_SOUND=y
+CONFIG_SND=y
+CONFIG_SND_SOC=y
+CONFIG_SND_SUN4I_CODEC=y
+CONFIG_DMA_SUN6I=y
