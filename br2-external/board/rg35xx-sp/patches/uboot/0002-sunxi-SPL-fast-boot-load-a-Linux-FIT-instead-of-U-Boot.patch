@@ -1,0 +1,97 @@
+From: Francesco <francesco.cozzuto@gmail.com>
+Subject: [PATCH] sunxi: SPL fast boot: load a Linux FIT instead of U-Boot
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+--- a/arch/arm/mach-sunxi/Kconfig	2026-11-21 02:06:38.587733386 +0100
++++ b/arch/arm/mach-sunxi/Kconfig	2026-11-21 02:06:38.618619096 +0100
+@@ -1245,6 +1245,24 @@
+ 	select W1_EEPROM_DS24XXX
+ 	select CMD_EXTENSION
+ 
++config SUNXI_FAST_BOOT_SECTOR
++	hex "SD/eMMC sector of the fast-boot FIT (0 = disabled)"
++	depends on SPL_MMC
++	default 0x0
++	help
++	  Sector of a second FIT image (TF-A + a trampoline in U-Boot's place +
++	  Linux + device tree) that the SPL loads instead of U-Boot, so Linux
++	  starts without running U-Boot proper. Falls back to the normal U-Boot
++	  FIT if the button below is held or no valid FIT is found there.
++
++config SUNXI_FAST_BOOT_SKIP_GPIO
++	int "GPIO (pin number) of the button that skips fast boot"
++	depends on SUNXI_FAST_BOOT_SECTOR != 0
++	default 131
++	help
++	  Active-low button; holding it at power-on boots U-Boot instead.
++	  Default 131 = PE3.
++
+ config SPL_SUNXI_LED_STATUS
+ 	bool "Control GPIO status LED within SPL"
+ 	depends on SPL_GPIO && SUNXI_GPIO
+--- a/arch/arm/mach-sunxi/board.c	2026-11-21 02:06:21.058670084 +0100
++++ b/arch/arm/mach-sunxi/board.c	2026-11-21 02:06:38.627001950 +0100
+@@ -12,6 +12,7 @@
+ #include <cpu_func.h>
+ #include <init.h>
+ #include <log.h>
++#include <blk.h>
+ #include <mmc.h>
+ #include <i2c.h>
+ #include <serial.h>
+@@ -28,6 +29,8 @@
+ #include <asm/arch/mmc.h>
+ 
+ #include <linux/compiler.h>
++#include <linux/delay.h>
++#include <linux/libfdt.h>
+ 
+ struct fel_stash {
+ 	uint32_t sp;
+@@ -350,12 +353,45 @@
+  * Also U-Boot proper is located at least 32KB after the SPL, but will
+  * immediately follow the SPL if that is bigger than that.
+  */
++#if CONFIG_SUNXI_FAST_BOOT_SECTOR
++/*
++ * Fast boot: a second FIT (TF-A + a trampoline in U-Boot's place + Linux + DT)
++ * at CONFIG_SUNXI_FAST_BOOT_SECTOR boots Linux without running U-Boot proper.
++ * Holding the button on CONFIG_SUNXI_FAST_BOOT_SKIP_GPIO at power-on (or a
++ * missing/invalid fast-boot FIT) selects the normal U-Boot FIT instead.
++ */
++static bool sunxi_fast_boot(struct mmc *mmc)
++{
++	u32 pin = CONFIG_SUNXI_FAST_BOOT_SKIP_GPIO;
++	u32 *buf = (void *)(uintptr_t)CONFIG_SYS_LOAD_ADDR;
++	u32 bank = pin / 32, off = pin % 32;
++	void __iomem *dat = (void __iomem *)(uintptr_t)
++		(SUNXI_PIO_BASE + bank * 0x24 + 0x10);
++
++	sunxi_gpio_set_cfgpin(pin, SUNXI_GPIO_INPUT);
++	sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
++	udelay(20);
++	if (!(readl(dat) & BIT(off)))
++		return false;		/* button held (active low) */
++
++	if (blk_dread(mmc_get_blk_desc(mmc), CONFIG_SUNXI_FAST_BOOT_SECTOR,
++		      1, buf) != 1)
++		return false;
++	return fdt_magic(buf) == FDT_MAGIC;	/* FIT header present */
++}
++#endif
++
+ unsigned long board_spl_mmc_get_uboot_raw_sector(struct mmc *mmc,
+ 						 unsigned long raw_sect)
+ {
+ 	unsigned long spl_size = sunxi_get_spl_size();
+ 	unsigned long sector;
+ 
++#if CONFIG_SUNXI_FAST_BOOT_SECTOR
++	if (sunxi_fast_boot(mmc))
++		return CONFIG_SUNXI_FAST_BOOT_SECTOR;
++#endif
++
+ 	sector = max(raw_sect, spl_size / 512);
+ 
+ 	switch (sunxi_get_boot_source()) {

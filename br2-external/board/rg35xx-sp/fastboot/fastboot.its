@@ -1,0 +1,56 @@
+/dts-v1/;
+
+/ {
+	description = "RG35XX SP fast boot: TF-A + trampoline (as U-Boot) + Linux";
+	#address-cells = <1>;
+
+	images {
+		atf {
+			description = "TF-A BL31";
+			data = /incbin/("bl31.bin");
+			type = "firmware";
+			os = "arm-trusted-firmware";
+			arch = "arm64";
+			compression = "none";
+			load = <0x40000000>;
+			entry = <0x40000000>;
+		};
+		trampoline {
+			description = "BL33 trampoline -> Linux";
+			data = /incbin/("trampoline.bin");
+			type = "firmware";
+			os = "u-boot";
+			arch = "arm64";
+			compression = "none";
+			load = <0x4a000000>;
+			entry = <0x4a000000>;
+		};
+		kernel {
+			description = "Linux";
+			data = /incbin/("Image");
+			type = "kernel";
+			os = "linux";
+			arch = "arm64";
+			compression = "none";
+			load = <0x40200000>;
+			entry = <0x40200000>;
+		};
+		fdt-1 {
+			description = "RG35XX SP device tree";
+			data = /incbin/("fastboot.dtb");
+			type = "flat_dt";
+			arch = "arm64";
+			compression = "none";
+		};
+	};
+
+	configurations {
+		default = "config-1";
+		config-1 {
+			description = "fast boot";
+			firmware = "atf";
+			loadables = "trampoline", "kernel";
+			fdt = "fdt-1";
+		};
+	};
+};
