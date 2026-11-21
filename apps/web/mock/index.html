@@ -510,6 +510,16 @@ footer a { cursor: pointer; text-decoration: underline; }
 .modal { outline: 2px solid #26262b; }
 .cg .fr .tg span { background: #000; }
 
+
+.cg.one-row { grid-template-rows: auto; grid-auto-rows: 0; overflow: hidden; row-gap: 0; }	/* one row: as many as fit */
+.seeall { color: #9a9aa4; font: 600 13px system-ui; cursor: pointer; white-space: nowrap; }
+.seeall:hover { color: #fff; }
+.shell .hd .wifi { color: #77777f; font: 500 13px system-ui; }
+.shell .hd .bat { display: inline-flex; align-items: center; gap: 8px; }
+.shell .hd .bat i { display: inline-block; width: 22px; height: 11px; border: 2px solid #9a9aa4; position: relative; }
+.shell .hd .bat i::after { content: ""; position: absolute; right: -5px; top: 2px; width: 2px; height: 3px; background: #9a9aa4; }
+.shell .hd .bat i b { position: absolute; left: 1px; top: 1px; bottom: 1px; background: var(--green); }
+
 /* style switcher (mock only) */
 #switch { position: fixed; left: 14px; bottom: 14px; z-index: 50; display: flex; gap: 6px; align-items: center;
 	background: #000; color: #fff; padding: 6px 8px; border-radius: 10px; font: 600 12px system-ui; box-shadow: 0 4px 16px rgba(0,0,0,.4); }
@@ -1094,8 +1104,7 @@ function gridItem(it, kind, i) {
 	const inner = img ? `<img src="${esc(img)}" alt="" loading="lazy" onerror="this.outerHTML='${fallback}'">` : `<div class="ph" style="--c:var(--sys-${k})">${PX(initials(it.title), 7, "arcade", "#ffffff")}</div>`;
 	let tags = "", act = "", sub, click;
 	if (mine) {
-		tags = (it.save ? `<span>${PX("Save", 1.5, "plain")}</span>` : "") + (it.states.length ? `<span>${PX(it.states.length + " st", 1.5, "plain")}</span>` : "");
-		sub = [SYS[k][0], it.save ? "saved " + ago(it.save.time) : "not played yet"].join(" · ");
+		sub = [it.save ? "saved " + ago(it.save.time) : "not played yet", it.states.length ? it.states.length + (it.states.length > 1 ? " states" : " state") : ""].filter(Boolean).join(" · ");
 		click = `focusGame('${it.id}')`;
 	} else if (kind === "hh") {
 		const have = installedNames().has(it.title);
@@ -1108,7 +1117,7 @@ function gridItem(it, kind, i) {
 		sub = `${it.author || ""}${it.price ? " · " + it.price : " · free"}`;
 		click = "";
 	}
-	return `<div class="it" tabindex="0" onclick="${click}"><div class="fr ${mine ? "" : "shot"}" style="--c:var(--sys-${k})">${inner}<span class="sys"></span><div class="tg">${tags}</div>${act}</div>
+	return `<div class="it" tabindex="0" onclick="${click}"><div class="fr ${mine ? "" : "shot"}" style="--c:var(--sys-${k})">${inner}${tags ? `<div class="tg">${tags}</div>` : ""}${act}</div>
 		<div class="nm">${esc(it.title)}</div><div class="sb">${esc(sub)}</div></div>`;
 }
 function focusGame(id) { shelf = "mine"; cvSel.mine = cvItems().findIndex(x => x.id === id); view = "focus"; render(); }
@@ -1125,7 +1134,7 @@ function pageAll() {
 	let gs = all.filter(g => !q || g.title.toLowerCase().includes(q));
 	const byTitle = (a, b) => a.title.localeCompare(b.title);
 	const byRecent = (a, b) => played(b) - played(a) || byTitle(a, b);
-	const sorter = sortBy === "az" ? byTitle : byRecent;
+	const sorter = byTitle;	// sections A-Z; recency lives in the Recently played row
 	const section = (title, col, xs) => xs.length ? `<div class="sech">${PX(title, 3, "plain", col)}${PX(String(xs.length), 2, "plain", "#666666")}<span class="ln"></span></div>
 		<div class="cg">${xs.map(g => gridItem(g, "mine")).join("")}</div>` : "";
 	let body = "";
@@ -1134,8 +1143,12 @@ function pageAll() {
 	} else if (libFilter !== "all") {
 		body = section(SYS[libFilter][1], pal(`--sys-${libFilter}`), gs.filter(g => g.sys === libFilter).sort(sorter));
 	} else {
-		if (sortBy === "recent" && !q)
-			body += section("Recently played", pal("--yellow"), gs.filter(g => g.save).sort(byRecent).slice(0, 6));
+		if (!q) {
+			const rec = gs.filter(g => g.save).sort(byRecent);
+			if (rec.length) body += `<div class="sech">${PX("Recently played", 3, "plain", pal("--yellow"))}<span class="ln"></span>
+				<a class="seeall" onclick="libFilter='recent';render()">See all ${rec.length}</a></div>
+				<div class="cg one-row">${rec.slice(0, 12).map(g => gridItem(g, "mine")).join("")}</div>`;
+		}
 		for (const k of ["gba", "gbc", "gb"])
 			body += section(SYS[k][1], pal(`--sys-${k}`), gs.filter(g => g.sys === k).sort(sorter));
 	}
@@ -1146,7 +1159,8 @@ function pageAll() {
 	const b = MOCK_STATUS.battery;
 	return `<div class="shell flat">
 		<header class="hd"><img class="logo pix" src="../logo.png" alt="cozisboy" onclick="libFilter='all';q='';render()"><div class="grow"></div>
-			<div class="stat">${PX(MOCK_STATUS.wifi.ssid, 2, "plain", "#888888")}${PX(b.capacity + "%", 2, "plain", pal("--green"))}</div></header>
+			<div class="stat"><span class="wifi">${esc(MOCK_STATUS.wifi.ssid)}</span>
+				<span class="bat"><i><b style="width:${Math.round(b.capacity * 14 / 100)}px"></b></i>${PX(b.capacity + "%", 2, "plain", "#dddddd")}</span></div></header>
 		<nav class="snav">
 			<div class="lbl">${PX("Library", 2, "plain", "#66666e")}</div>
 			${item("all", "All games", all.length, "var(--yellow)")}
@@ -1154,14 +1168,9 @@ function pageAll() {
 			${item("gba", "Game Boy Advance", cnt("gba"), "var(--sys-gba)")}
 			${item("gbc", "Game Boy Color", cnt("gbc"), "var(--sys-gbc)")}
 			${item("gb", "Game Boy", cnt("gb"), "var(--sys-gb)")}
-			<div class="lbl">${PX("Sort", 2, "plain", "#66666e")}</div>
-			<button class="${sortBy === "recent" ? "on" : ""}" onclick="sortBy='recent';render()">Last played</button>
-			<button class="${sortBy === "az" ? "on" : ""}" onclick="sortBy='az';render()">A to Z</button>
 			<div class="spacer"></div>
 			<div class="meter" style="--c:var(--purple)">${PX("Storage", 2, "plain", "#66666e")}
 				<div class="track"><i style="width:${(100 * used / st.total).toFixed(1)}%"></i></div><small>${size(st.free)} free of ${size(st.total)}</small></div>
-			<div class="meter" style="--c:var(--green)">${PX("Battery", 2, "plain", "#66666e")}
-				<div class="track"><i style="width:${b.capacity}%"></i></div><small>${b.capacity}% · ${b.status.toLowerCase()}</small></div>
 		</nav>
 		<section class="mn">
 			<div class="tb"><input class="pxsearch" placeholder="Search your games" value="${esc(q)}" oninput="q=this.value.toLowerCase();render();this.focus();this.setSelectionRange(this.value.length,this.value.length)">
