@@ -53,8 +53,8 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
       buttons, ALSA thread, volume keys, power/lid -> sleep), sys_dev.c (real
       Wi-Fi via wpa_supplicant, SSH switches), libmgba 0.10.5 package,
       respawned from inittab (cozisboy-ui-start).
-- [ ] Launcher reads the game library directly (today: cozisboy-ui-start
-      links /data/library/gba into a ROM folder + saves folder).
+- [x] Launcher reads the game library directly (623356f): games, battery
+      saves and save states (on disk, PNG screenshots) shared with the web app.
 - [ ] Launcher uses ~80% of one core in menus (full 640x480 software redraw at
       60 fps): redraw only on change / lower fps when idle.
 - [ ] Covers in the launcher (library PNG -> the UI's PPM thumbs).
@@ -65,6 +65,11 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
 - [x] PWM backlight: H616 PWM driver from the upstream v4 series (patches
       0018-0021), pwm-backlight 0..255, default 160. Verified 255/15/0/128.
 - [ ] Brightness control in the UI (and remember it on /data).
+- [ ] **Memory page** in the UI: memory usage broken down by process / part
+      of the system (launcher, emulator, web app, kernel, page cache, ...).
+- [ ] **Battery page** in the UI: battery life monitor (charge level and
+      estimated time left, history over time) and battery health/quality
+      (capacity vs design, charge cycles, voltage/current, from AXP717).
 - [ ] Panel waits: tuned to 5/1/5/25/25/0 ms; re-verify on a cold device.
 - [ ] Check for horizontal ghosting on the panel (looked fine by eye).
 
@@ -120,8 +125,7 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
       (replace/delete keep a backup, restore), save-state gallery, zip backup.
 - [ ] Started at boot for now (S60web; code in /run/cozisboy-web.code): the
       launcher should switch it on/off and show the pairing code.
-- [ ] Launcher: move to the library (rescan when active, states via
-      coz_state_add).
+- [x] Launcher: uses the library (states via coz_state_add).
 - [x] Discover: Homebrew Hub catalogue (GB/GBC/GBA games) through a relay on
       the device (/api/hh/*, its JSON API isn't readable cross-origin; libcurl
       + CA bundle, cached 1 h), install = browser downloads ROM + cover.
