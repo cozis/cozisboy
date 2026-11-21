@@ -238,6 +238,17 @@ int main(int argc, char **argv)
 		perror("mmap fb");
 		return 1;
 	}
+	// Without a framebuffer console nothing has switched the display on yet:
+	// force the mode to be applied (DRM modeset: TCON + panel power-up) and
+	// unblank, otherwise the picture would sit in memory, invisible.
+	double ms0 = now();
+	var.activate = FB_ACTIVATE_NOW | FB_ACTIVATE_FORCE;
+	if (ioctl(fb, FBIOPUT_VSCREENINFO, &var))
+		perror("FBIOPUT_VSCREENINFO");
+	if (ioctl(fb, FBIOBLANK, FB_BLANK_UNBLANK))
+		perror("FBIOBLANK");
+	double modeset_ms = (now() - ms0) * 1000;
+
 	// Render off-screen, then copy: no half-drawn frames on screen.
 	uint32_t *back = malloc(size);
 	if (!back)
@@ -287,8 +298,8 @@ int main(int argc, char **argv)
 
 	// Leave the last frame on screen and the console in graphics mode:
 	// the next program takes over the display without a flash.
-	fprintf(stderr, "splash: %d frames, first after %.1f ms, ran %.2f s\n",
-		frames, first_frame * 1000, now() - t0);
+	fprintf(stderr, "splash: %d frames, first after %.1f ms (display on: %.1f ms), ran %.2f s\n",
+		frames, first_frame * 1000, modeset_ms, now() - t0);
 	fprintf(stderr, "splash: started %.3f s after reset (%.3f s after kernel), first frame %.3f s after reset\n",
 		t0_reset, t0_boot, t0_reset + first_frame);
 	munmap(fbmem, size);
