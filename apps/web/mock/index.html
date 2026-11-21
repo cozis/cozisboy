@@ -291,6 +291,56 @@ footer a { cursor: pointer; text-decoration: underline; }
 	.trio .pane-list { max-height: none; }
 }
 
+
+/* ======================================================== console view: the launcher, on a big screen */
+.cv { position: fixed; inset: 0; overflow: hidden; color: #fff; font: 15px/1.4 system-ui, sans-serif; background: #0c0c0e; }
+.cv .bg { position: absolute; inset: -60px; background: var(--art) center/cover; filter: blur(40px) saturate(1.3) brightness(.45); transition: background-image .3s; }
+.cv .bg::after { content: ""; position: absolute; inset: 0; background: radial-gradient(900px 500px at 50% 40%, color-mix(in srgb, var(--glow-c) 30%, transparent), transparent 70%), linear-gradient(to bottom, rgba(0,0,0,.2), rgba(0,0,0,.75)); }
+.cv .top { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 20px; padding: 22px 34px; z-index: 3; }
+.cv .top .logo { height: 34px; }
+.cv .shelves { display: flex; gap: 10px; margin-left: 24px; }
+.cv .shelves button { background: transparent; border: 0; cursor: pointer; padding: 6px 10px; opacity: .55; }
+.cv .shelves button.on { opacity: 1; }
+.cv .shelves button.on .px svg { filter: drop-shadow(0 3px 0 var(--yellow)); }
+.cv .grow { flex: 1; }
+.cv .pill { display: flex; gap: 16px; align-items: center; background: #000a; border: 2px solid #000; padding: 6px 14px; }
+.cv .stage { position: absolute; left: 0; right: 0; top: 13vh; height: 340px; z-index: 2; }
+.cv .cov { position: absolute; top: 50%; left: 50%; width: 300px; height: 300px; margin: -150px 0 0 -150px; cursor: pointer;
+	transition: transform .32s cubic-bezier(.2,.8,.2,1), opacity .32s, filter .32s; will-change: transform; }
+.cv .cov .box { width: 100%; height: 100%; background: #000; border: 5px solid #000; box-shadow: 0 0 0 4px #fff0, 10px 10px 0 rgba(0,0,0,.6); overflow: hidden; display: grid; place-items: center; transition: box-shadow .2s; }
+.cv .cov.sel .box { box-shadow: 0 0 0 4px #fff, 12px 12px 0 rgba(0,0,0,.7); animation: bob 1.6s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-6px); } }
+.cv .cov img { width: 100%; height: 100%; object-fit: cover; }
+.cv .cov.shot img { image-rendering: pixelated; }
+.cv .cov .ph { width: 100%; height: 100%; display: grid; place-items: center; background: var(--c); }
+.cv .cov .ring { position: absolute; inset: 0; display: grid; place-items: center; background: #000a; }
+.cv .cov .tagc { position: absolute; left: 10px; bottom: 10px; display: flex; gap: 6px; }
+.cv .cov .tagc span { background: #000; color: #fff; font: 800 11px system-ui; letter-spacing: .06em; padding: 3px 7px; }
+.cv .cov .tagc span.ok { background: var(--green); color: #000; }
+.cv .info { position: absolute; left: 0; right: 0; top: calc(13vh + 360px); text-align: center; z-index: 2; padding: 0 20px; }
+.cv .info .t { min-height: 48px; display: flex; justify-content: center; }
+.cv .info .s { margin-top: 10px; color: #cfcfd6; }
+.cv .acts { display: flex; gap: 14px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
+.cv .pb { background: #fff; color: #000; border: 0; padding: 12px 18px; cursor: pointer; position: relative; }
+.cv .pb::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 -4px 0 rgba(0,0,0,.22); pointer-events: none; }
+.cv .pb:hover { transform: translateY(-2px); }
+.cv .pb:active { transform: translateY(2px); }
+.cv .pb.go { background: var(--yellow); }
+.cv .pb.red { background: var(--red); }
+.cv .pb.dim { background: #2a2a2e; }
+.cv .states { display: flex; gap: 18px; justify-content: center; margin-top: 26px; }
+.cv .st { width: 200px; cursor: zoom-in; text-align: left; }
+.cv .st .im { aspect-ratio: 3/2; border: 4px solid #000; background: #000; box-shadow: 6px 6px 0 rgba(0,0,0,.6); }
+.cv .st .im img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; display: block; }
+.cv .st b { display: block; margin-top: 8px; font-size: 14px; }
+.cv .st span { color: #aaa; font-size: 12px; }
+.cv .hints { position: absolute; left: 0; right: 0; bottom: 78px; /* mock: clear of the switcher */ display: flex; gap: 26px; justify-content: center; z-index: 3; }
+.cv .hint { display: flex; gap: 8px; align-items: center; }
+.cv .key { background: #ddd; color: #000; padding: 2px 7px; }
+.cv .drop { position: absolute; inset: 0; z-index: 10; background: rgba(8,8,12,.86); display: grid; place-items: center; }
+.cv .drop .frame { border: 6px dashed var(--yellow); padding: 60px 90px; text-align: center; }
+.cv .count { position: absolute; left: 50%; transform: translateX(-50%); top: calc(13vh - 10px); z-index: 3; }
+
 /* style switcher (mock only) */
 #switch { position: fixed; left: 14px; bottom: 14px; z-index: 50; display: flex; gap: 6px; align-items: center;
 	background: #000; color: #fff; padding: 6px 8px; border-radius: 10px; font: 600 12px system-ui; box-shadow: 0 4px 16px rgba(0,0,0,.4); }
@@ -323,6 +373,7 @@ footer a { cursor: pointer; text-decoration: underline; }
 	<button data-p="#/discover">Discover</button>
 	<button data-p="#/pair">Pair</button>
 	<span>library</span>
+	<button data-l="console">Console</button>
 	<button data-l="trio">Lists + detail</button>
 	<button data-l="split">Lists</button>
 	<button data-l="grid">Grid</button>
@@ -477,7 +528,7 @@ function pagePair() {
 
 
 // ---------------------------------------------------------------- split layout
-let layout = "trio", catSys = "ALL", libSys = "ALL", justAdded = null, splitShow = "lib";
+let layout = "console", catSys = "ALL", libSys = "ALL", justAdded = null, splitShow = "lib";
 const installedNames = () => new Set(MOCK_GAMES.map(g => g.name));
 function sysFilter(cur, fn) {
 	return `<div class="seg">` + ["ALL", "GBA", "GBC", "GB"].map(k =>
@@ -694,6 +745,133 @@ document.addEventListener("keydown", ev => {
 	if (n) { ev.preventDefault(); sel = { side: n.dataset.side, id: n.dataset.id }; render(); document.querySelector(".li.sel")?.scrollIntoView({ block: "nearest" }); }
 });
 
+
+// ---------------------------------------------------------------- console view
+let shelf = "mine", cvSel = { mine: 0, get: 0 }, cvStates = false, cvDrop = false, cvBusy = {};
+const PX = (t, sc = 2, look = "shadow", col = "#ffffff") => `<span class="px" data-scale="${sc}" data-look="${look}" data-color="${col}">${esc(String(t).toUpperCase())}</span>`;
+const pal = k => getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+function cvItems() {
+	if (shelf === "mine") return [...MOCK_GAMES].sort((a, b) => (b.save ? b.save.time : b.added) - (a.save ? a.save.time : a.added));
+	return MOCK_HH;
+}
+function cvMove(d) {
+	const n = cvItems().length;
+	const i = cvSel[shelf] + d;
+	if (i < 0 || i >= n) {	// bump, as on the console
+		const st = document.querySelector(".cv .stage");
+		st?.animate([{ transform: "translateX(0)" }, { transform: `translateX(${-d * 24}px)` }, { transform: "translateX(0)" }], { duration: 300, easing: "ease-out" });
+		return;
+	}
+	cvSel[shelf] = i; cvStates = false; render();
+}
+function cvShelf(s) { shelf = s; cvStates = false; render(); }
+function cvCover(it, i, cur) {
+	const off = i - cur, a = Math.abs(off);
+	if (a > 4) return "";
+	const sc = off === 0 ? 1 : 0.62, x = off === 0 ? 0 : Math.sign(off) * (250 + (a - 1) * 200);
+	const mine = shelf === "mine";
+	const k = mine ? it.sys : it.platform.toLowerCase();
+	const img = mine ? it.cover : hhImg(it, it.screenshots[0]);
+	const inner = img ? `<img src="${esc(img)}" alt="" onerror="this.remove()">` : `<div class="ph" style="--c:var(--sys-${k})">${PX(initials(it.title), 9, "arcade", "#ffffff")}</div>`;
+	const tags = mine ? (it.save ? `<span>SAVE</span>` : "") + (it.states.length ? `<span>${it.states.length} STATES</span>` : "")
+		: (installedNames().has(it.title) ? `<span class="ok">ON CONSOLE</span>` : "");
+	const busy = cvBusy[it.id];
+	return `<div class="cov ${off === 0 ? "sel" : ""} ${mine ? "" : "shot"}" style="transform:translateX(${x}px) scale(${sc});opacity:${off === 0 ? 1 : a > 3 ? 0 : 0.55};z-index:${10 - a};filter:${off ? "saturate(.6)" : "none"}" onclick="cvMove(${off})">
+		<div class="box">${inner}</div>${off === 0 ? `<div class="tagc">${tags}</div>` : ""}
+		${busy != null ? `<div class="ring">${PX(Math.round(busy * 100) + "%", 5, "arcade", pal("--yellow"))}</div>` : ""}</div>`;
+}
+function pageConsole() {
+	const items = cvItems(), cur = Math.min(cvSel[shelf], items.length - 1), it = items[cur];
+	const mine = shelf === "mine", k = mine ? it.sys : it.platform.toLowerCase();
+	const art = mine ? it.cover : hhImg(it, it.screenshots[0]);
+	const tcol = pal(["--red", "--orange", "--yellow", "--green", "--cyan", "--blue", "--purple", "--pink"][[...it.title].reduce((h, c) => h * 31 + c.charCodeAt(0) >>> 0, 7) % 8]);
+	const ts = it.title.length > 26 ? 3 : 4;
+	let sub, acts;
+	if (mine) {
+		sub = [SYS[k][1], it.region, it.save ? "saved " + ago(it.save.time) : "no save yet"].filter(Boolean).join("  ·  ");
+		acts = (it.save ? `<button class="pb notch">${PX("Download save")}</button>` : "") +
+			`<button class="pb notch">${PX(it.save ? "Replace save" : "Upload save")}</button>` +
+			(it.states.length ? `<button class="pb notch ${cvStates ? "go" : ""}" onclick="cvStates=!cvStates;render()">${PX(it.states.length + " states")}</button>` : "") +
+			`<button class="pb notch dim">${PX("More", 2, "shadow", "#cccccc")}</button>`;
+	} else {
+		const have = installedNames().has(it.title);
+		sub = [it.platform, "by " + (it.developer || "unknown"), it.date ? it.date.slice(0, 4) : ""].filter(Boolean).join("  ·  ");
+		acts = have ? `<button class="pb notch dim">${PX("On your console", 2, "shadow", pal("--green"))}</button>`
+			: `<button class="pb notch go" onclick="cvInstall('${it.slug}')">${PX("+ Install", 3)}</button>`;
+		acts += `<button class="pb notch dim">${PX("About", 2, "shadow", "#cccccc")}</button>`;
+	}
+	const states = mine && cvStates ? `<div class="states">` + it.states.map(st => `<div class="st"><div class="im"><img src="${esc(st.thumb)}" alt=""></div><b>${ago(st.time)}</b><span>Load on console · Download</span></div>`).join("") + `</div>` : "";
+	const nMine = MOCK_GAMES.length, nGet = MOCK_HH.length;
+	return `<div class="cv" style="--art:url('${esc(art || "")}');--glow-c:var(--sys-${k})">
+		<div class="bg"></div>
+		<div class="top">
+			<img class="logo pix" src="../logo.png" alt="cozisboy">
+			<div class="shelves">
+				<button class="${mine ? "on" : ""}" onclick="cvShelf('mine')">${PX("My games " + nMine, 2, "shadow")}</button>
+				<button class="${mine ? "" : "on"}" onclick="cvShelf('get')">${PX("Get games " + nGet, 2, "shadow")}</button>
+			</div>
+			<div class="grow"></div>
+			<div class="pill notch">${PX(MOCK_STATUS.battery.capacity + "%", 2, "plain", pal("--green"))}${PX(size(MOCK_STATUS.storage.free) + " free", 2, "plain", "#cccccc")}</div>
+		</div>
+		<div class="count">${PX((cur + 1) + " / " + items.length, 2, "plain", "#888888")}</div>
+		<div class="stage">${items.map((x, i) => cvCover(x, i, cur)).join("")}</div>
+		<div class="info">
+			<div class="t">${PX(it.title, ts, "arcade", tcol)}</div>
+			<div class="s">${esc(sub)}</div>
+			<div class="acts">${acts}</div>
+			${states}
+		</div>
+		<div class="hints">
+			<span class="hint"><span class="key notch">${PX("<>", 2, "plain", "#000000")}</span>${PX("Move")}</span>
+			<span class="hint"><span class="key notch">${PX("TAB", 2, "plain", "#000000")}</span>${PX(mine ? "Get games" : "My games")}</span>
+			<span class="hint"><span class="key notch" style="background:${pal("--yellow")}">${PX("+", 2, "plain", "#000000")}</span>${PX("Drop files to add")}</span>
+			<span class="hint" style="cursor:pointer" onclick="cvSimDrop()"><span class="key notch" style="background:#555">${PX("?", 2, "plain", "#ffffff")}</span>${PX("Try a drop", 2, "shadow", "#888888")}</span>
+		</div>
+		${cvDrop ? `<div class="drop"><div class="frame notch">${PX("Drop to add", 6, "arcade", pal("--yellow"))}<p style="color:#bbb;margin:18px 0 0">.gba  .gbc  .gb  ·  saves (.sav) go to the selected game</p></div></div>` : ""}
+	</div>`;
+}
+function cvInstall(slug) {
+	const e = MOCK_HH.find(x => x.slug === slug);
+	const g = { id: "new-" + slug, sys: e.platform.toLowerCase(), name: e.title, title: e.title, region: "", cover: hhImg(e, e.screenshots[0]), rom_size: 1 << 20, added: MOCK_NOW, save: null, states: [] };
+	MOCK_GAMES.push(g);
+	shelf = "mine"; cvSel.mine = cvItems().findIndex(x => x.id === g.id);
+	cvProgress(g.id);
+}
+function cvProgress(id) {
+	cvBusy[id] = 0; render();
+	const t0 = performance.now();
+	const step = () => { const p = Math.min(1, (performance.now() - t0) / 1600); cvBusy[id] = p; render(); if (p < 1) requestAnimationFrame(step); else { delete cvBusy[id]; render(); } };
+	requestAnimationFrame(step);
+}
+function cvSimDrop() {	// mock: show the drop overlay, then add a game
+	cvDrop = true; render();
+	setTimeout(() => {
+		cvDrop = false;
+		const n = MOCK_GAMES.find(g => g.sys === "gbc" && !g.cover) ? null : null;
+		const g = { id: "drop" + Date.now(), sys: "gba", name: "Your Dropped Game (USA)", title: "Your Dropped Game", region: "USA", cover: null, rom_size: 8 << 20, added: MOCK_NOW, save: null, states: [] };
+		MOCK_GAMES.push(g); shelf = "mine"; cvSel.mine = cvItems().findIndex(x => x.id === g.id); cvProgress(g.id);
+	}, 1100);
+}
+document.addEventListener("keydown", ev => {
+	if (layout !== "console" || ev.target.tagName === "INPUT" || zoomI >= 0) return;
+	if (ev.key === "ArrowRight") { cvMove(1); ev.preventDefault(); }
+	if (ev.key === "ArrowLeft") { cvMove(-1); ev.preventDefault(); }
+	if (ev.key === "Tab") { cvShelf(shelf === "mine" ? "get" : "mine"); ev.preventDefault(); }
+	if (ev.key === "Enter" && shelf === "mine") { cvStates = !cvStates; render(); }
+});
+let wheelT = 0;
+document.addEventListener("wheel", ev => {
+	if (layout !== "console") return;
+	const now = performance.now();
+	if (now - wheelT < 140) return;
+	const d = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
+	if (Math.abs(d) < 4) return;
+	wheelT = now; cvMove(d > 0 ? 1 : -1);
+}, { passive: true });
+["dragenter", "dragover"].forEach(t => document.addEventListener(t, ev => { if (layout === "console") { ev.preventDefault(); if (!cvDrop) { cvDrop = true; render(); } } }));
+document.addEventListener("dragleave", ev => { if (layout === "console" && !ev.relatedTarget) { cvDrop = false; render(); } });
+document.addEventListener("drop", ev => { if (layout === "console") { ev.preventDefault(); cvSimDrop(); } });
+
 // ---------------------------------------------------------------- shell
 function glow(sys) { document.documentElement.style.setProperty("--glow", `var(--sys-${sys})`); }
 function render() {
@@ -705,7 +883,7 @@ function render() {
 		(m = h.match(/^#\/game\/(.+)/)) ? pageGame(m[1]) :
 		(m = h.match(/^#\/discover\/(.+)/)) ? pageHhGame(m[1]) :
 		h === "#/discover" ? pageDiscover() :
-		h === "#/pair" ? pagePair() : layout === "trio" ? pageTrio() : layout === "split" ? pageSplit() : pageLibrary();
+		h === "#/pair" ? pagePair() : layout === "console" ? pageConsole() : layout === "trio" ? pageTrio() : layout === "split" ? pageSplit() : pageLibrary();
 	renderPixelText($("root"));
 	document.querySelectorAll(".pane-list").forEach((el, i) => { if (scrolls[i]) el.scrollTop = scrolls[i]; });
 	document.querySelectorAll("#switch [data-s]").forEach(b => b.classList.toggle("on", b.dataset.s === style()));
