@@ -1,6 +1,7 @@
 // Fake Wi-Fi and SSH for the PC preview: a few made-up networks, connects that
 // take a moment, and a password check (8+ characters) so errors can be seen.
 #include "sys.h"
+float ui_time(void); // ui.c (not ui_priv.h: its W/H macros)
 
 #include <stdio.h>
 #include <string.h>
@@ -165,3 +166,13 @@ const char *sys_usb_ip(void)
 {
 	return "10.55.0.2";
 }
+
+/* ---- PC link (fake) ---- */
+static int web_on = 1, web_browsers = 1;
+static char web_code[8] = "482913";
+int sys_web_enabled(void) { return web_on; }
+void sys_web_enable(int on) { web_on = on; }
+const char *sys_web_code(void) { return web_on ? web_code : ""; }
+int sys_web_browsers(void) { return web_on ? web_browsers : 0; }
+void sys_web_new_code(void) { snprintf(web_code, sizeof web_code, "%06d", (int)(ui_time() * 7919) % 1000000); }
+void sys_web_forget_browsers(void) { web_browsers = 0; }

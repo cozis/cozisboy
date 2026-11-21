@@ -11,7 +11,9 @@
 //                                        so commits are atomic renames)
 // One folder per game: rename and delete move everything together.
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include "library.h"
 
 #include <ctype.h>

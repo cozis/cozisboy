@@ -1,8 +1,9 @@
 #!/bin/sh
-# Web app (prototype: started at boot until the launcher can switch it on and
-# show the pairing code; meanwhile read it with: cat /run/cozisboy-web.code).
+# Web app (PC LINK in the launcher). Runs unless switched off there
+# (/data/web-off); the launcher shows the pairing code.
 case "$1" in
 start)
+	[ -f /data/web-off ] && exit 0
 	mkdir -p /data/library
 	setsid cozisboy-web 80 >/run/cozisboy-web.log 2>&1 </dev/null &
 	;;

@@ -127,10 +127,10 @@ void wfocus(canvas *c, int x, int y, int w, int h, int g)
 /* ---- apps ------------------------------------------------------------- */
 
 static const char *const APP_NAME[NAPPS] = {
-	"BROWSER", "FILES", "TERMINAL", "MUSIC", "GAMES", "WI-FI", "SETTINGS", "POWER",
+	"BROWSER", "PC LINK", "TERMINAL", "MUSIC", "GAMES", "WI-FI", "SETTINGS", "POWER",
 };
 static const char *const APP_DESC[NAPPS] = {
-	"SURF THE WEB", "BROWSE YOUR STUFF", "COMMAND LINE", "PLAY SOME TUNES",
+	"SURF THE WEB", "GAMES AND SAVES FROM A PC", "COMMAND LINE", "PLAY SOME TUNES",
 	"PLAY YOUR GBA GAMES", "CONNECT TO A NETWORK", "TWEAK YOUR COZISBOY",
 	"SLEEP OR SHUT DOWN",
 };
@@ -154,7 +154,7 @@ static const char *const ICON_GLOBE[ICON_N] = {
 	".....######.....",
 	NULL,
 };
-static const char *const ICON_FOLDER[ICON_N] = {
+static const char *const ICON_FOLDER[ICON_N] __attribute__((unused)) = { // (no Files app yet)
 	"",
 	"",
 	".#####..........",
@@ -223,7 +223,7 @@ static const char *const ICON_PAD[ICON_N] = {
 static void gen_icons(void)
 {
 	icon_from_rows(&icons[APP_BROWSER], ICON_GLOBE, ICON_N);
-	icon_from_rows(&icons[APP_FILES], ICON_FOLDER, ICON_N);
+	icon_from_rows(&icons[APP_PCLINK], ICON_PCLINK24, 24);
 	icon_from_rows(&icons[APP_TERM], ICON_TERM, ICON_N);
 	icon_from_rows(&icons[APP_MUSIC], ICON_NOTE, ICON_N);
 	icon_from_rows(&icons[APP_GAMES], ICON_PAD, ICON_N);
@@ -837,7 +837,7 @@ void list_draw(canvas *c, const list_t *l, int x, int y, int w, int rh, uint32_t
 // Browser, Files, Terminal, Music, Wi-Fi and Power exist but are hidden from
 // home for now (decided 2026-11-21): Wi-Fi/Power will move to Settings and the
 // Control Center.
-static const int HOME_APPS[] = {APP_GAMES, APP_SETTINGS};
+static const int HOME_APPS[] = {APP_GAMES, APP_PCLINK, APP_SETTINGS};
 #define NHOME_APPS ((int)(sizeof HOME_APPS / sizeof *HOME_APPS))
 typedef struct {
 	int app;  // app id, or -1 for a game
@@ -995,6 +995,8 @@ static void update(unsigned p, unsigned held, float dt)
 			} else {
 				S.app = h->app;
 				S.page = PAGE_MAIN;
+				if (S.app == APP_PCLINK)
+					pclink_open();
 				list_t *l = app_list(S.app);
 				if (l)
 					l->sel = 0, l->y = 0;
@@ -1006,6 +1008,11 @@ static void update(unsigned p, unsigned held, float dt)
 		break;
 	}
 	case SCR_APP: {
+		if (S.app == APP_PCLINK) {
+			if (pclink_update(p, dt))
+				go(SCR_HOME, BG0, W / 2, H / 2);
+			break;
+		}
 		if (S.app == APP_SETTINGS && (S.page == PAGE_WIFI || S.page == PAGE_SSH)) {
 			if (net_update(S.page, p, dt))
 				S.page = PAGE_MAIN, ui_page_anim(1);
@@ -1311,6 +1318,10 @@ static void bottom_hints(canvas *c, int *xp)
 		break;
 	}
 	case SCR_APP:
+		if (S.app == APP_PCLINK) {
+			pclink_hints(c, &x);
+			break;
+		}
 		if (S.app == APP_SETTINGS && (S.page == PAGE_WIFI || S.page == PAGE_SSH)) {
 			net_hints(c, S.page, &x);
 			break;
@@ -1615,6 +1626,10 @@ static void draw_about(canvas *c)
 
 static void draw_app(canvas *c)
 {
+	if (S.app == APP_PCLINK) {
+		pclink_draw(c);
+		return;
+	}
 	if (S.app == APP_SETTINGS && (S.page == PAGE_WIFI || S.page == PAGE_SSH)) {
 		net_draw(c, S.page);
 		return;

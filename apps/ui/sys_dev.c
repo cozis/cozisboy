@@ -4,12 +4,15 @@
 // Wi-Fi passwords never reach a command line: wpa_passphrase reads them on a
 // pipe and only the derived key (psk=<hex>) is written to the config file.
 #include "sys.h"
+float ui_time(void); // ui.c (not ui_priv.h: its W/H macros)
 
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
 #include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -544,4 +547,103 @@ const char *sys_usb_ip(void)
 		freeifaddrs(ifa);
 	}
 	return ip;
+}
+
+/* ---- PC link (the web app) ---------------------------------------------------- */
+//
+// cozisboy-web (S60web) runs unless /data/web-off exists. Its code and paired
+// browsers come from its local-only endpoints (/api/local/...).
+
+#define WEB_OFF_FLAG "/data/web-off"
+#define WEB_INIT "/etc/init.d/S60web"
+
+// One request to the web app on 127.0.0.1; the JSON body into out.
+static int web_local(const char *method, const char *what, char *out, size_t outlen)
+{
+	int fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+	if (fd < 0)
+		return -1;
+	struct timeval tv = {.tv_sec = 1};
+	setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+	setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
+	struct sockaddr_in a = {.sin_family = AF_INET, .sin_port = htons(80), .sin_addr.s_addr = htonl(0x7f000001)};
+	char req[160], buf[1024];
+	int n = snprintf(req, sizeof req, "%s /api/local/%s HTTP/1.0\r\nX-Cozis: 1\r\nContent-Length: 0\r\n\r\n", method, what);
+	size_t got = 0;
+	ssize_t r;
+	if (connect(fd, (struct sockaddr *)&a, sizeof a) || write(fd, req, n) != n) {
+		close(fd);
+		return -1;
+	}
+	while (got < sizeof buf - 1 && (r = read(fd, buf + got, sizeof buf - 1 - got)) > 0)
+		got += r;
+	close(fd);
+	buf[got] = 0;
+	char *body = strstr(buf, "\r\n\r\n");
+	if (strncmp(buf, "HTTP/1.1 200", 12) || !body)
+		return -1;
+	if (out)
+		snprintf(out, outlen, "%s", body + 4);
+	return 0;
+}
+
+static struct {
+	char code[8];
+	int browsers;
+} WEB;
+
+static void web_refresh(void)
+{
+	char j[256];
+	WEB.code[0] = 0, WEB.browsers = 0;
+	if (web_local("GET", "info", j, sizeof j))
+		return;
+	char *c = strstr(j, "\"code\":\""), *b = strstr(j, "\"browsers\":");
+	if (c)
+		sscanf(c + 8, "%6[0-9]", WEB.code);
+	if (b)
+		WEB.browsers = atoi(b + 11);
+}
+
+int sys_web_enabled(void)
+{
+	return access(WEB_OFF_FLAG, F_OK) != 0;
+}
+
+void sys_web_enable(int on)
+{
+	touch(WEB_OFF_FLAG, !on);
+	sh(WEB_INIT, on ? "start" : "stop");
+	if (on)
+		usleep(200000);	// let it start listening
+	web_refresh();
+}
+
+const char *sys_web_code(void)
+{
+	static float last;
+	float now = ui_time();
+	if (now - last > 1.0f || now < last) {	// at most once a second
+		last = now;
+		web_refresh();
+	}
+	return WEB.code;
+}
+
+int sys_web_browsers(void)
+{
+	sys_web_code();
+	return WEB.browsers;
+}
+
+void sys_web_new_code(void)
+{
+	web_local("POST", "newcode", NULL, 0);
+	web_refresh();
+}
+
+void sys_web_forget_browsers(void)
+{
+	web_local("POST", "forget", NULL, 0);
+	web_refresh();
 }

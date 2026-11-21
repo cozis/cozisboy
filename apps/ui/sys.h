@@ -40,4 +40,13 @@ int sys_ssh_set_password(const char *pw);
 const char *sys_ssh_fingerprint(void);  // host key fingerprint
 const char *sys_usb_ip(void);           // address over the USB cable
 
+// PC link: the web app (apps/web) for managing games from a browser.
+// Over the USB cable a browser pairs by itself; over Wi-Fi it needs the code.
+int sys_web_enabled(void);
+void sys_web_enable(int on);
+const char *sys_web_code(void);     // current pairing code ("" when off)
+int sys_web_browsers(void);         // paired browsers
+void sys_web_new_code(void);        // the old code stops working
+void sys_web_forget_browsers(void); // every browser has to pair again
+
 #endif

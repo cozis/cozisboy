@@ -22,7 +22,7 @@ extern const uint32_t PAL[8];
 enum { SCR_HOME, SCR_APP, SCR_LIBRARY, SCR_GAME };
 // pages inside Settings
 enum { PAGE_MAIN, PAGE_WIFI, PAGE_SSH, PAGE_LOOK, PAGE_ABOUT };
-enum { APP_BROWSER, APP_FILES, APP_TERM, APP_MUSIC, APP_GAMES, APP_WIFI,
+enum { APP_BROWSER, APP_PCLINK, APP_TERM, APP_MUSIC, APP_GAMES, APP_WIFI,
        APP_SETTINGS, APP_POWER, NAPPS };
 
 /* ---- widget styles: every box, image frame and focus ring goes through these
@@ -103,6 +103,13 @@ void ui_row_slider(canvas *c, int y, int val, int max, int sel, uint32_t col);
 void ui_row_choice(canvas *c, int y, const char *value, int sel, uint32_t col);
 void ui_info(canvas *c, int y, const char *label, const char *value);
 int ui_panel(canvas *c, int x, int y, int w, int h, const char *title, uint32_t col);
+
+/* ---- pclink.c: PC LINK (the web app) ---- */
+extern const char *const ICON_PCLINK24[ICON_MAX];
+void pclink_open(void);
+int pclink_update(unsigned pressed, float dt); // 1: leave the page
+void pclink_draw(canvas *c);
+void pclink_hints(canvas *c, int *x);
 
 /* ---- games.c: games hub, running games, Control Center ---- */
 void games_init(void);

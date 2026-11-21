@@ -49,6 +49,8 @@
 // the launcher's front end shows that on screen until PAIRED_FILE is newer.
 #define REQUEST_FILE "/run/cozisboy-web.request"
 #define PAIRED_FILE "/run/cozisboy-web.paired"
+// Paired browsers' session tokens, kept across restarts.
+#define SESSIONS_FILE "/data/web/sessions"
 #define BACKLIGHT "/sys/class/backlight/backlight/"
 #define BATTERY "/sys/class/power_supply/axp20x-battery/"
 #define MAX_SESSIONS 16
@@ -247,6 +249,7 @@ struct req {
 	size_t body_have;
 	char local_ip[INET_ADDRSTRLEN];	// the console address the browser used
 	int via_usb;		// arrived over the USB cable link (10.55.0.0/24)
+	int from_local;		// from the console itself (127.0.0.1): the launcher
 };
 
 static int check_session(const char *cookie_hdr, char *tok_out)
@@ -335,6 +338,74 @@ static void serve_static(struct req *r)
 
 // --------------------------------------------------------------------- api
 
+// Caller holds lock.
+static void sessions_save(void)
+{
+	mkdir("/data/web", 0700);
+	FILE *f = fopen(SESSIONS_FILE ".tmp", "w");
+	if (!f)
+		return;
+	for (int i = 0; i < MAX_SESSIONS; i++)
+		if (sessions[i][0])
+			fprintf(f, "%s\n", sessions[i]);
+	fflush(f);
+	fsync(fileno(f));
+	fclose(f);
+	chmod(SESSIONS_FILE ".tmp", 0600);
+	rename(SESSIONS_FILE ".tmp", SESSIONS_FILE);
+}
+
+static void sessions_load(void)
+{
+	FILE *f = fopen(SESSIONS_FILE, "r");
+	char line[64];
+	if (!f)
+		return;
+	while (fgets(line, sizeof line, f) && next_session < MAX_SESSIONS) {
+		line[strcspn(line, "\n")] = 0;
+		if (strlen(line) == 32 && strspn(line, "0123456789abcdef") == 32)
+			strcpy(sessions[next_session++], line);
+	}
+	next_session %= MAX_SESSIONS;
+	fclose(f);
+}
+
+static int sessions_count(void)
+{
+	int n = 0;
+	for (int i = 0; i < MAX_SESSIONS; i++)
+		n += sessions[i][0] != 0;
+	return n;
+}
+
+// /api/local/...: the launcher's PC LINK page, from the console itself only.
+//   GET  info     {"code":"123456","browsers":2}
+//   POST newcode  a new pairing code
+//   POST forget   unpair every browser
+static void api_local(struct req *r, const char *what)
+{
+	if (!r->from_local) {
+		respond_error(r->fd, 403, "local only");
+		return;
+	}
+	char b[96];
+	pthread_mutex_lock(&lock);
+	if (!strcmp(what, "newcode") && !strcmp(r->method, "POST")) {
+		new_pair_code();
+	} else if (!strcmp(what, "forget") && !strcmp(r->method, "POST")) {
+		memset(sessions, 0, sizeof sessions);
+		next_session = 0;
+		sessions_save();
+	} else if (strcmp(what, "info")) {
+		pthread_mutex_unlock(&lock);
+		respond_error(r->fd, 404, "no such endpoint");
+		return;
+	}
+	int n = snprintf(b, sizeof b, "{\"code\":\"%s\",\"browsers\":%d}", pair_code, sessions_count());
+	pthread_mutex_unlock(&lock);
+	respond(r->fd, 200, "application/json", NULL, b, n);
+}
+
 // POST /api/pair/request: the pairing page is open. Over USB the browser may
 // pair without a code; otherwise the console shows the code on its screen.
 static void api_pair_request(struct req *r)
@@ -377,6 +448,7 @@ static void api_pair(struct req *r)
 		strcpy(sessions[next_session], tok);
 		next_session = (next_session + 1) % MAX_SESSIONS;
 		failures = 0;
+		sessions_save();
 		request_url[0] = 0;
 		unlink(REQUEST_FILE);
 		FILE *f = fopen(PAIRED_FILE, "w");	// the console hides the code
@@ -405,6 +477,7 @@ static void api_logout(struct req *r)
 	for (int s = 0; s < MAX_SESSIONS; s++)
 		if (!strcmp(sessions[s], r->token))
 			sessions[s][0] = 0;
+	sessions_save();
 	pthread_mutex_unlock(&lock);
 	respond(r->fd, 200, "application/json",
 		"Set-Cookie: coz=; Path=/; Max-Age=0\r\n", "{\"ok\":true}", 11);
@@ -1464,6 +1537,10 @@ static void route(struct req *r)
 		api_pair_request(r);
 		return;
 	}
+	if (!strncmp(ep, "local/", 6)) {
+		api_local(r, ep + 6);
+		return;
+	}
 	if (!r->authed) {
 		respond_error(r->fd, 401, "not paired");
 		return;
@@ -1524,6 +1601,10 @@ static void *handle(void *arg)
 		inet_ntop(AF_INET, &la.sin_addr, r.local_ip, sizeof r.local_ip);
 		r.via_usb = (ntohl(la.sin_addr.s_addr) & 0xffffff00u) == 0x0a370000u;	// 10.55.0.x
 	}
+	struct sockaddr_in pa;
+	socklen_t pl = sizeof pa;
+	if (getpeername(fd, (struct sockaddr *)&pa, &pl) == 0 && pa.sin_family == AF_INET)
+		r.from_local = ntohl(pa.sin_addr.s_addr) == 0x7f000001u;
 	r.body = end + 4;
 	r.body_have = got - (r.body - hbuf);
 
@@ -1588,6 +1669,7 @@ int main(int argc, char **argv)
 	umask(022);
 
 	pthread_mutex_lock(&lock);
+	sessions_load();
 	new_pair_code();
 	pthread_mutex_unlock(&lock);
 
