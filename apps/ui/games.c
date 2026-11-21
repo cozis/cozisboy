@@ -965,11 +965,27 @@ static void draw_open_cover(canvas *c, int ri, int x, int y, int s)
 }
 
 // Small "LINKED" chip (top-left at x, y).
+// A small coloured label (top-left at x, y). Returns its width.
+static int chip(canvas *c, int x, int y, int scale, const char *label, uint32_t col)
+{
+	int w = text_width(label, scale) + 6 * scale, h = 7 * scale + 4 * scale;
+	rrect(c, x, y, w, h, scale + 1, col);
+	text(c, x + 3 * scale, y + 2 * scale, label, scale, BLACK);
+	return w;
+}
+
 static void link_chip(canvas *c, int x, int y, int scale)
 {
-	int w = text_width("LINKED", scale) + 6 * scale, h = 7 * scale + 4 * scale;
-	rrect(c, x, y, w, h, scale + 1, LINK_COL);
-	text(c, x + 3 * scale, y + 2 * scale, "LINKED", scale, BLACK);
+	chip(c, x, y, scale, "LINKED", LINK_COL);
+}
+
+// Is another instance of open game i's game open? (then "#n" tells them apart)
+static int has_twin(int i)
+{
+	for (int k = 0; k < nrun; k++)
+		if (k != i && run[k].game == run[i].game)
+			return 1;
+	return 0;
 }
 
 /* Cover frame styles being compared: 0 current (widget frame + focus ring),
@@ -2600,7 +2616,16 @@ void games_draw(canvas *c, int screen)
 		}
 		draw_game_view(c, &run[cur]);
 		if (is_linked(cur) && !G.cc) // in the black border, never over the game
-			link_chip(c, W - 8 - text_width("LINKED", 2) - 12, 6, 2);
+		{
+			// LINKED, plus which copy this is (#1 = the original) in yellow
+			int x = W - 8 - text_width("LINKED", 2) - 12;
+			chip(c, x, 6, 2, "LINKED", LINK_COL);
+			if (has_twin(cur)) {
+				char nb[16];
+				snprintf(nb, sizeof nb, "#%d", run[cur].copy + 1);
+				chip(c, x - 6 - text_width(nb, 2) - 12, 6, 2, nb, PAL[2]);
+			}
+		}
 
 	}
 }
