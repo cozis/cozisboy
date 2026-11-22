@@ -2,6 +2,7 @@
 #include <mgba/flags.h> // must come first: libmgba's struct layouts depend on it
 #include <mgba/core/blip_buf.h>
 #include <stddef.h>
+#include <time.h>
 #include <mgba/core/core.h>
 #include <mgba/core/lockstep.h>
 #include <mgba/internal/gba/gba.h>
@@ -158,8 +159,12 @@ int emu_frames_due(float dt)
 	}
 	acc += dt * rate;
 	int n = (int)acc;
-	if (n > 4) {	// a long stall (loading, menu): don't race to catch up
-		n = 4;
+	// Never more than 2 frames at once, and no debt beyond that: if the console
+	// can't keep up (two linked games, a heavy scene), the game slows down a
+	// little instead of trying to catch up with ever more work (a spiral that
+	// freezes everything).
+	if (n > 2) {
+		n = 2;
 		acc = 0;
 	}
 	acc -= n;
@@ -511,25 +516,42 @@ static unsigned gba_keys(unsigned b)
 // One frame of a link group: interleave the cores in runLoop() slices. Player 0
 // (the link master) runs while awake; the others run while awake and behind, or
 // while the master waits on them.
+static double mono_now(void)
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec + ts.tv_nsec / 1e9;
+}
+
 static void run_group_frame(struct group *gr)
 {
+	// One frame for every member. Each one's target is one past ITS OWN frame
+	// counter: the counters started when each game was opened, so they can be
+	// far apart (comparing them against the first game's starved the other).
+	uint32_t tgt[MAX_GROUP];
+	for (int i = 0; i < gr->n; i++)
+		tgt[i] = member(gr, i)->core->frameCounter(member(gr, i)->core) + 1;
 	emu_game *m = member(gr, 0);
-	uint32_t target = m->core->frameCounter(m->core) + 1;
+	double t0 = mono_now();
 	for (int guard = 0; guard < 4000000; guard++) {
+		// linked games waiting on each other can spin here without moving:
+		// give the launcher back control after 50 ms (they go on next frame)
+		if ((guard & 255) == 255 && mono_now() - t0 > 0.050)
+			break;
 		int ran = 0;
-		if (m->awake && m->core->frameCounter(m->core) < target)
+		if (m->awake && m->core->frameCounter(m->core) < tgt[0])
 			m->core->runLoop(m->core), ran = 1;
 		for (int i = 1; i < gr->n; i++) {
 			emu_game *p = member(gr, i);
 			int needed = m->wait_mask & (1u << p->node.id);
-			if (p->awake && (needed || p->core->frameCounter(p->core) < target))
+			if (p->awake && (needed || p->core->frameCounter(p->core) < tgt[i]))
 				p->core->runLoop(p->core), ran = 1;
 		}
-		int done = m->core->frameCounter(m->core) >= target;
+		int done = m->core->frameCounter(m->core) >= tgt[0];
 		for (int i = 1; done && i < gr->n; i++) {
 			emu_game *p = member(gr, i);
-			if (p->awake && p->core->frameCounter(p->core) < target && p->node.d.p->mode > SIO_MULTI)
-				done = 0; // unlinked-mode followers keep their own pace
+			if (p->awake && p->core->frameCounter(p->core) < tgt[i])
+				done = 0; // every linked game gets its frame
 		}
 		if (done || !ran)
 			break;
