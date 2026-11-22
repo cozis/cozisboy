@@ -3,7 +3,7 @@
 
 Writes <out>/{gb,gbc,gba}.txt: one "CRC32 name" line per ROM (CRC as 8 upper-
 case hex digits, sorted), the canonical No-Intro name without the extension,
-e.g. "9D4F1E18 007 - Everything or Nothing (USA, Europe) (En,Fr,De)".
+e.g. "0123ABCD Example Quest (USA, Europe) (En,Fr,De)".
 The library looks a ROM's CRC up there when it's imported (library.c), and
 the web app finds box art by that name (libretro-thumbnails).
 

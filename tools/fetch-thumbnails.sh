@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Download box art, title screens and gameplay snapshots for every GBA ROM from
 # the libretro-thumbnails database. Images are matched by the ROM's No-Intro
-# file name, e.g. "Castlevania - Aria of Sorrow (USA).gba".
+# file name, e.g. "Example Quest (USA).gba".
 #
 #   tools/fetch-thumbnails.sh [rom_dir ...]
 #
