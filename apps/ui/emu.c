@@ -1,6 +1,7 @@
 // GBA emulation on libmgba. See emu.h.
 #include <mgba/flags.h> // must come first: libmgba's struct layouts depend on it
 #include <mgba/core/blip_buf.h>
+#include <stddef.h>
 #include <mgba/core/core.h>
 #include <mgba/core/lockstep.h>
 #include <mgba/internal/gba/gba.h>
@@ -33,6 +34,10 @@ struct emu_game {
 	int awake;
 	int32_t cycles_posted;
 	unsigned wait_mask;
+	// rumble carts (Drill Dozer, WarioWare: Twisted!...): the game toggles the
+	// motor pin; strength = how often it's on, measured over each emu_run
+	struct mRumble rumble;	// first: the callback gets this pointer
+	int rum_on, rum_writes, rum_last, rum_level;
 };
 
 struct group {
@@ -187,6 +192,19 @@ static int copy_file(const char *from, const char *to)
 	return 0;
 }
 
+static void rumble_write(struct mRumble *r, int enable)
+{
+	emu_game *g = (emu_game *)((char *)r - offsetof(emu_game, rumble));
+	g->rum_writes++;
+	g->rum_on += enable != 0;
+	g->rum_last = enable != 0;
+}
+
+int emu_rumble(const emu_game *g)
+{
+	return g ? g->rum_level : 0;
+}
+
 emu_game *emu_open(const char *rom, const char *sav_in, const char *sav_out)
 {
 	emu_game *g = calloc(1, sizeof *g);
@@ -200,6 +218,8 @@ emu_game *emu_open(const char *rom, const char *sav_in, const char *sav_out)
 	mCoreInitConfig(g->core, NULL);
 	g->core->setVideoBuffer(g->core, g->video, EMU_W);
 	g->core->setAudioBufferSize(g->core, 2048);
+	g->rumble.setRumble = rumble_write;
+	g->core->setPeripheral(g->core, mPERIPH_RUMBLE, &g->rumble);
 	if (!mCoreLoadFile(g->core, rom)) {
 		g->core->deinit(g->core);
 		free(g);
@@ -524,6 +544,7 @@ void emu_run(emu_game *g, unsigned buttons, int frames)
 			if (g->grp->g[i] != g)
 				g->grp->g[i]->core->setKeys(g->grp->g[i]->core, 0);
 	atomic_fetch_add(&emu_frames_run, (unsigned)frames);
+	g->rum_on = g->rum_writes = 0;
 	for (int f = 0; f < frames; f++) {
 		if (g->grp)
 			run_group_frame(g->grp);
@@ -535,4 +556,6 @@ void emu_run(emu_game *g, unsigned buttons, int frames)
 				if (g->grp->g[i] != g)
 					push_audio(g->grp->g[i], 0);
 	}
+	if (frames > 0) // no writes this time: the motor stays as the game last left it
+		g->rum_level = g->rum_writes ? g->rum_on * 100 / g->rum_writes : g->rum_last ? 100 : 0;
 }

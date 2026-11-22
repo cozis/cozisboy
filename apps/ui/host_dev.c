@@ -285,6 +285,72 @@ static void stutter_log(double t, float dt)
 	worst = 0;
 }
 
+/* ---- rumble: the vibration motor (gpio-vibrator, force feedback over evdev) ---- */
+
+int ui_screen(void);
+int games_rumble(int screen);
+
+static struct {
+	int fd, id, on, acc;
+} R = {-1, -1, 0, 0};
+
+static void rumble_open(void)
+{
+	for (int i = 0; i < 16 && R.fd < 0; i++) {
+		char p[32], name[64] = "";
+		snprintf(p, sizeof p, "/dev/input/event%d", i);
+		int fd = open(p, O_RDWR | O_CLOEXEC);
+		if (fd < 0)
+			continue;
+		ioctl(fd, EVIOCGNAME(sizeof name), name);
+		if (!strstr(name, "vibrator")) {
+			close(fd);
+			continue;
+		}
+		struct ff_effect e;
+		memset(&e, 0, sizeof e);
+		e.type = FF_RUMBLE, e.id = -1;
+		e.u.rumble.strong_magnitude = 0xffff;
+		e.replay.length = 0; // until stopped
+		if (ioctl(fd, EVIOCSFF, &e) < 0) {
+			close(fd);
+			continue;
+		}
+		R.fd = fd, R.id = e.id;
+	}
+}
+
+static void rumble_set(int on)
+{
+	if (R.fd < 0 || on == R.on)
+		return;
+	struct input_event ev;
+	memset(&ev, 0, sizeof ev);
+	ev.type = EV_FF, ev.code = (unsigned short)R.id, ev.value = on;
+	if (write(R.fd, &ev, sizeof ev) == (ssize_t)sizeof ev)
+		R.on = on;
+}
+
+// Once a frame. The motor is on/off only: strength becomes the share of
+// frames it's on (a game at 50% gets every other frame), which the motor's
+// inertia smooths into a weaker buzz.
+static void rumble_tick(void)
+{
+	int lvl = games_rumble(ui_screen());
+	if (lvl <= 0) {
+		R.acc = 0;
+		rumble_set(0);
+		return;
+	}
+	R.acc += lvl;
+	if (R.acc >= 100) {
+		R.acc -= 100;
+		rumble_set(1);
+	} else {
+		rumble_set(0);
+	}
+}
+
 static void *audio_thread(void *arg)
 {
 	(void)arg;
@@ -546,6 +612,7 @@ int main(void)
 	sfx_init(RATE);
 	pthread_t at;
 	pthread_create(&at, NULL, audio_thread, NULL);
+	rumble_open();
 
 	double last = now();
 	while (!quit) {
@@ -561,6 +628,7 @@ int main(void)
 		brightness_sync(dt);
 		volume_tick(dt);
 		volume_draw(buf);
+		rumble_tick();
 		__u32 crtc = 0;
 		if (ioctl(fb, FBIO_WAITFORVSYNC, &crtc) < 0) {
 			double left = 1.0 / 60 - (now() - t);	// no vblank wait: pace by time
@@ -570,6 +638,7 @@ int main(void)
 		for (int y = 0; y < UI_H; y++)
 			memcpy(fbmem + (size_t)y * stride, buf + (size_t)y * UI_W, UI_W * 4);
 	}
+	rumble_set(0);
 	pthread_join(at, NULL);
 	return 0;
 }

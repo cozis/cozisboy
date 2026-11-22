@@ -3488,3 +3488,12 @@ int games_starting(void)
 {
 	return cur >= 0 && cur < nrun && run[cur].boot > 0;
 }
+
+// Rumble strength 0..100 for the motor: the game on screen, while it runs
+// (not paused in a menu or the control center).
+int games_rumble(int screen)
+{
+	if (screen != SCR_GAME || cur < 0 || G.cc || G.pick || !run[cur].eg)
+		return 0;
+	return emu_rumble(run[cur].eg);
+}

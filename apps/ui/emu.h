@@ -48,6 +48,8 @@ void emu_audio_mix(int16_t *out, int frames, int rate);
 // GBA's 59.73 Hz, nudged by up to 0.5% to keep the sound buffer at its target
 // (so sound never runs dry or overflows, whatever the screen's refresh rate).
 int emu_frames_due(float dt);
+// Rumble strength 0..100 the game asks for (rumble carts), as of the last emu_run.
+int emu_rumble(const emu_game *g);
 // Sound samples that were missing (buffer dry) while a game ran, since the
 // last call; and the buffer's fill now. For the stutter log.
 unsigned emu_audio_underruns(int *fill);
