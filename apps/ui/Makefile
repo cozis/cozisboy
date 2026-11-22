@@ -8,7 +8,7 @@
 #   make deploy  device build -> copied to the console over SSH and restarted
 CFLAGS ?= -O2 -g
 CFLAGS += -Wall -Wextra -Wno-format-truncation -std=c11 -D_DEFAULT_SOURCE -I../common
-CORE = ui.c games.c net.c pclink.c sys_mock.c emu.c gfx.c ../common/sfx.c ../common/library.c
+CORE = ui.c games.c net.c pclink.c clock.c sys_mock.c emu.c gfx.c ../common/sfx.c ../common/library.c
 HDRS = ui.h ui_priv.h gfx.h emu.h sys.h ../common/sfx.h ../common/library.h
 
 all: cozisboy-preview cozisboy-shot sfx-demo

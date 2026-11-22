@@ -21,7 +21,7 @@ extern const uint32_t PAL[8];
 
 enum { SCR_HOME, SCR_APP, SCR_LIBRARY, SCR_GAME };
 // pages inside Settings
-enum { PAGE_MAIN, PAGE_WIFI, PAGE_SSH, PAGE_LOOK, PAGE_ABOUT };
+enum { PAGE_MAIN, PAGE_WIFI, PAGE_SSH, PAGE_LOOK, PAGE_ABOUT, PAGE_CLOCK };
 enum { APP_BROWSER, APP_PCLINK, APP_TERM, APP_MUSIC, APP_GAMES, APP_WIFI,
        APP_SETTINGS, APP_POWER, NAPPS };
 
@@ -103,6 +103,7 @@ void ui_row_slider(canvas *c, int y, int val, int max, int sel, uint32_t col);
 void ui_row_choice(canvas *c, int y, const char *value, int sel, uint32_t col);
 void ui_info(canvas *c, int y, const char *label, const char *value);
 int ui_panel(canvas *c, int x, int y, int w, int h, const char *title, uint32_t col);
+void ui_scroll_arrow(canvas *c, int x, int y, int dir, uint32_t col); // more rows that way (-1 up, 1 down)
 
 /* ---- pclink.c: PC LINK (the web app) ---- */
 extern const char *const ICON_PCLINK24[ICON_MAX];
@@ -125,6 +126,13 @@ void net_open(int page);
 int net_update(int page, unsigned pressed, float dt); // returns 1 to go back
 void net_draw(canvas *c, int page);
 void net_hints(canvas *c, int page, int *x);
+/* ---- clock.c: Settings > CLOCK (automatic / date / time / time zone) ---- */
+const char *clock_note(void); // "19:48"
+void clock_open(void);
+int clock_update(unsigned pressed, float dt); // 1: leave the page
+void clock_draw(canvas *c);
+void clock_hints(canvas *c, int *x);
+
 const char *net_wifi_note(void);
 const char *net_ssh_note(void);
 // Menu button gestures and the Control Center overlay

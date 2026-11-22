@@ -93,6 +93,10 @@ BR2_PACKAGE_COZISBOY_WEB=y
 BR2_PACKAGE_MGBA=y
 BR2_PACKAGE_COZISBOY_UI=y
 BR2_PACKAGE_LIBPNG=y
+# time zones: Settings > TIME ZONE links /data/etc/localtime (see the overlay's
+# /etc/localtime)
+BR2_TARGET_TZ_INFO=y
+BR2_TARGET_LOCALTIME=""
 # HTTPS client for the web app's Homebrew Hub relay (OpenSSL is already there
 # for SSH), with the CA bundle for certificate checks
 BR2_PACKAGE_LIBCURL=y

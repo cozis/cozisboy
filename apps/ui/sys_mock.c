@@ -201,3 +201,10 @@ int sys_usb_connected(void)	// "plugged in" 2 s after something starts waiting f
 	lastcall = now;
 	return now - first > 2.0f;
 }
+
+/* ---- clock (desktop: pretend) ---------------------------------------------------- */
+
+static int mock_auto = 1;
+int sys_clock_auto(void) { return mock_auto; }
+int sys_clock_set_auto(int on) { mock_auto = on; return 0; }
+int sys_clock_set(long t) { (void)t; return 0; }

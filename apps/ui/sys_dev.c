@@ -719,3 +719,46 @@ int sys_usb_connected(void)
 	}
 	return !strncmp(st, "configured", 10);
 }
+
+/* ---- clock ---------------------------------------------------------------------- */
+
+#define CLOCK_MANUAL "/data/etc/clock-manual"	// exists: no network time (S45wifi)
+
+int sys_clock_auto(void)
+{
+	return access(CLOCK_MANUAL, F_OK) != 0;
+}
+
+int sys_clock_set_auto(int on)
+{
+	char *const kill_ntpd[] = {(char *)"/usr/bin/killall", (char *)"ntpd", NULL};
+	run(kill_ntpd, NULL, NULL, 0);
+	if (!on) {
+		mkdir("/data/etc", 0755);
+		int fd = open(CLOCK_MANUAL, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+		if (fd < 0)
+			return -1;
+		close(fd);
+		sync();
+		return 0;
+	}
+	unlink(CLOCK_MANUAL);
+	sync();
+	// as S45wifi does: keeps trying until the network is up, then corrects
+	// the clock and saves it to the RTC (the hook); ntpd daemonizes itself
+	char *const ntpd[] = {(char *)"/usr/sbin/ntpd", (char *)"-p", (char *)"pool.ntp.org", (char *)"-S",
+			      (char *)"/usr/libexec/cozisboy-ntp-hook", NULL};
+	return run(ntpd, NULL, NULL, 0) == 0 ? 0 : -1;
+}
+
+int sys_clock_set(long t)
+{
+	struct timeval tv = {.tv_sec = t, .tv_usec = 0};
+	if (settimeofday(&tv, NULL))
+		return -1;
+	// the battery-backed RTC keeps it while the console is off
+	char *const save[] = {(char *)"/bin/sh", (char *)"-c",
+			      (char *)"[ -r /run/rtc-device ] && hwclock -w -u -f \"$(cat /run/rtc-device)\"", NULL};
+	run(save, NULL, NULL, 0);
+	return 0;
+}

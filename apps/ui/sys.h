@@ -54,4 +54,10 @@ int sys_web_pairs(void);            // pairings so far: goes up when a browser p
 void sys_web_forget_browsers(void); // every browser has to pair again
 int sys_usb_connected(void);        // the USB cable is plugged into a computer
 
+// Clock. Automatic: network time (ntpd) whenever Wi-Fi is up; off, the time
+// is whatever was set by hand. Setting it also saves it to the battery-backed RTC.
+int sys_clock_auto(void);
+int sys_clock_set_auto(int on);
+int sys_clock_set(long t);	// seconds since 1970 (UTC)
+
 #endif

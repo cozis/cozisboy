@@ -463,13 +463,14 @@ enum { TR_SQUARES, TR_SQUARES_LIGHT, TR_FADE, TR_CROSSFADE, TR_SLIDE, TR_DISSOLV
 // (0 to cover: the new screen is drawn at once, the old one is a snapshot)
 static const float TR_TIME[NTR][2] = {{0.32f, 0.32f}, {0.16f, 0.18f}, {0.12f, 0.16f},
 				      {0, 0.22f},       {0, 0.24f},       {0, 0.28f}};
-enum { SET_WIFI, SET_SSH, SET_BRIGHTNESS, SET_VOLUME, SET_SLEEP, SET_LOOK, SET_ABOUT };
+enum { SET_WIFI, SET_SSH, SET_BRIGHTNESS, SET_VOLUME, SET_SLEEP, SET_CLOCK, SET_LOOK, SET_ABOUT };
 static item_t settings_items[] = {
 	{"WI-FI", IT_ACTION, 0, 0, NULL, NULL, NULL},
 	{"SSH", IT_ACTION, 0, 0, NULL, NULL, NULL},
 	{"BRIGHTNESS", IT_SLIDER, 7, 10, NULL, NULL, NULL},
 	{"VOLUME", IT_SLIDER, 5, 10, NULL, NULL, NULL},
 	{"SLEEP AFTER", IT_CHOICE, 1, 3, SLEEPS, NULL, NULL},
+	{"CLOCK", IT_ACTION, 0, 0, NULL, NULL, NULL},
 	{"LOOK", IT_ACTION, 0, 0, NULL, NULL, NULL},
 	{"ABOUT", IT_ACTION, 0, 0, NULL, NULL, NULL},
 };
@@ -817,9 +818,14 @@ int list_update(list_t *l, unsigned p, float dt)
 void list_draw(canvas *c, const list_t *l, int x, int y, int w, int rh, uint32_t col)
 {
 	(void)x, (void)w, (void)rh;
-	for (int i = 0; i < l->n; i++) {
+	// longer than the screen: scroll so the selected row stays in view, with
+	// arrows bobbing at the ends that have more rows
+	int view = (H - 52 - y) / UI_ROW, first = 0;
+	if (l->sel >= view)
+		first = l->sel - view + 1;
+	for (int i = first; i < l->n && i < first + view; i++) {
 		const item_t *it = &l->it[i];
-		int ry = y + i * UI_ROW, sel = i == l->sel;
+		int ry = y + (i - first) * UI_ROW, sel = i == l->sel;
 		ui_row(c, ry, it->label, sel, l->flash > 0 && sel ? WHITE : col);
 		switch (it->type) {
 		case IT_TOGGLE: ui_row_toggle(c, ry, it->val, sel); break;
@@ -827,6 +833,21 @@ void list_draw(canvas *c, const list_t *l, int x, int y, int w, int rh, uint32_t
 		case IT_CHOICE: ui_row_choice(c, ry, it->choices[it->val], sel, col); break;
 		case IT_ACTION: ui_row_value(c, ry, it->note, 1, sel, col, col); break;
 		}
+	}
+	int bob = (int)lrintf(sinf(S.t * 6) * 2);
+	if (first > 0)
+		ui_scroll_arrow(c, W / 2, y - 14 - bob, -1, WHITE);
+	if (first + view < l->n)
+		ui_scroll_arrow(c, W / 2, y + view * UI_ROW + 12 + bob, 1, WHITE);
+}
+
+// A solid pixel triangle centred on x, its tip at y; dir -1 points up, 1 down
+// (4 px wide at the tip, 24 at the base, 12 tall).
+void ui_scroll_arrow(canvas *c, int x, int y, int dir, uint32_t col)
+{
+	for (int k = 0; k < 6; k++) {
+		int yy = dir < 0 ? y + k * 2 : y - k * 2 - 1;
+		fill(c, x - 2 - k * 2, yy, 4 + k * 4, 2, col);
 	}
 }
 
@@ -1024,6 +1045,11 @@ static void update(unsigned p, unsigned held, float dt)
 				S.page = PAGE_MAIN, ui_page_anim(1);
 			break;
 		}
+		if (S.app == APP_SETTINGS && S.page == PAGE_CLOCK) {
+			if (clock_update(p, dt))
+				S.page = PAGE_MAIN, ui_page_anim(1);
+			break;
+		}
 		list_t *l = S.app == APP_SETTINGS && S.page == PAGE_LOOK    ? &look_list
 			    : S.app == APP_SETTINGS && S.page == PAGE_ABOUT ? NULL
 									    : app_list(S.app);
@@ -1040,9 +1066,15 @@ static void update(unsigned p, unsigned held, float dt)
 		if (l == &settings_list) {
 			settings_items[SET_WIFI].note = net_wifi_note();
 			settings_items[SET_SSH].note = net_ssh_note();
+			settings_items[SET_CLOCK].note = clock_note();
 		}
 		int a = list_update(l, p, dt);
-		if (l == &settings_list && (a == SET_WIFI || a == SET_SSH || a == SET_LOOK || a == SET_ABOUT)) {
+		if (l == &settings_list && a == SET_CLOCK) {
+			sfx_play(SFX_OPEN, APP_SETTINGS);
+			S.page = PAGE_CLOCK;
+			ui_page_anim(0);
+			clock_open();
+		} else if (l == &settings_list && (a == SET_WIFI || a == SET_SSH || a == SET_LOOK || a == SET_ABOUT)) {
 			sfx_play(SFX_OPEN, APP_SETTINGS);
 			S.page = a == SET_WIFI ? PAGE_WIFI : a == SET_SSH ? PAGE_SSH : a == SET_LOOK ? PAGE_LOOK : PAGE_ABOUT;
 			ui_page_anim(0);
@@ -1334,6 +1366,10 @@ static void bottom_hints(canvas *c, int *xp)
 		}
 		if (S.app == APP_SETTINGS && (S.page == PAGE_WIFI || S.page == PAGE_SSH)) {
 			net_hints(c, S.page, &x);
+			break;
+		}
+		if (S.app == APP_SETTINGS && S.page == PAGE_CLOCK) {
+			clock_hints(c, &x);
 			break;
 		}
 		if (app_list(S.app) && S.page != PAGE_ABOUT) {
@@ -1642,6 +1678,10 @@ static void draw_app(canvas *c)
 	}
 	if (S.app == APP_SETTINGS && (S.page == PAGE_WIFI || S.page == PAGE_SSH)) {
 		net_draw(c, S.page);
+		return;
+	}
+	if (S.app == APP_SETTINGS && S.page == PAGE_CLOCK) {
+		clock_draw(c);
 		return;
 	}
 	if (S.app == APP_SETTINGS && S.page == PAGE_LOOK) {

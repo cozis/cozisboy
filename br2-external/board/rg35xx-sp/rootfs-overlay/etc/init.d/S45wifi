@@ -17,8 +17,10 @@ start() {
 		# retry every second (default: 3 tries, then a 20 s pause)
 		udhcpc -b -S -t 30 -T 1 -A 1 -i wlan0 -p /run/udhcpc.wlan0.pid
 		# network time: keeps retrying until the network is up, then
-		# corrects the clock and saves it to the RTC
-		ntpd -p pool.ntp.org -S /usr/libexec/cozisboy-ntp-hook
+		# corrects the clock and saves it to the RTC. Settings > CLOCK
+		# turns it off (time set by hand): /data/etc/clock-manual
+		[ -e /data/etc/clock-manual ] ||
+			ntpd -p pool.ntp.org -S /usr/libexec/cozisboy-ntp-hook
 	' </dev/null >/dev/null 2>&1 &
 }
 
