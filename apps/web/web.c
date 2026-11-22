@@ -1136,11 +1136,11 @@ static void api_backup(struct req *r)
 				continue;
 			for (int k = 0; k < ns; k++) {
 				coz_state_path(&g, s[k].id, p, sizeof p);
-				snprintf(name, sizeof name, "states/%s/%s/%s.state", coz_sys_label(g.sys), g.name, s[k].id);
+				snprintf(name, sizeof name, "snapshots/%s/%s/%s.state", coz_sys_label(g.sys), g.name, s[k].id);
 				zent_add(&z, &n, &cap, p, name);
 				if (s[k].has_thumb) {
 					coz_state_thumb_path(&g, s[k].id, p, sizeof p);
-					snprintf(name, sizeof name, "states/%s/%s/%s.png", coz_sys_label(g.sys), g.name, s[k].id);
+					snprintf(name, sizeof name, "snapshots/%s/%s/%s.png", coz_sys_label(g.sys), g.name, s[k].id);
 					zent_add(&z, &n, &cap, p, name);
 				}
 			}
@@ -1171,7 +1171,7 @@ static void api_backup(struct req *r)
 			  "HTTP/1.1 200 OK\r\nContent-Type: application/zip\r\nContent-Length: %llu\r\n"
 			  "Content-Disposition: attachment; filename=\"cozisboy-%s-%s.zip\"\r\n"
 			  "Cache-Control: no-store\r\nConnection: close\r\n\r\n",
-			  (unsigned long long)total, st[0] == '1' ? "saves-and-states" : "saves", date);
+			  (unsigned long long)total, st[0] == '1' ? "saves-and-snapshots" : "saves", date);
 	if (send_all(r->fd, h, hn))
 		goto out;
 	for (int i = 0; i < n; i++) {

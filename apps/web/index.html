@@ -376,7 +376,7 @@ async function refresh() { await loadGames(); render(); renderPopup(); }
 function gameCard(g) {
 	const img = coverURL(g);
 	const sub = [lastPlayed(g) ? "played " + ago(lastPlayed(g)) : "not played yet",
-		g.states ? g.states + (g.states > 1 ? " states" : " state") : ""].filter(Boolean).join(" · ");
+		g.states ? g.states + (g.states > 1 ? " snapshots" : " snapshot") : ""].filter(Boolean).join(" · ");
 	return `<div class="it" tabindex="0" data-id="${g.id}" onclick="openGame('${g.id}')" onkeydown="if(event.key==='Enter')openGame('${g.id}')">
 		<div class="fr">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : placeholder(g.title, g.sys, 7)}</div>
 		<div class="nm">${esc(g.title)}</div><div class="sb">${esc(sub)}</div></div>`;
@@ -419,7 +419,7 @@ function pageAll() {
 			${SYS_ORDER.map(k => item(k, sysLabel(k), games.filter(g => g.sys === k).length, `var(--sys-${k})`)).join("")}
 			<div class="spacer"></div>
 			${st ? `<div class="meter">${PX("Storage", 2, "#66666e")}<div class="track"><i style="width:${(100 * (st.total - st.free) / st.total).toFixed(1)}%"></i></div><small>${size(st.free)} free of ${size(st.total)}</small></div>` : ""}
-			<div class="links"><a href="/api/backup?x=1">Back up all saves</a><a href="/api/backup?x=1&states=1">Back up saves and states</a>
+			<div class="links"><a href="/api/backup?x=1">Back up all saves</a><a href="/api/backup?x=1&states=1">Back up saves and snapshots</a>
 				<a onclick="findCovers()">Find missing covers</a><a onclick="logout()">Disconnect this browser</a></div>
 		</nav>
 		<section class="mn">
@@ -476,7 +476,7 @@ function pageGame() {
 	const acts = (g.save ? `<a class="pb" href="/api/games/${g.id}/save?x=1">${PX("Download save", 2)}</a>` : "") +
 		`<button class="pb" onclick="pickSave(1)">${PX(g.save ? "Replace save" : "Upload save", 2)}</button>` +
 		`<button class="pb ${panel === "saves" ? "go" : ""}" onclick="panel=panel==='saves'?null:'saves';render()">${PX((g.saves || []).length > 1 ? g.saves.length + " saves" : "Saves", 2)}</button>` +
-		(g.states ? `<button class="pb ${panel === "states" ? "go" : ""}" onclick="panel=panel==='states'?null:'states';render()">${PX(g.states + (g.states > 1 ? " states" : " state"), 2)}</button>` : "") +
+		(g.states ? `<button class="pb ${panel === "states" ? "go" : ""}" onclick="panel=panel==='states'?null:'states';render()">${PX(g.states + (g.states > 1 ? " snapshots" : " snapshot"), 2)}</button>` : "") +
 		`<button class="pb ${panel === "more" ? "go" : "dim"}" onclick="panel=panel==='more'?null:'more';renameDraft=null;render()">${PX("More", 2)}</button>`;
 	let pnl = "";
 	if (panel === "states") {
@@ -505,7 +505,7 @@ function pageGame() {
 			<div class="mi"><input id="rn" value="${esc(renameDraft ?? g.name)}" spellcheck="false" onkeydown="if(event.key==='Enter')renameGame()"><button class="pb small" onclick="renameGame()">${PX("Rename", 2)}</button></div>
 			<div class="mi"><span class="grow">The game file</span><a class="pb small" href="/api/games/${g.id}/rom?x=1">${PX("Download", 2)}</a></div>
 			<div class="mi"><span class="grow">Box art</span><button class="pb small" onclick="findCover()">${PX("Find online", 2)}</button><button class="pb small dim" onclick="$('coverIn').click()">${PX("Upload", 2)}</button></div>
-			<div class="mi"><span class="grow">Delete the game with its saves and states</span>${holdButton("Delete game", "small red", deleteGame)}</div>
+			<div class="mi"><span class="grow">Delete the game with its saves and snapshots</span>${holdButton("Delete game", "small red", deleteGame)}</div>
 		</div></div>`;
 	}
 	return `<div class="cv">
@@ -655,7 +655,7 @@ async function handleFile(u) {
 	const prog = p => { u.p = p; const rate = f.size * p / Math.max(0.001, (performance.now() - t0) / 1000); u.msg = `${Math.round(p * 100)}% · ${size(rate)}/s`; renderTray(); };
 	let r = await putFile(url(false), f, prog);
 	if (r.status === 409) {
-		if (!confirm(`"${name.replace(ROM_EXT, "")}" is already on the console. Replace the game file? Its saves and states stay.`)) { u.state = "bad"; u.msg = "already on the console"; return; }
+		if (!confirm(`"${name.replace(ROM_EXT, "")}" is already on the console. Replace the game file? Its saves and snapshots stay.`)) { u.state = "bad"; u.msg = "already on the console"; return; }
 		r = await putFile(url(true), f, prog);
 	}
 	if (r.status !== 200) throw new Error(r.j.error || "failed");
