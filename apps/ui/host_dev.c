@@ -254,6 +254,37 @@ static void mixer_setup(void)
 	volume_apply();
 }
 
+// Stutter log (/run/cozisboy-ui.log via stderr): once a second, if the sound
+// ran dry during a game or a frame took over 40 ms.
+static void stutter_log(double t, float dt)
+{
+	static double next;
+	static float worst;
+	if (dt > worst)
+		worst = dt;
+	if (t < next)
+		return;
+	next = t + 1;
+	int fill;
+	unsigned miss = emu_audio_underruns(&fill);
+	if (miss || worst > 0.040f) {
+		char mhz[16] = "?";
+		FILE *f = fopen("/sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq", "r");
+		if (f) {
+			unsigned k;
+			if (fscanf(f, "%u", &k) == 1)
+				snprintf(mhz, sizeof mhz, "%u", k / 1000);
+			fclose(f);
+		}
+		time_t now_s = time(NULL);
+		struct tm tm;
+		localtime_r(&now_s, &tm);
+		fprintf(stderr, "stutter %02d:%02d:%02d: sound short %u samples (%.0f ms), slowest frame %.0f ms, buffer %d, cpu %s MHz\n",
+			tm.tm_hour, tm.tm_min, tm.tm_sec, miss, miss / 48.0, worst * 1000, fill, mhz);
+	}
+	worst = 0;
+}
+
 static void *audio_thread(void *arg)
 {
 	(void)arg;
@@ -524,6 +555,7 @@ int main(void)
 		if (dt > 0.1f)
 			dt = 0.1f;
 		system_keys(dt);
+		stutter_log(t, dt);
 		ui_frame(buf, UI_W, dt, read_buttons());
 		volume_sync();
 		brightness_sync(dt);

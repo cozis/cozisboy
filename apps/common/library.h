@@ -7,8 +7,10 @@
 // Model
 //   game   a ROM for one system, identified by a stable id (from the system
 //          and the game's name, so it survives restarts and rescans)
-//   save   the game's battery save (what the in-game "Save" writes); replacing
-//          or deleting it keeps the previous one as a backup
+//   save   a battery save (what the in-game "Save" writes). A game has up to
+//          COZ_SAVE_SLOTS numbered saves: 1 is the main one (what A plays),
+//          the others are extra playthroughs. Replacing or deleting a save
+//          keeps the previous one as that save's backup
 //   state  an emulator save state with a screenshot, identified by the time it
 //          was taken (no slot numbers)
 //   cover  box art (PNG), optional
@@ -46,11 +48,23 @@ typedef struct {
 	long long save_size;
 	time_t save_time;
 	int has_save_backup;
+	unsigned save_slots;		// bit n-1: save n exists (its save or its backup)
 	int has_cover;
 	time_t cover_time;		// changes when the cover is replaced
 	int nstates;
 	time_t last_state;		// newest state, 0 if none
 } coz_game;
+
+#define COZ_SAVE_SLOTS 8		// save 1 = the main save
+
+typedef struct {
+	int slot;			// 1..COZ_SAVE_SLOTS
+	int has_save;			// 0: only a backup is left (deleted)
+	long long size;
+	time_t time;
+	int has_backup;
+	time_t backup_time;
+} coz_save;
 
 typedef struct {
 	char id[24];			// time-based, e.g. "20261121-143205-0"
@@ -109,7 +123,8 @@ int coz_game_save_path(const coz_game *g, char *buf, size_t len);	// may not exi
 int coz_game_save_backup_path(const coz_game *g, char *buf, size_t len);
 int coz_game_cover_path(const coz_game *g, char *buf, size_t len);
 
-// ---- battery save
+// ---- battery saves
+// The functions without "slot" work on the main save (slot 1).
 // Replace the save with new bytes (streamed like an import). The current save,
 // if any, becomes the backup.
 typedef coz_import coz_save_import;
@@ -119,6 +134,22 @@ int coz_save_import_commit(const coz_game *g, coz_save_import *imp);
 int coz_save_delete(const coz_game *g);
 // Swap the save and its backup (undo the last replace/delete).
 int coz_save_restore_backup(const coz_game *g);
+
+// Numbered saves. List: every save that exists (save or backup), by number;
+// the main save is always listed (has_save 0 if the game was never saved).
+// Returns the count (up to COZ_SAVE_SLOTS) or -errno.
+int coz_saves_list(const coz_game *g, coz_save *out);
+int coz_save_slot_path(const coz_game *g, int slot, char *buf, size_t len);	// may not exist yet
+int coz_save_slot_backup_path(const coz_game *g, int slot, char *buf, size_t len);
+int coz_save_slot_import_commit(const coz_game *g, int slot, coz_save_import *imp);
+int coz_save_slot_delete(const coz_game *g, int slot);		// save -> backup
+int coz_save_slot_restore_backup(const coz_game *g, int slot);
+// Save `slot` and its backup are gone for good (not the main save: -EINVAL).
+int coz_save_slot_remove(const coz_game *g, int slot);
+// Copy save `from` into `to` (to's current save becomes its backup).
+int coz_save_slot_copy(const coz_game *g, int from, int to);
+// The lowest unused save number (2..), or -ENOSPC.
+int coz_save_slot_free(const coz_game *g);
 
 // ---- cover
 int coz_cover_import_begin(const coz_game *g, coz_import *imp);	// PNG bytes

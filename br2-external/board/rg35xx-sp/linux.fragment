@@ -219,3 +219,6 @@ CONFIG_BACKLIGHT_PWM=y
 # CONFIG_BACKLIGHT_GPIO is not set
 # Battery-backed RTC (PCF8563 on i2c): built in so S01clock can read it early
 CONFIG_RTC_DRV_PCF8563=y
+# CPU frequency scaling (480 MHz - 1.5 GHz): built in, or the CPU stays at the
+# bootloader's 1008 MHz (nothing loads modules)
+CONFIG_ARM_ALLWINNER_SUN50I_CPUFREQ_NVMEM=y

@@ -697,9 +697,22 @@ static void json_game(FILE *f, const coz_game *g)
 		fprintf(f, "{\"size\":%lld,\"time\":%lld}", g->save_size, (long long)g->save_time);
 	else
 		fprintf(f, "null");
-	fprintf(f, ",\"save_backup\":%s,\"cover\":%lld,\"states\":%d,\"last_state\":%lld}",
+	fprintf(f, ",\"save_backup\":%s,\"cover\":%lld,\"states\":%d,\"last_state\":%lld",
 		g->has_save_backup ? "true" : "false", g->has_cover ? (long long)g->cover_time : 0LL,
 		g->nstates, (long long)g->last_state);
+	// every save: n 1 is the main one; "save" null = only its backup is left
+	coz_save sv[COZ_SAVE_SLOTS];
+	int ns = coz_saves_list(g, sv);
+	fprintf(f, ",\"saves\":[");
+	for (int i = 0; i < ns; i++) {
+		fprintf(f, "%s{\"n\":%d,\"save\":", i ? "," : "", sv[i].slot);
+		if (sv[i].has_save)
+			fprintf(f, "{\"size\":%lld,\"time\":%lld}", sv[i].size, (long long)sv[i].time);
+		else
+			fprintf(f, "null");
+		fprintf(f, ",\"backup\":%lld}", sv[i].has_backup ? (long long)sv[i].backup_time : 0LL);
+	}
+	fprintf(f, "]}");
 }
 
 static void respond_game(int fd, const coz_game *g)
@@ -859,7 +872,7 @@ static void send_file(struct req *r, const char *path, const char *ctype,
 }
 
 // Import a save or cover from the request body.
-static void api_game_put_file(struct req *r, coz_game *g, int is_cover)
+static void api_game_put_file(struct req *r, coz_game *g, int is_cover, int slot)
 {
 	if (check_upload(r))
 		return;
@@ -885,7 +898,7 @@ static void api_game_put_file(struct req *r, coz_game *g, int is_cover)
 		return;
 	}
 	pthread_mutex_lock(&lib_lock);
-	rc = is_cover ? coz_cover_import_commit(g, &imp) : coz_save_import_commit(g, &imp);
+	rc = is_cover ? coz_cover_import_commit(g, &imp) : coz_save_slot_import_commit(g, slot, &imp);
 	if (!rc)
 		coz_game_refresh(g);
 	pthread_mutex_unlock(&lib_lock);
@@ -1104,9 +1117,16 @@ static void api_backup(struct req *r)
 		coz_game g = cache.games[i];
 		coz_game_refresh(&g);
 		char p[PATH_MAX], name[sizeof z->name];
-		if (g.has_save) {
-			coz_game_save_path(&g, p, sizeof p);
-			snprintf(name, sizeof name, "saves/%s/%s.sav", coz_sys_label(g.sys), g.name);
+		coz_save sv[COZ_SAVE_SLOTS];
+		int nsv = coz_saves_list(&g, sv);
+		for (int k = 0; k < nsv; k++) {
+			if (!sv[k].has_save)
+				continue;
+			coz_save_slot_path(&g, sv[k].slot, p, sizeof p);
+			if (sv[k].slot == 1)
+				snprintf(name, sizeof name, "saves/%s/%s.sav", coz_sys_label(g.sys), g.name);
+			else
+				snprintf(name, sizeof name, "saves/%s/%s (save %d).sav", coz_sys_label(g.sys), g.name, sv[k].slot);
 			zent_add(&z, &n, &cap, p, name);
 		}
 		if (st[0] == '1' && g.nstates) {
@@ -1411,7 +1431,7 @@ static void api_game(struct req *r, const char *rest)
 			coz_game_cover_path(&g, p, sizeof p);
 			send_file(r, p, "image/png", NULL, 1);	// URL carries a version
 		} else if (put) {
-			api_game_put_file(r, &g, 1);
+			api_game_put_file(r, &g, 1, 0);
 		} else if (del) {
 			rc = coz_cover_delete(&g);
 			if (rc)
@@ -1421,15 +1441,28 @@ static void api_game(struct req *r, const char *rest)
 		} else
 			respond_error(r->fd, 405, "method not allowed");
 	} else if (!strcmp(a, "save")) {
+		// ?n=<save number> (default 1, the main save)
+		char nb[8] = "1";
+		query_param(r->query, "n", nb, sizeof nb);
+		int n = atoi(nb);
+		if (n < 1 || n > COZ_SAVE_SLOTS) {
+			respond_error(r->fd, 400, "bad save number");
+			return;
+		}
+		char sfx[24] = "";
+		if (n > 1)
+			snprintf(sfx, sizeof sfx, " (save %d)", n);
 		if (ns == 2 && get) {
-			coz_game_save_path(&g, p, sizeof p);
-			snprintf(dl, sizeof dl, "%s.sav", g.name);
+			coz_save_slot_path(&g, n, p, sizeof p);
+			snprintf(dl, sizeof dl, "%s%s.sav", g.name, sfx);
 			send_file(r, p, "application/octet-stream", dl, 0);
 		} else if (ns == 2 && put) {
-			api_game_put_file(r, &g, 0);
+			api_game_put_file(r, &g, 0, n);
 		} else if (ns == 2 && del) {
+			char fv[4] = "";
+			query_param(r->query, "forever", fv, sizeof fv);
 			pthread_mutex_lock(&lib_lock);
-			rc = coz_save_delete(&g);
+			rc = fv[0] == '1' ? coz_save_slot_remove(&g, n) : coz_save_slot_delete(&g, n);
 			coz_game_refresh(&g);
 			pthread_mutex_unlock(&lib_lock);
 			if (rc)
@@ -1437,16 +1470,29 @@ static void api_game(struct req *r, const char *rest)
 			else
 				respond_game(r->fd, &g);
 		} else if (ns == 3 && get && !strcmp(b, "backup")) {
-			coz_game_save_backup_path(&g, p, sizeof p);
-			snprintf(dl, sizeof dl, "%s (previous).sav", g.name);
+			coz_save_slot_backup_path(&g, n, p, sizeof p);
+			snprintf(dl, sizeof dl, "%s%s (previous).sav", g.name, sfx);
 			send_file(r, p, "application/octet-stream", dl, 0);
 		} else if (ns == 3 && post && !strcmp(b, "restore")) {
 			pthread_mutex_lock(&lib_lock);
-			rc = coz_save_restore_backup(&g);
+			rc = coz_save_slot_restore_backup(&g, n);
 			coz_game_refresh(&g);
 			pthread_mutex_unlock(&lib_lock);
 			if (rc)
 				respond_lib_error(r->fd, rc, "previous save");
+			else
+				respond_game(r->fd, &g);
+		} else if (ns == 3 && post && !strcmp(b, "copy")) {
+			// copy save n into ?to= (default: a new save number)
+			char tb[8] = "";
+			query_param(r->query, "to", tb, sizeof tb);
+			pthread_mutex_lock(&lib_lock);
+			int to = tb[0] ? atoi(tb) : coz_save_slot_free(&g);
+			rc = to < 0 ? to : coz_save_slot_copy(&g, n, to);
+			coz_game_refresh(&g);
+			pthread_mutex_unlock(&lib_lock);
+			if (rc)
+				respond_lib_error(r->fd, rc, rc == -ENOSPC ? "free save (8 at most)" : "save");
 			else
 				respond_game(r->fd, &g);
 		} else

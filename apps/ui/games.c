@@ -232,6 +232,10 @@ static struct {
 	int cc, cc_row, cc_card, cc_act, cc_item;
 	float cc_t, cc_cam;
 	int hinted;
+	// "PLAY WITH": the save picker (X in the game list)
+	int pick, pick_sel, pick_n;
+	coz_save pick_saves[COZ_SAVE_SLOTS];
+	int pick_new; // save number of the NEW SAVE row (0: no room)
 } G;
 
 static char toast_buf[48];
@@ -446,6 +450,14 @@ static int find_running(int game)
 	return -1;
 }
 
+static int find_running_copy(int game, int copy)
+{
+	for (int i = 0; i < nrun; i++)
+		if (run[i].game == game && run[i].copy == copy)
+			return i;
+	return -1;
+}
+
 static int is_emu(int g)
 {
 	return lib[g].rom != NULL;
@@ -463,10 +475,18 @@ static const char *inst_title(int i)
 	return b;
 }
 
-// Battery save of copy n of game g: "<game>.copy<n+1>.sav" next to its own save.
-// Battery save of copy n of game g. The library has no notion of copies, so
-// they live in the launcher's own data folder: <saves>/copies/<id>-copyN.sav.
+// Battery save of copy n of game g: for library games, the library's save
+// n+1 (copy 0 is the main save); for the built-in demo games, the launcher's
+// own folder <saves>/copies/<name>-copyN.sav.
+static void old_copy_sav_path(int g, int n, char *out, size_t sz);
 static void copy_sav_path(int g, int n, char *out, size_t sz)
+{
+	if (lib[g].cg && coz_save_slot_path(lib[g].cg, n + 1, out, sz) == 0)
+		return;
+	old_copy_sav_path(g, n, out, sz);
+}
+
+static void old_copy_sav_path(int g, int n, char *out, size_t sz)
 {
 	const char *dir = getenv("COZ_SAVES") ? getenv("COZ_SAVES") : "saves";
 	char d[512];
@@ -704,9 +724,10 @@ static void slot_delete(int g, slot_t *sl)
 	memset(sl, 0, sizeof *sl);
 }
 
-static void open_game(int game, int slot, int x, int y)
+// Open game with its save number copy+1 (0: the main save), unlinked.
+static void open_game_copy(int game, int copy, int slot, int x, int y)
 {
-	int i = find_running(game);
+	int i = find_running_copy(game, copy);
 	if (i < 0) {
 		if (nrun == MAXRUN) { // free the least recently used one
 			int lru = 0;
@@ -720,7 +741,7 @@ static void open_game(int game, int slot, int x, int y)
 		}
 		i = nrun++;
 		memset(&run[i], 0, sizeof run[i]);
-		run[i].game = game;
+		run[i].game = game, run[i].copy = copy;
 		run[i].boot = lib[game].rom ? 120 : 0, run[i].fade = lib[game].rom ? 0 : 1;
 		game_reset(&run[i].st);
 	}
@@ -741,6 +762,11 @@ static void open_game(int game, int slot, int x, int y)
 		game_render(&run[i].st, game, run[i].frame, 1);
 	}
 	enter_game(i, x, y);
+}
+
+static void open_game(int game, int slot, int x, int y)
+{
+	open_game_copy(game, 0, slot, x, y);
 }
 
 /* ---- shared drawing -------------------------------------------------------- */
@@ -972,8 +998,8 @@ static void hub_activate(int act, int g, int ri)
 	case BT_PLAY:
 		if (ri >= 0)
 			enter_game(ri, 100, 90); // that copy
-		else if (find_running(g) >= 0 && lib[g].rom)
-			open_copy_of(find_running(g), 0); // already open: another copy
+		else if (find_running_copy(g, 0) >= 0)
+			enter_game(find_running_copy(g, 0), 100, 90); // the main save, already open
 		else
 			open_game(g, -1, 100, 90);
 		break;
@@ -992,12 +1018,112 @@ static void hub_activate(int act, int g, int ri)
 	}
 }
 
+/* ---- PLAY WITH: choose which save a game starts with -------------------- */
+
+// "TODAY 16:36", "YESTERDAY", "3 DAYS AGO", "12 NOV"
+static const char *save_when(time_t t)
+{
+	static char buf[24];
+	time_t now = time(NULL);
+	struct tm a, b;
+	localtime_r(&now, &a);
+	localtime_r(&t, &b);
+	long days = (long)(difftime(mktime(&(struct tm){.tm_year = a.tm_year, .tm_mon = a.tm_mon,
+							.tm_mday = a.tm_mday, .tm_isdst = -1}),
+				    mktime(&(struct tm){.tm_year = b.tm_year, .tm_mon = b.tm_mon,
+							.tm_mday = b.tm_mday, .tm_isdst = -1})) /
+			  86400 + 0.5);
+	static const char *const mon[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+					  "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+	if (days <= 0)
+		snprintf(buf, sizeof buf, "TODAY %02d:%02d", b.tm_hour, b.tm_min);
+	else if (days == 1)
+		snprintf(buf, sizeof buf, "YESTERDAY");
+	else if (days < 7)
+		snprintf(buf, sizeof buf, "%ld DAYS AGO", days);
+	else
+		snprintf(buf, sizeof buf, "%d %s", b.tm_mday, mon[b.tm_mon]);
+	return buf;
+}
+
+static void pick_open(int g)
+{
+	coz_game_refresh((coz_game *)lib[g].cg);
+	int n = coz_saves_list(lib[g].cg, G.pick_saves);
+	G.pick_n = n < 0 ? 0 : n;
+	int f = coz_save_slot_free(lib[g].cg);
+	G.pick_new = f > 0 ? f : 0;
+	G.pick = 1, G.pick_sel = 0;
+	sfx_play(SFX_OPEN, 0);
+}
+
+static void pick_update(unsigned p, int g)
+{
+	int rows = G.pick_n + (G.pick_new ? 1 : 0);
+	int d = (p & BTN_DOWN) ? 1 : (p & BTN_UP) ? -1 : 0;
+	if (d) {
+		if (G.pick_sel + d >= 0 && G.pick_sel + d < rows)
+			G.pick_sel += d, sfx_play(SFX_TICK, 0);
+		else
+			sfx_play(SFX_BUMP, 0);
+	}
+	if (p & BTN_B) {
+		G.pick = 0;
+		sfx_play(SFX_BACK, 0);
+		return;
+	}
+	if (!(p & BTN_A))
+		return;
+	int save = G.pick_sel < G.pick_n ? G.pick_saves[G.pick_sel].slot : G.pick_new;
+	G.pick = 0;
+	int ri = find_running_copy(g, save - 1);
+	if (ri >= 0)
+		enter_game(ri, W / 2, H / 2);
+	else
+		open_game_copy(g, save - 1, -1, W / 2, H / 2);
+}
+
+static void pick_draw(canvas *c)
+{
+	int g = G.game, rows = G.pick_n + (G.pick_new ? 1 : 0);
+	int ph = 52 + rows * UI_ROW + 14, py = (H - 46 - ph) / 2;
+	if (py < 60)
+		py = 60;
+	int ry = ui_panel(c, UI_MX + 24, py, W - 2 * UI_MX - 48, ph, "PLAY WITH", lib[g].col);
+	ui_column(UI_MX + 34, W - 2 * UI_MX - 68);
+	for (int i = 0; i < rows; i++) {
+		int sel = i == G.pick_sel, y = ry + i * UI_ROW;
+		char label[24];
+		const char *val;
+		if (i < G.pick_n) {
+			const coz_save *sv = &G.pick_saves[i];
+			if (sv->slot == 1)
+				snprintf(label, sizeof label, "MAIN SAVE");
+			else
+				snprintf(label, sizeof label, "SAVE %d", sv->slot);
+			val = sv->has_save ? save_when(sv->time) : "EMPTY";
+			if (find_running_copy(g, sv->slot - 1) >= 0)
+				val = "OPEN";
+		} else {
+			snprintf(label, sizeof label, "NEW SAVE");
+			val = "START FRESH";
+		}
+		ui_row(c, y, label, sel, lib[g].col);
+		ui_row_value(c, y, val, 0, sel, lib[g].col, i < G.pick_n && G.pick_saves[i].has_save ? 0xbbbbbb : GREY);
+	}
+	ui_column(0, 0);
+}
+
 static void hub_update(unsigned p, float dt)
 {
 	int v[NGAMES + MAXRUN], n = hub_order(v);
 	int idx = index_of(v, n, hub_sel_item());
 	int g = G.game, ri = hub_sel_run();
 	G.changed += dt;
+	if (G.pick) {
+		pick_update(p, g);
+		return;
+	}
 	G.cam -= G.bump_off, G.camx -= G.bump_offx; // last frame's wiggle
 	G.cam += (idx - G.cam) * (1 - expf(-dt * 14));
 	G.camx += (cover_pos(idx) - G.camx) * (1 - expf(-dt * 14));
@@ -1071,6 +1197,8 @@ static void hub_update(unsigned p, float dt)
 		hub_activate(BT_FAV, g, ri);
 	if ((p & BTN_X) && ri >= 0)
 		hub_activate(BT_CLOSE, g, ri);
+	else if ((p & BTN_X) && lib[g].cg)
+		pick_open(g);
 	if (p & BTN_B) {
 		sfx_play(SFX_BACK, 0);
 		go(SCR_HOME, BG0, W / 2, H / 2);
@@ -1368,6 +1496,8 @@ static void hub_draw(canvas *c)
 		hub_draw_grid(c, v, n);
 	else
 		hub_draw_shelf(c, v, n);
+	if (G.pick)
+		pick_draw(c);
 }
 
 /* ---- game screen ----------------------------------------------------------- */
@@ -1421,10 +1551,14 @@ static void game_update(unsigned p, unsigned held, float dt)
 	if (cur < 0)
 		return;
 	inst_t *in = &run[cur];
-	(void)dt;
-	int steps = G.ff ? 3 : 1;
+	// paced by real time (and the sound buffer), not by screen refreshes
+	int steps = emu_frames_due(dt) * (G.ff ? 3 : 1);
 	if (is_emu(in->game)) {
-		emu_run(in->eg, map_buttons(held), steps);
+		if (G.ff)	// fast-forward: only the first frame's sound
+			emu_run(in->eg, map_buttons(held), steps);
+		else	// every frame's sound
+			for (int k = 0; k < steps; k++)
+				emu_run(in->eg, map_buttons(held), 1);
 		memcpy(in->frame, emu_frame(in->eg), sizeof in->frame);
 		if (in->boot > 0) {
 			// A starting game blanks its screen (white on a GBA), or shows flat
@@ -1982,14 +2116,14 @@ typedef struct {
 	char label[80];
 } lrow_t;
 
-// Next free copy number for the current game (1..3), or 0 if none.
+// Next copy number not open for that game (1..COZ_SAVE_SLOTS-1), or 0 if none.
 static int next_copy_of(int ri)
 {
-	int used[4] = {0};
+	int used[COZ_SAVE_SLOTS] = {0};
 	for (int i = 0; i < nrun; i++)
-		if (run[i].game == run[ri].game && run[i].copy < 4)
+		if (run[i].game == run[ri].game && run[i].copy < COZ_SAVE_SLOTS)
 			used[run[i].copy] = 1;
-	for (int n = 1; n < 4; n++)
+	for (int n = 1; n < COZ_SAVE_SLOTS; n++)
 		if (!used[n])
 			return n;
 	return 0;
@@ -2731,6 +2865,19 @@ static int scan_roms(void)
 		gm->sav_out = strdup(sav);
 		gm->thumb = strdup(cg->name); // also the play-history key
 		gm->cg = cg;
+		// copies' saves used to live in <saves>/copies/<id>-copyN.sav: move
+		// them into the library as save N (unless that save exists already)
+		const char *sd = getenv("COZ_SAVES") ? getenv("COZ_SAVES") : "saves";
+		for (int k = 2; k <= COZ_SAVE_SLOTS; k++) {
+			char old[600], to[600], bak[600];
+			snprintf(old, sizeof old, "%s/copies/%s-copy%d.sav", sd, cg->id, k);
+			if (access(old, F_OK) || coz_save_slot_path(cg, k, to, sizeof to) ||
+			    coz_save_slot_backup_path(cg, k, bak, sizeof bak) ||
+			    !access(to, F_OK) || !access(bak, F_OK))
+				continue;
+			if (rename(old, to) == 0)
+				coz_game_refresh((coz_game *)cg);
+		}
 	}
 	qsort(lib, (size_t)nlib, sizeof *lib, by_title);
 	return nlib;
@@ -2821,10 +2968,18 @@ void games_hints(canvas *c, int screen, int *x)
 	if (screen != SCR_LIBRARY)
 		return;
 	int ri = hub_sel_run();
-	draw_hint(c, x, "A", ri >= 0 ? "RESUME" : find_running(G.game) >= 0 ? "ANOTHER COPY" : "START", PAL[3]);
+	if (G.pick) {
+		draw_hint(c, x, "^V", "CHOOSE", 0xdddddd);
+		draw_hint(c, x, "A", "PLAY", PAL[3]);
+		draw_hint(c, x, "B", "BACK", PAL[0]);
+		return;
+	}
+	draw_hint(c, x, "A", ri >= 0 || find_running_copy(G.game, 0) >= 0 ? "RESUME" : "START", PAL[3]);
 	draw_hint(c, x, "Y", "FAV", PAL[2]);
 	if (ri >= 0)
 		draw_hint(c, x, "X", "CLOSE", PAL[4]);
+	else if (lib[G.game].cg)
+		draw_hint(c, x, "X", "SAVES", PAL[4]);
 	draw_hint(c, x, "B", "BACK", PAL[0]);
 }
 

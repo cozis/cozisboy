@@ -4,6 +4,7 @@
 //   <root>/<sys>/<name>/rom.<ext>        the ROM
 //   <root>/<sys>/<name>/save.sav         battery save
 //   <root>/<sys>/<name>/save.bak         previous battery save
+//   <root>/<sys>/<name>/save<n>.sav/.bak extra saves 2..COZ_SAVE_SLOTS
 //   <root>/<sys>/<name>/cover.png        box art
 //   <root>/<sys>/<name>/states/<id>.state + <id>.png
 //   <root>/<sys>/<name>/info             "added=<unix time>"
@@ -207,6 +208,14 @@ int coz_game_refresh(coz_game *g)
 	g->save_time = g->has_save ? st.st_mtime : 0;
 	snprintf(p, sizeof p, "%s/save.bak", dir);
 	g->has_save_backup = access(p, F_OK) == 0;
+	g->save_slots = g->has_save || g->has_save_backup;
+	for (int n = 2; n <= COZ_SAVE_SLOTS; n++) {
+		snprintf(p, sizeof p, "%s/save%d.sav", dir, n);
+		int any = access(p, F_OK) == 0;
+		snprintf(p, sizeof p, "%s/save%d.bak", dir, n);
+		if (any || access(p, F_OK) == 0)
+			g->save_slots |= 1u << (n - 1);
+	}
 	snprintf(p, sizeof p, "%s/cover.png", dir);
 	g->has_cover = stat(p, &st) == 0;
 	g->cover_time = g->has_cover ? st.st_mtime : 0;
@@ -291,8 +300,21 @@ int coz_game_rom_path(const coz_game *g, char *buf, size_t len)
 	snprintf(f, sizeof f, "rom.%s", SYS[g->sys].ext);
 	return game_file(g, f, buf, len);
 }
-int coz_game_save_path(const coz_game *g, char *buf, size_t len) { return game_file(g, "save.sav", buf, len); }
-int coz_game_save_backup_path(const coz_game *g, char *buf, size_t len) { return game_file(g, "save.bak", buf, len); }
+static int slot_file(const coz_game *g, int slot, const char *ext, char *buf, size_t len)
+{
+	if (slot < 1 || slot > COZ_SAVE_SLOTS)
+		return -EINVAL;
+	char f[24];
+	if (slot == 1)
+		snprintf(f, sizeof f, "save.%s", ext);
+	else
+		snprintf(f, sizeof f, "save%d.%s", slot, ext);
+	return game_file(g, f, buf, len);
+}
+int coz_save_slot_path(const coz_game *g, int slot, char *buf, size_t len) { return slot_file(g, slot, "sav", buf, len); }
+int coz_save_slot_backup_path(const coz_game *g, int slot, char *buf, size_t len) { return slot_file(g, slot, "bak", buf, len); }
+int coz_game_save_path(const coz_game *g, char *buf, size_t len) { return slot_file(g, 1, "sav", buf, len); }
+int coz_game_save_backup_path(const coz_game *g, char *buf, size_t len) { return slot_file(g, 1, "bak", buf, len); }
 int coz_game_cover_path(const coz_game *g, char *buf, size_t len) { return game_file(g, "cover.png", buf, len); }
 
 // ----------------------------------------------------------------- imports
@@ -473,12 +495,12 @@ int coz_save_import_begin(const coz_game *g, coz_save_import *imp)
 	return tmp_begin(imp);
 }
 
-int coz_save_import_commit(const coz_game *g, coz_save_import *imp)
+int coz_save_slot_import_commit(const coz_game *g, int slot, coz_save_import *imp)
 {
 	char sav[PATH_MAX], bak[PATH_MAX];
 	int r = tmp_finish(imp);
-	if (r || (r = coz_game_save_path(g, sav, sizeof sav)) ||
-	    (r = coz_game_save_backup_path(g, bak, sizeof bak)))
+	if (r || (r = coz_save_slot_path(g, slot, sav, sizeof sav)) ||
+	    (r = coz_save_slot_backup_path(g, slot, bak, sizeof bak)))
 		goto fail;
 	if (access(sav, F_OK) == 0 && rename(sav, bak)) {
 		r = -errno;
@@ -497,11 +519,13 @@ fail:
 	return r;
 }
 
-int coz_save_delete(const coz_game *g)
+int coz_save_slot_delete(const coz_game *g, int slot)
 {
 	char sav[PATH_MAX], bak[PATH_MAX];
-	coz_game_save_path(g, sav, sizeof sav);
-	coz_game_save_backup_path(g, bak, sizeof bak);
+	int r;
+	if ((r = coz_save_slot_path(g, slot, sav, sizeof sav)) ||
+	    (r = coz_save_slot_backup_path(g, slot, bak, sizeof bak)))
+		return r;
 	if (rename(sav, bak))
 		return -errno;
 	parent_of(sav, bak, sizeof bak);
@@ -509,11 +533,13 @@ int coz_save_delete(const coz_game *g)
 	return 0;
 }
 
-int coz_save_restore_backup(const coz_game *g)
+int coz_save_slot_restore_backup(const coz_game *g, int slot)
 {
 	char sav[PATH_MAX], bak[PATH_MAX], tmp[PATH_MAX];
-	coz_game_save_path(g, sav, sizeof sav);
-	coz_game_save_backup_path(g, bak, sizeof bak);
+	int r;
+	if ((r = coz_save_slot_path(g, slot, sav, sizeof sav)) ||
+	    (r = coz_save_slot_backup_path(g, slot, bak, sizeof bak)))
+		return r;
 	if (access(bak, F_OK))
 		return -ENOENT;
 	game_file(g, "save.swap", tmp, sizeof tmp);
@@ -528,6 +554,95 @@ int coz_save_restore_backup(const coz_game *g)
 	fsync_dir(tmp);
 	return 0;
 }
+
+int coz_save_slot_remove(const coz_game *g, int slot)
+{
+	if (slot == 1)
+		return -EINVAL;
+	char sav[PATH_MAX], bak[PATH_MAX];
+	int r;
+	if ((r = coz_save_slot_path(g, slot, sav, sizeof sav)) ||
+	    (r = coz_save_slot_backup_path(g, slot, bak, sizeof bak)))
+		return r;
+	int gone = 0;
+	if (unlink(sav) == 0)
+		gone = 1;
+	else if (errno != ENOENT)
+		return -errno;
+	if (unlink(bak) == 0)
+		gone = 1;
+	else if (errno != ENOENT)
+		return -errno;
+	if (!gone)
+		return -ENOENT;
+	parent_of(sav, bak, sizeof bak);
+	fsync_dir(bak);
+	return 0;
+}
+
+int coz_save_slot_copy(const coz_game *g, int from, int to)
+{
+	char src[PATH_MAX];
+	int r;
+	if (from == to)
+		return -EINVAL;
+	if ((r = coz_save_slot_path(g, from, src, sizeof src)))
+		return r;
+	int in = open(src, O_RDONLY | O_CLOEXEC);
+	if (in < 0)
+		return -errno;
+	coz_save_import imp;
+	if ((r = coz_save_import_begin(g, &imp))) {
+		close(in);
+		return r;
+	}
+	char buf[16384];
+	ssize_t n;
+	while ((n = read(in, buf, sizeof buf)) > 0)
+		if (write(imp.fd, buf, (size_t)n) != n) {
+			n = -1;
+			break;
+		}
+	r = n < 0 ? -EIO : 0;
+	close(in);
+	if (r) {
+		coz_import_abort(&imp);
+		return r;
+	}
+	return coz_save_slot_import_commit(g, to, &imp);
+}
+
+int coz_saves_list(const coz_game *g, coz_save *out)
+{
+	int k = 0;
+	for (int n = 1; n <= COZ_SAVE_SLOTS; n++) {
+		char sav[PATH_MAX], bak[PATH_MAX];
+		struct stat st, sb;
+		int r;
+		if ((r = coz_save_slot_path(g, n, sav, sizeof sav)) ||
+		    (r = coz_save_slot_backup_path(g, n, bak, sizeof bak)))
+			return r;
+		int hs = stat(sav, &st) == 0, hb = stat(bak, &sb) == 0;
+		if (!hs && !hb && n > 1)
+			continue;
+		out[k++] = (coz_save){.slot = n, .has_save = hs, .size = hs ? st.st_size : 0,
+				      .time = hs ? st.st_mtime : 0, .has_backup = hb,
+				      .backup_time = hb ? sb.st_mtime : 0};
+	}
+	return k;
+}
+
+int coz_save_slot_free(const coz_game *g)
+{
+	for (int n = 2; n <= COZ_SAVE_SLOTS; n++)
+		if (!(g->save_slots & (1u << (n - 1))))
+			return n;
+	return -ENOSPC;
+}
+
+int coz_save_import_commit(const coz_game *g, coz_save_import *imp) { return coz_save_slot_import_commit(g, 1, imp); }
+int coz_save_delete(const coz_game *g) { return coz_save_slot_delete(g, 1); }
+int coz_save_restore_backup(const coz_game *g) { return coz_save_slot_restore_backup(g, 1); }
 
 // ---------------------------------------------------------------- cover
 

@@ -44,5 +44,12 @@ void emu_set_color_fix(int on); // GBA screen colour correction
 void emu_set_volume(float v);
 // Audio thread: add the emulator's audio (mono, 48 kHz) into out.
 void emu_audio_mix(int16_t *out, int frames, int rate);
+// How many emulated frames to run now, given dt seconds of real time: the
+// GBA's 59.73 Hz, nudged by up to 0.5% to keep the sound buffer at its target
+// (so sound never runs dry or overflows, whatever the screen's refresh rate).
+int emu_frames_due(float dt);
+// Sound samples that were missing (buffer dry) while a game ran, since the
+// last call; and the buffer's fill now. For the stutter log.
+unsigned emu_audio_underruns(int *fill);
 
 #endif

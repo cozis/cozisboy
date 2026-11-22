@@ -76,6 +76,15 @@ int emu_available(void)
 #define TARGET_FILL 3200 // ~65 ms
 static int16_t ring[RING];
 static atomic_uint r_head, r_tail;
+static atomic_int audio_live;	// set once the audio thread pulls samples
+static atomic_uint emu_frames_run, underruns;	// for the stutter log
+
+unsigned emu_audio_underruns(int *fill)
+{
+	if (fill)
+		*fill = (int)(atomic_load(&r_head) - atomic_load(&r_tail));
+	return atomic_exchange(&underruns, 0);
+}
 
 static void push_audio(emu_game *g, int keep)
 {
@@ -111,14 +120,45 @@ static void push_audio(emu_game *g, int keep)
 void emu_audio_mix(int16_t *out, int frames, int rate)
 {
 	(void)rate; // produced at 48 kHz, like the UI sounds
+	atomic_store(&audio_live, 1);
 	float v = atomic_load(&volume);
 	unsigned t = atomic_load_explicit(&r_tail, memory_order_relaxed);
 	unsigned h = atomic_load_explicit(&r_head, memory_order_acquire);
-	for (int i = 0; i < frames && t != h; i++, t++) {
+	int i;
+	for (i = 0; i < frames && t != h; i++, t++) {
 		int s = out[i] + (int)(ring[t % RING] * v);
 		out[i] = (int16_t)(s > 32767 ? 32767 : s < -32768 ? -32768 : s);
 	}
+	// ran dry while a game is running (it ran frames since the last pull)
+	static unsigned last_frames;
+	unsigned fr = atomic_load(&emu_frames_run);
+	if (i < frames && fr != last_frames)
+		atomic_fetch_add(&underruns, (unsigned)(frames - i));
+	last_frames = fr;
 	atomic_store_explicit(&r_tail, t, memory_order_release);
+}
+
+int emu_frames_due(float dt)
+{
+	static double acc;
+	double rate = 59.7275;	// GBA frames per second
+	if (atomic_load(&audio_live)) {
+		int fill = (int)(atomic_load(&r_head) - atomic_load(&r_tail));
+		double e = (double)(TARGET_FILL - fill) / TARGET_FILL;
+		if (e > 1) e = 1;
+		if (e < -1) e = -1;
+		rate *= 1 + 0.005 * e;
+		if (fill < TARGET_FILL / 4)	// nearly dry (just started, or a hiccup): catch up
+			rate *= 1.05;
+	}
+	acc += dt * rate;
+	int n = (int)acc;
+	if (n > 4) {	// a long stall (loading, menu): don't race to catch up
+		n = 4;
+		acc = 0;
+	}
+	acc -= n;
+	return n;
 }
 
 void emu_set_volume(float v)
@@ -483,6 +523,7 @@ void emu_run(emu_game *g, unsigned buttons, int frames)
 		for (int i = 0; i < g->grp->n; i++)
 			if (g->grp->g[i] != g)
 				g->grp->g[i]->core->setKeys(g->grp->g[i]->core, 0);
+	atomic_fetch_add(&emu_frames_run, (unsigned)frames);
 	for (int f = 0; f < frames; f++) {
 		if (g->grp)
 			run_group_frame(g->grp);
