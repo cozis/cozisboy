@@ -127,10 +127,10 @@ void wfocus(canvas *c, int x, int y, int w, int h, int g)
 /* ---- apps ------------------------------------------------------------- */
 
 static const char *const APP_NAME[NAPPS] = {
-	"BROWSER", "PC LINK", "TERMINAL", "MUSIC", "GAMES", "WI-FI", "SETTINGS", "POWER",
+	"BROWSER", "TRANSFER", "TERMINAL", "MUSIC", "GAMES", "WI-FI", "SETTINGS", "POWER",
 };
 static const char *const APP_DESC[NAPPS] = {
-	"SURF THE WEB", "GAMES AND SAVES FROM A PC", "COMMAND LINE", "PLAY SOME TUNES",
+	"SURF THE WEB", "GAMES AND SAVES, PC OR PHONE", "COMMAND LINE", "PLAY SOME TUNES",
 	"PLAY YOUR GBA GAMES", "CONNECT TO A NETWORK", "TWEAK YOUR COZISBOY",
 	"SLEEP OR SHUT DOWN",
 };

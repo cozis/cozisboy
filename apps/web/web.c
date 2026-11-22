@@ -468,7 +468,7 @@ static void api_pair(struct req *r)
 	int mode = pairing_open();
 	if (mode == PAIR_CLOSED) {
 		pthread_mutex_unlock(&lock);
-		respond_error(r->fd, 403, "pairing is closed: open PC LINK on your cozisboy");
+		respond_error(r->fd, 403, "pairing is closed: open TRANSFER on your cozisboy");
 		return;
 	}
 	int ok = (mode == PAIR_WIFI && !r->via_usb && n == 6 && !strcmp(code, pair_code)) ||
@@ -1643,7 +1643,7 @@ static void route(struct req *r)
 	int mode = pairing_open();
 	pthread_mutex_unlock(&lock);
 	if (!r->from_local && (mode == PAIR_CLOSED || (mode == PAIR_USB) != r->via_usb)) {
-		respond_error(r->fd, 403, mode == PAIR_CLOSED ? "closed: open PC LINK on your cozisboy"
+		respond_error(r->fd, 403, mode == PAIR_CLOSED ? "closed: open TRANSFER on your cozisboy"
 				 : mode == PAIR_USB ? "the cozisboy is in USB mode: use http://10.55.0.2"
 						    : "the cozisboy is in Wi-Fi mode: use its Wi-Fi address");
 		return;

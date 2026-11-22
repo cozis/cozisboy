@@ -16,31 +16,32 @@
 #include <string.h>
 
 // 24-cell icon: a laptop and the console joined by a cable (chosen 2026-11-21)
+// two arrows passing each other: send / receive
 const char *const ICON_PCLINK24[ICON_MAX] = {
-	"........................",
-	"........................",
-	"........................",
-	"........................",
-	"...............llllllll.",
-	"...............lddddddl.",
-	"wwwwwwwwwww....ldccccdl.",
-	"wccccccccccw...ldccccdl.",
-	"wccccccccccw...ldccccdl.",
-	"wccccccccccw...lddddddl.",
-	"wccccccccccw...llllllll.",
-	"wccccccccccw...llllllll.",
-	"wccccccccccw...llllllrl.",
-	"wwwwwwwwwwww...lddllrll.",
-	"llllllllllll...llllllll.",
-	"llllllllllll...llllllll.",
-	"......y........llllllll.",
-	"......y....y.y.llllllll.",
-	"......y........llllllll.",
-	"......y...........y.....",
-	"......yyyyyyyyyyyyy.....",
-	"........................",
-	"........................",
-	"........................",
+	".............dwwd.......",
+	".............dwwwdd.....",
+	".............dwwwwwd....",
+	"..ddddddddddddwwwwwwd...",
+	".dwwwwwwwwwwwwwwwwwwwd..",
+	".dwwwwwwwwwwwwwwwwwwwwd.",
+	".dwwwwwwwwwwwwwwwwwwwwd.",
+	".dwwwwwwwwwwwwwwwwwwwd..",
+	"..ddddddddddddwwwwwwd...",
+	".............dwwwwwd....",
+	".............dwwwdd.....",
+	"........dd...dwwd.......",
+	".......dwwd...dd........",
+	".....ddwwwd.............",
+	"....dwwwwwd.............",
+	"...dwwwwwwdddddddddddd..",
+	"..dwwwwwwwwwwwwwwwwwwwd.",
+	".dwwwwwwwwwwwwwwwwwwwwd.",
+	".dwwwwwwwwwwwwwwwwwwwwd.",
+	"..dwwwwwwwwwwwwwwwwwwwd.",
+	"...dwwwwwwdddddddddddd..",
+	"....dwwwwwd.............",
+	".....ddwwwd.............",
+	".......dwwd.............",
 };
 
 // 24-cell icons for the two choices
@@ -97,8 +98,36 @@ static const char *const ICON_WIFI24[ICON_MAX] = {
 	"........................",
 };
 
-enum { V_CHOOSE, V_USB, V_WIFI };	// what the page shows
-enum { CH_USB, CH_WIFI, NCH };
+// the Bluetooth rune
+static const char *const ICON_BT24[ICON_MAX] = {
+	"...........dd...........",
+	"..........dwwd..........",
+	"..........dwwwd.........",
+	"..........dwwwwdd.......",
+	"..........dwwwwwwd......",
+	".....dd...dwwdwwwwd.....",
+	"....dwwd..dwwdddwwwd....",
+	"....dwwwdddwwdddwwwd....",
+	".....dwwwwdwwdwwwwd.....",
+	"......dwwwwwwwwwwd......",
+	".......ddwwwwwwdd.......",
+	".........dwwwwd.........",
+	".........dwwwwd.........",
+	".......ddwwwwwwdd.......",
+	"......dwwwwwwwwwwd......",
+	".....dwwwwdwwdwwwwd.....",
+	"....dwwwdddwwdddwwwd....",
+	"....dwwd..dwwdddwwwd....",
+	".....dd...dwwdwwwwd.....",
+	"..........dwwwwwwd......",
+	"..........dwwwwdd.......",
+	"..........dwwwd.........",
+	"..........dwwd..........",
+	"...........dd...........",
+};
+
+enum { V_CHOOSE, V_USB, V_WIFI, V_BT };	// what the page shows
+enum { CH_USB, CH_WIFI, CH_BT, NCH };
 
 // Layout: content sits in a column with wide side margins, centred vertically
 // between the page header and the hint bar.
@@ -133,6 +162,24 @@ static int wifi_ip(const char **ip)
 	return sys_wifi_status(NULL, ip) == WIFI_CONNECTED;
 }
 
+// The paired phone that can share its internet (tethering), if any.
+static int bt_phone(btdev_t *out)
+{
+	btdev_t d[16];
+	int n = sys_bt_devices(d, 16);
+	for (int i = 0; i < n; i++)
+		if (d[i].internet) { // the one in use first
+			*out = d[i];
+			return 1;
+		}
+	for (int i = 0; i < n; i++)
+		if (d[i].nap) {
+			*out = d[i];
+			return 1;
+		}
+	return 0;
+}
+
 // Returns 1 to leave the page (the web app stops).
 int pclink_update(unsigned p, float dt)
 {
@@ -140,17 +187,30 @@ int pclink_update(unsigned p, float dt)
 	if (L.paired_t > 0)
 		L.paired_t -= dt;
 	if (L.view != V_CHOOSE) {	// keeps the web app running, open to this way only
+		// Bluetooth (the phone's tethering) pairs like Wi-Fi: with the code
 		int pairing = L.view == V_USB && sys_usb_connected() ? WEB_PAIR_USB
 			    : L.view == V_WIFI && wifi_ip(NULL)        ? WEB_PAIR_WIFI
+			    : L.view == V_BT && sys_bt_ip()[0]         ? WEB_PAIR_WIFI
 								   : WEB_PAIR_NONE;
 		sys_web_tick(pairing);
 	}
+	sys_bt_tick(dt, L.view == V_BT || L.view == V_CHOOSE);
+	const char *btr = sys_bt_result();
+	if (btr)
+		toast(btr);
 
 	if (L.view != V_CHOOSE) {
 		if (sys_web_pairs() > L.pairs0) {	// a browser paired: say so, stay here
 			L.pairs0 = sys_web_pairs();
 			L.paired_t = 2.0f;
 			sfx_play(SFX_CONFIRM, 0);
+		}
+		btdev_t ph;
+		if (L.view == V_BT && (p & BTN_A) && !sys_bt_ip()[0] && sys_bt_powered() && bt_phone(&ph)) {
+			if (!sys_bt_busy()) { // join the phone's tethering
+				sys_bt_internet(ph.mac, 1);
+				sfx_play(SFX_CONFIRM, 0);
+			}
 		}
 		if (p & BTN_B) {
 			sfx_play(SFX_BACK, 0);
@@ -173,7 +233,7 @@ int pclink_update(unsigned p, float dt)
 	}
 	if (p & BTN_A) {
 		sfx_play(SFX_OPEN, APP_PCLINK);
-		set_view(L.sel == CH_USB ? V_USB : V_WIFI);
+		set_view(L.sel == CH_USB ? V_USB : L.sel == CH_WIFI ? V_WIFI : V_BT);
 	}
 	// hold X: every browser has to pair again
 	if ((ui_held() & BTN_X) && !L.held_done && sys_web_browsers()) {
@@ -321,19 +381,65 @@ void pclink_draw(canvas *c)
 		return;
 	}
 
-	// the choice: two cards, one selected
-	int top = ui_page_header(c, APP_PCLINK, "PC LINK", NULL), h = 112, gap = 18;
-	int y = top + (CONTENT_BOTTOM - top - (2 * h + gap)) / 2;
+	if (L.view == V_BT) {
+		int top = ui_page_header(c, APP_PCLINK, "BLUETOOTH", NULL);
+		btdev_t ph;
+		int has = bt_phone(&ph), on = sys_bt_powered();
+		const char *bip = sys_bt_ip();
+		int y = top + (CONTENT_BOTTOM - top - (bip[0] ? 292 : 210)) / 2 - 16;
+		if (!on || !has) { // nothing to connect to yet: where to fix it
+			big_icon(c, ICON_BT24, (W - 24 * 4) / 2, y + 30, 4, 0x444444);
+			center(c, y + 150, !sys_bt_known() ? "..." : !on ? "BLUETOOTH IS OFF" : "NO PHONE PAIRED YET", 2, WHITE);
+			center(c, y + 180, !on ? "TURN IT ON IN SETTINGS > BLUETOOTH" : "PAIR ONE IN SETTINGS > BLUETOOTH", 2, GREY);
+			return;
+		}
+		if (!bip[0]) { // the phone has to share its network first
+			step(c, y + 16, 1, "ON THE PHONE, TURN ON BLUETOOTH TETHERING");
+			step(c, y + 76, 2, "THEN CONNECT TO IT");
+			char what[80];
+			snprintf(what, sizeof what, sys_bt_busy() ? "CONNECTING TO %s..." : "PRESS A: CONNECT TO %s", ph.name);
+			rrect(c, PX0, y + 112, PW, 48, 6, 0x0c0c0c);
+			text(c, PX0 + 18, y + 128, what, 2, sys_bt_busy() ? GREY : PAL[3]);
+			big_icon(c, ICON_BT24, (W - 24 * 3) / 2, y + 180, 3, 0x444444);
+			return;
+		}
+		char burl[40];
+		snprintf(burl, sizeof burl, "http://%s", bip);
+		step(c, y + 16, 1, "ON THE PHONE, OPEN");
+		address_box(c, y + 50, burl, ph.name);
+		step(c, y + 124, 2, "ENTER THIS CODE");
+		const char *code = sys_web_code();
+		char shown[16];
+		if (strlen(code) == 6)
+			snprintf(shown, sizeof shown, "%.3s %.3s", code, code + 3);
+		else
+			snprintf(shown, sizeof shown, "...");
+		text_arcade(c, (W - text_width(shown, 7)) / 2, y + 170, shown, 7, WHITE);
+		status_line(c, y + 270);
+		return;
+	}
+
+	// the choice: three cards, one selected
+	int top = ui_page_header(c, APP_PCLINK, "TRANSFER", NULL), h = 96, gap = 12;
+	int y = top + (CONTENT_BOTTOM - top - (3 * h + 2 * gap)) / 2;
 	choice_card(c, y, h, ICON_USB24, "USB CABLE", "PLUG INTO A COMPUTER", "NO CODE NEEDED", GREY,
 		    L.sel == CH_USB);
 	choice_card(c, y + h + gap, h, ICON_WIFI24, "WI-FI", "COMPUTER OR PHONE",
 		    wifi ? (ssid && *ssid ? ssid : "CONNECTED") : "NOT CONNECTED", wifi ? PAL[3] : GREY,
 		    L.sel == CH_WIFI);
+	btdev_t ph;
+	int has = bt_phone(&ph);
+	choice_card(c, y + 2 * (h + gap), h, ICON_BT24, "BLUETOOTH", "A PHONE, NO WI-FI NEEDED",
+		    !sys_bt_powered() ? "OFF" : sys_bt_ip()[0] ? "ON THE PHONE'S NETWORK" : has ? ph.name : "NO PHONE PAIRED",
+		    sys_bt_ip()[0] ? PAL[3] : GREY, L.sel == CH_BT);
 }
 
 void pclink_hints(canvas *c, int *x)
 {
 	if (L.view != V_CHOOSE) {
+		btdev_t ph;
+		if (L.view == V_BT && !sys_bt_ip()[0] && sys_bt_powered() && bt_phone(&ph))
+			draw_hint(c, x, "A", "CONNECT", PAL[3]);
 		draw_hint(c, x, "B", "BACK", PAL[0]);
 		return;
 	}
