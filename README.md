@@ -5,8 +5,35 @@ Linux, a Buildroot root filesystem, and its own launcher. It boots in about 3 s
 to a pixel-art home screen and plays GBA games (mGBA), with Wi-Fi, Bluetooth,
 sleep, rumble and a web app to manage games and saves from a PC or phone.
 
+<p align="center">
+  <img src="docs/media/boot.gif" width="320" alt="boot splash">
+  <img src="docs/media/browse.gif" width="320" alt="browsing the games">
+</p>
+
 Games are not included: bring your own (or free homebrew, e.g. from
 [Homebrew Hub](https://hh.gbdev.io), which the web app can browse and install).
+
+## Screens
+
+<p align="center">
+  <img src="docs/media/home.png" width="270" alt="home">
+  <img src="docs/media/games.png" width="270" alt="games">
+  <img src="docs/media/game-varooom.png" width="270" alt="a game running">
+</p>
+<p align="center">
+  <img src="docs/media/ingame-menu.png" width="270" alt="in-game menu">
+  <img src="docs/media/saves.png" width="270" alt="saves">
+  <img src="docs/media/ingame.gif" width="270" alt="in-game menu, saves and snapshots">
+</p>
+<p align="center">
+  <img src="docs/media/transfer.png" width="270" alt="TRANSFER">
+  <img src="docs/media/transfer-bluetooth.png" width="270" alt="TRANSFER over Bluetooth">
+  <img src="docs/media/settings-bluetooth.png" width="270" alt="Bluetooth settings">
+</p>
+
+Shown with free homebrew from Homebrew Hub (Skyland, Apotris, Varooom 3D,
+Butano Fighter and others), captured with the launcher's headless screenshot
+driver.
 
 ## What's here
 
