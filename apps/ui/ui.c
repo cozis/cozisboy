@@ -1069,6 +1069,8 @@ static void update(unsigned p, unsigned held, float dt)
 			settings_items[SET_CLOCK].note = clock_note();
 		}
 		int a = list_update(l, p, dt);
+		if (l == &settings_list && (a == SET_CLOCK || a == SET_WIFI || a == SET_SSH || a == SET_LOOK || a == SET_ABOUT))
+			l->flash = 0;	// a sub-page opens: no white flash left for when we come back
 		if (l == &settings_list && a == SET_CLOCK) {
 			sfx_play(SFX_OPEN, APP_SETTINGS);
 			S.page = PAGE_CLOCK;
