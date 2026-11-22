@@ -233,7 +233,7 @@ static struct {
 	float cc_t, cc_cam;
 	int hinted;
 	// "PLAY WITH": the save picker (X in the game list)
-	int pick, pick_sel, pick_n;
+	int pick, pick_sel, pick_n, pick_game;
 	coz_save pick_saves[COZ_SAVE_SLOTS];
 	int pick_new; // save number of the NEW SAVE row (0: no room)
 } G;
@@ -1053,7 +1053,7 @@ static void pick_open(int g)
 	G.pick_n = n < 0 ? 0 : n;
 	int f = coz_save_slot_free(lib[g].cg);
 	G.pick_new = f > 0 ? f : 0;
-	G.pick = 1, G.pick_sel = 0;
+	G.pick = 1, G.pick_sel = 0, G.pick_game = g;
 	sfx_play(SFX_OPEN, 0);
 }
 
@@ -1085,7 +1085,7 @@ static void pick_update(unsigned p, int g)
 
 static void pick_draw(canvas *c)
 {
-	int g = G.game, rows = G.pick_n + (G.pick_new ? 1 : 0);
+	int g = G.pick_game, rows = G.pick_n + (G.pick_new ? 1 : 0);
 	int ph = 52 + rows * UI_ROW + 14, py = (H - 46 - ph) / 2;
 	if (py < 60)
 		py = 60;
@@ -1120,10 +1120,7 @@ static void hub_update(unsigned p, float dt)
 	int idx = index_of(v, n, hub_sel_item());
 	int g = G.game, ri = hub_sel_run();
 	G.changed += dt;
-	if (G.pick) {
-		pick_update(p, g);
-		return;
-	}
+
 	G.cam -= G.bump_off, G.camx -= G.bump_offx; // last frame's wiggle
 	G.cam += (idx - G.cam) * (1 - expf(-dt * 14));
 	G.camx += (cover_pos(idx) - G.camx) * (1 - expf(-dt * 14));
@@ -1496,8 +1493,30 @@ static void hub_draw(canvas *c)
 		hub_draw_grid(c, v, n);
 	else
 		hub_draw_shelf(c, v, n);
+}
+
+static int ref_game(int ref);
+
+// The picker is an overlay over the game list or the home screen.
+int games_pick_active(void) { return G.pick; }
+void games_pick_update(unsigned p) { pick_update(p, G.pick_game); }
+void games_pick_draw(canvas *c)
+{
 	if (G.pick)
 		pick_draw(c);
+}
+void games_pick_hints(canvas *c, int *x)
+{
+	draw_hint(c, x, "^V", "CHOOSE", 0xdddddd);
+	draw_hint(c, x, "A", "PLAY", PAL[3]);
+	draw_hint(c, x, "B", "BACK", PAL[0]);
+}
+// ref < 0: a game that isn't open. Has several saves to choose from (library game)?
+int games_ref_has_saves(int ref) { return ref < 0 && lib[ref_game(ref)].cg != NULL; }
+void games_ref_saves(int ref)
+{
+	if (games_ref_has_saves(ref))
+		pick_open(ref_game(ref));
 }
 
 /* ---- game screen ----------------------------------------------------------- */
@@ -2968,12 +2987,6 @@ void games_hints(canvas *c, int screen, int *x)
 	if (screen != SCR_LIBRARY)
 		return;
 	int ri = hub_sel_run();
-	if (G.pick) {
-		draw_hint(c, x, "^V", "CHOOSE", 0xdddddd);
-		draw_hint(c, x, "A", "PLAY", PAL[3]);
-		draw_hint(c, x, "B", "BACK", PAL[0]);
-		return;
-	}
 	draw_hint(c, x, "A", ri >= 0 || find_running_copy(G.game, 0) >= 0 ? "RESUME" : "START", PAL[3]);
 	draw_hint(c, x, "Y", "FAV", PAL[2]);
 	if (ri >= 0)

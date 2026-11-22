@@ -144,6 +144,13 @@ void games_ref_status(int ref, char *buf, int n);
 void games_open_pill(canvas *c, int cx, int y, int ri);
 void games_ref_open(int ref, int x, int y);
 void games_ref_close(int ref);
+// PLAY WITH (choose a game's save): an overlay from the game list or home
+int games_pick_active(void);
+void games_pick_update(unsigned pressed);
+void games_pick_draw(canvas *c);
+void games_pick_hints(canvas *c, int *x);
+int games_ref_has_saves(int ref);
+void games_ref_saves(int ref);
 void games_ref_draw_bg(canvas *c, int ref); // full-screen dimmed game frame
 
 #endif

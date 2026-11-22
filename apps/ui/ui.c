@@ -965,6 +965,10 @@ static void update(unsigned p, unsigned held, float dt)
 		games_cc_update(p, dt);
 		return;
 	}
+	if (games_pick_active()) {
+		games_pick_update(p);
+		return;
+	}
 
 	switch (S.screen) {
 	case SCR_HOME: {
@@ -1005,6 +1009,8 @@ static void update(unsigned p, unsigned held, float dt)
 		}
 		if ((p & BTN_X) && h->app < 0 && h->game >= 0)
 			games_ref_close(h->game);
+		else if ((p & BTN_X) && h->app < 0)
+			games_ref_saves(h->game);
 		break;
 	}
 	case SCR_APP: {
@@ -1301,6 +1307,11 @@ static void bottom_hints(canvas *c, int *x);
 static void bottom_hints(canvas *c, int *xp)
 {
 	int x = *xp;
+	if (games_pick_active()) {
+		games_pick_hints(c, &x);
+		*xp = x;
+		return;
+	}
 	switch (S.screen) {
 	case SCR_HOME: {
 		hitem_t it[MAX_HOME];
@@ -1314,6 +1325,8 @@ static void bottom_hints(canvas *c, int *xp)
 			draw_hint(c, &x, "X", "CLOSE", PAL[4]);
 		} else {
 			draw_hint(c, &x, "A", "PLAY", PAL[3]);
+			if (games_ref_has_saves(h->game))
+				draw_hint(c, &x, "X", "SAVES", PAL[4]);
 		}
 		break;
 	}
@@ -1777,6 +1790,7 @@ void ui_frame(uint32_t *buf, int stride, float dt, unsigned held)
 			draw_app(c);
 		else
 			games_draw(c, S.screen);
+		games_pick_draw(c); // under the bars: its hints stay bright
 		draw_topbar(c);
 		draw_bottombar(c);
 	}
