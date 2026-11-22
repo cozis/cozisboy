@@ -34,6 +34,12 @@ if [ "$WHAT" = rootfs ] || [ "$WHAT" = all ]; then
 	tar -C "$OUT/target" --exclude=./boot --exclude=./dev --exclude=./proc \
 		--exclude=./sys --exclude=./tmp --exclude=./run --exclude=./etc/dropbear \
 		--owner=0 --group=0 -czf - . | ssh $SSH_OPTS "$HOST" 'gzip -dc | tar -C / -xf -'
+	# Package users (dbus...) are only added when Buildroot assembles the
+	# filesystem image, not in output/target: take the account files from it.
+	for f in passwd group shadow; do
+		debugfs -R "cat /etc/$f" "$OUT/images/rootfs.ext4" 2>/dev/null |
+			ssh $SSH_OPTS "$HOST" "cat > /etc/$f.new && chmod $([ $f = shadow ] && echo 600 || echo 644) /etc/$f.new && mv /etc/$f.new /etc/$f"
+	done
 fi
 if [ "$WHAT" = kernel ] || [ "$WHAT" = all ]; then
 	echo ">>> kernel + dtb"

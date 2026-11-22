@@ -34,3 +34,7 @@ mkdir -p "$TARGET_DIR/data"
 # SSH key login only
 chmod 700 "$TARGET_DIR/root" "$TARGET_DIR/root/.ssh"
 chmod 600 "$TARGET_DIR/root/.ssh/authorized_keys"
+
+# Bluetooth pairings must survive reboots on the read-only root: keep them on /data
+rm -rf "$TARGET_DIR"/var/lib/bluetooth
+ln -sfn /data/bluetooth "$TARGET_DIR"/var/lib/bluetooth

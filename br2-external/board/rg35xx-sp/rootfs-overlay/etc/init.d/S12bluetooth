@@ -1,0 +1,18 @@
+#!/bin/sh
+# Bluetooth (RTL8821CS on UART1). The driver is built in and probes before the
+# root filesystem is mounted, so its firmware (/lib/firmware/rtl_bt) isn't
+# there yet: re-attach the chip now that it is (in the background, ~1 s).
+# Pairings live on /data (/var/lib/bluetooth links there).
+case "$1" in
+start)
+	mkdir -p /data/bluetooth
+	for h in /sys/class/bluetooth/hci*; do
+		[ -e "$h/device" ] || continue
+		dev=$(basename "$(readlink "$h/device")")
+		drv=$(readlink -f "$h/device/driver")
+		[ -n "$drv" ] || continue
+		( echo "$dev" > "$drv/unbind"; sleep 0.2; echo "$dev" > "$drv/bind" ) &
+	done
+	;;
+esac
+exit 0
