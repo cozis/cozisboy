@@ -908,6 +908,29 @@ static void api_game_put_file(struct req *r, coz_game *g, int is_cover, int slot
 		respond_game(r->fd, g);
 }
 
+// Every game gets its No-Intro name (from its ROM's CRC), like imports do.
+static void api_games_identify(struct req *r)
+{
+	int renamed = 0, unknown = 0, known = 0;
+	pthread_mutex_lock(&lib_lock);
+	cache_update();
+	for (int i = 0; i < cache.n; i++) {
+		coz_game g = cache.games[i];
+		int rc = coz_game_identify(&g);
+		if (rc == 1)
+			renamed++;
+		else if (rc == 0)
+			known++;
+		else
+			unknown++;
+	}
+	cache_valid = 0;
+	pthread_mutex_unlock(&lib_lock);
+	char body[96];
+	int n = snprintf(body, sizeof body, "{\"renamed\":%d,\"known\":%d,\"unknown\":%d}", renamed, known, unknown);
+	respond(r->fd, 200, "application/json", NULL, body, (size_t)n);
+}
+
 static void api_states_list(struct req *r, const coz_game *g)
 {
 	coz_state *s;
@@ -1637,6 +1660,8 @@ static void route(struct req *r)
 		api_game_add(r);
 	else if (!strcmp(ep, "games/fetch") && post)
 		api_game_fetch(r);
+	else if (!strcmp(ep, "games/identify") && post)
+		api_games_identify(r);
 	else if (!strncmp(ep, "games/", 6))
 		api_game(r, ep + 6);
 	else if (get && !strncmp(ep, "hh/", 3))

@@ -36,7 +36,7 @@ static const coz_game *find(coz_lib *lib, const char *id)
 int main(int argc, char **argv)
 {
 	if (argc < 2) {
-		fprintf(stderr, "usage: coz-lib list|add|delete|rename|states|state-test ...\n");
+		fprintf(stderr, "usage: coz-lib list|add|delete|rename|identify|states|state-test ...\n");
 		return 2;
 	}
 	const char *cmd = argv[1];
@@ -97,6 +97,27 @@ int main(int argc, char **argv)
 			return 1;
 		}
 		printf("%s  %s\n", c.id, c.name);
+	} else if (!strcmp(cmd, "identify")) {
+		// every game (or the ids given): its No-Intro name, from the ROM's CRC
+		for (int i = 0; i < lib.n; i++) {
+			if (argc > 2) {
+				int want = 0;
+				for (int k = 2; k < argc; k++)
+					want |= !strcmp(argv[k], lib.games[i].id);
+				if (!want)
+					continue;
+			}
+			coz_game c = lib.games[i];
+			char before[COZ_NAME_MAX + 1];
+			snprintf(before, sizeof before, "%s", c.name);
+			r = coz_game_identify(&c);
+			if (r == 1)
+				printf("renamed  %s  ->  %s\n", before, c.name);
+			else if (r == 0)
+				printf("ok       %s\n", c.name);
+			else
+				printf("%-8s %s\n", r == -ENOENT ? "unknown" : r == -EEXIST ? "taken" : "error", c.name);
+		}
 	} else if (!strcmp(cmd, "states") && argc == 3) {
 		const coz_game *g = find(&lib, argv[2]);
 		coz_state *s;

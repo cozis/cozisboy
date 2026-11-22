@@ -14,10 +14,10 @@ HDRS = ui.h ui_priv.h gfx.h emu.h sys.h ../common/sfx.h ../common/library.h
 all: cozisboy-preview cozisboy-shot sfx-demo
 
 cozisboy-preview: host_sdl.c $(CORE) $(HDRS)
-	$(CC) $(CFLAGS) -o $@ host_sdl.c $(CORE) $(shell pkg-config --cflags --libs sdl2) -lm -lmgba -lpng
+	$(CC) $(CFLAGS) -o $@ host_sdl.c $(CORE) $(shell pkg-config --cflags --libs sdl2) -lm -lmgba -lpng -lz
 
 cozisboy-shot: host_shot.c $(CORE) $(HDRS)
-	$(CC) $(CFLAGS) -o $@ host_shot.c $(CORE) -lm -lmgba -lpng
+	$(CC) $(CFLAGS) -o $@ host_shot.c $(CORE) -lm -lmgba -lpng -lz
 
 sfx-demo: sfx_demo.c ../common/sfx.c ../common/sfx.h
 	$(CC) $(CFLAGS) -o $@ sfx_demo.c ../common/sfx.c -lm

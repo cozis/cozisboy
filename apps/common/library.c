@@ -24,6 +24,7 @@
 #include <ftw.h>
 #include <limits.h>
 #include <png.h>
+#include <zlib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -393,6 +394,68 @@ static int detect_sys(const char *path, int hint)
 	return h[0x143] & 0x80 ? COZ_SYS_GBC : COZ_SYS_GB;
 }
 
+/* ---- No-Intro names --------------------------------------------------------- */
+
+static int file_crc32(const char *path, uint32_t *out)
+{
+	int fd = open(path, O_RDONLY | O_CLOEXEC);
+	if (fd < 0)
+		return -errno;
+	uLong crc = crc32(0L, Z_NULL, 0);
+	unsigned char buf[65536];
+	ssize_t n;
+	while ((n = read(fd, buf, sizeof buf)) > 0)
+		crc = crc32(crc, buf, (uInt)n);
+	close(fd);
+	if (n < 0)
+		return -EIO;
+	*out = (uint32_t)crc;
+	return 0;
+}
+
+// The canonical name of a ROM with this CRC, looked up in sys's list (and,
+// for GB/GBC, the other one: dual-mode carts sit in either). 0 if found.
+static int nointro_lookup(int sys, uint32_t crc, char *name, size_t n)
+{
+	const char *dir = getenv("COZ_NOINTRO") ? getenv("COZ_NOINTRO") : "/usr/share/cozisboy/nointro";
+	int order[2] = {sys, sys == COZ_SYS_GB ? COZ_SYS_GBC : sys == COZ_SYS_GBC ? COZ_SYS_GB : -1};
+	char want[9];
+	snprintf(want, sizeof want, "%08X", crc);
+	for (int k = 0; k < 2 && order[k] >= 0; k++) {
+		char p[PATH_MAX], line[COZ_NAME_MAX + 16];
+		snprintf(p, sizeof p, "%s/%s.txt", dir, SYS[order[k]].key);
+		FILE *f = fopen(p, "r");
+		if (!f)
+			continue;
+		while (fgets(line, sizeof line, f)) {
+			if (strncmp(line, want, 8) || line[8] != ' ')
+				continue;
+			line[strcspn(line, "\r\n")] = 0;
+			fclose(f);
+			if (!valid_name(line + 9))
+				return -EINVAL;
+			snprintf(name, n, "%s", line + 9);
+			return 0;
+		}
+		fclose(f);
+	}
+	return -ENOENT;
+}
+
+int coz_game_identify(coz_game *g)
+{
+	char rom[PATH_MAX], name[COZ_NAME_MAX + 1];
+	uint32_t crc;
+	int r;
+	if ((r = coz_game_rom_path(g, rom, sizeof rom)) || (r = file_crc32(rom, &crc)) ||
+	    (r = nointro_lookup(g->sys, crc, name, sizeof name)))
+		return r;
+	if (!strcmp(name, g->name))
+		return 0;
+	r = coz_game_rename(g, name);
+	return r ? r : 1;
+}
+
 int coz_import_commit(coz_import *imp, int replace, coz_game *out)
 {
 	int r = tmp_finish(imp);
@@ -403,6 +466,11 @@ int coz_import_commit(coz_import *imp, int replace, coz_game *out)
 		r = -EINVAL;
 		goto fail;
 	}
+	// a known dump: its proper name, whatever the file was called
+	uint32_t crc;
+	char known[COZ_NAME_MAX + 1];
+	if (file_crc32(imp->tmp, &crc) == 0 && nointro_lookup(sys, crc, known, sizeof known) == 0)
+		snprintf(imp->name, sizeof imp->name, "%s", known);
 	char dir[PATH_MAX], rom[PATH_MAX], ext[8];
 	if ((r = game_dir(sys, imp->name, dir, sizeof dir)))
 		goto fail;

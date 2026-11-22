@@ -98,8 +98,9 @@ int coz_game_refresh(coz_game *g);
 // Import a ROM in steps, so it can be streamed (web uploads):
 //   coz_import_begin  -> write the bytes to imp.fd -> coz_import_commit
 // The system is detected from `filename` and checked against the ROM header
-// on commit (GB vs GBC from the header's colour flag). The game's name is the
-// file name without extension. Commit fails with -EEXIST if the game exists
+// on commit (GB vs GBC from the header's colour flag). The game's name is its
+// No-Intro name when the ROM's CRC32 is in the lists, else the file name
+// without extension. Commit fails with -EEXIST if the game exists
 // (unless replace), -EINVAL if the data isn't a ROM for that system.
 typedef struct {
 	int fd;
@@ -110,6 +111,13 @@ typedef struct {
 int coz_import_begin(coz_import *imp, const char *filename);
 int coz_import_commit(coz_import *imp, int replace, coz_game *out);
 void coz_import_abort(coz_import *imp);
+
+// Recognise the game by its ROM's CRC32 in the No-Intro lists
+// ($COZ_NOINTRO, else /usr/share/cozisboy/nointro/<sys>.txt) and rename it to
+// its canonical name ("Pokemon - Emerald Version (USA, Europe)"). Imports do
+// this by themselves. Returns 1 renamed (g updated), 0 already right, -ENOENT
+// not in the lists, -EEXIST another game has that name.
+int coz_game_identify(coz_game *g);
 
 // Everything about the game goes: ROM, save, backups, states, cover.
 int coz_game_delete(const coz_game *g);

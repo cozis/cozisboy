@@ -420,7 +420,7 @@ function pageAll() {
 			<div class="spacer"></div>
 			${st ? `<div class="meter">${PX("Storage", 2, "#66666e")}<div class="track"><i style="width:${(100 * (st.total - st.free) / st.total).toFixed(1)}%"></i></div><small>${size(st.free)} free of ${size(st.total)}</small></div>` : ""}
 			<div class="links"><a href="/api/backup?x=1">Back up all saves</a><a href="/api/backup?x=1&states=1">Back up saves and snapshots</a>
-				<a onclick="findCovers()">Find missing covers</a><a onclick="logout()">Disconnect this browser</a></div>
+				<a onclick="fixNames()">Fix names and covers</a><a onclick="logout()">Disconnect this browser</a></div>
 		</nav>
 		<section class="mn">
 			<div class="tb"><input class="search" id="q" placeholder="Search your games" value="${esc(q)}">
@@ -578,6 +578,17 @@ async function fetchCover(g) {	// libretro-thumbnails, matched by the No-Intro n
 		await api("PUT", `games/${g.id}/cover`, await r.blob());
 		return true;
 	} catch { return false; }
+}
+// Proper names (the console matches each ROM's checksum against No-Intro),
+// then box art for the games still without one (found by that name).
+async function fixNames() {
+	toast("Checking every game…");
+	try {
+		const r = await api("POST", "games/identify");
+		await refresh();
+		toast(r.renamed ? `Renamed ${r.renamed} game${r.renamed > 1 ? "s" : ""}.` : "Every known game already has its name.");
+	} catch (e) { toast(e.message); return; }
+	await findCovers();
 }
 async function findCovers() {
 	const missing = games.filter(g => !g.cover);
