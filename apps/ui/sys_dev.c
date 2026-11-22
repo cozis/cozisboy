@@ -919,6 +919,11 @@ void sys_bt_make_visible(void)
 	B.visible = 180;
 	bt_action("visible", NULL, NULL, "COULDN'T MAKE IT VISIBLE");
 }
+void sys_bt_hide(void)
+{
+	B.visible = 0;
+	bt_action("hidden", NULL, "NOT VISIBLE ANY MORE", NULL);
+}
 void sys_bt_forget(const char *mac)
 {
 	static char m[18];

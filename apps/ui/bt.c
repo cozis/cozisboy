@@ -155,10 +155,16 @@ int bt_update(unsigned p, float dt)
 	}
 	if (!(p & BTN_A))
 		return 0;
-	if (BT.sel == R_VISIBLE) {
-		if (!sys_bt_visible())
+	if (BT.sel == R_VISIBLE) { // A again: hidden at once
+		if (sys_bt_busy())
+			return 0;
+		if (sys_bt_visible()) {
+			sys_bt_hide();
+			sfx_play(SFX_TOGGLE_OFF, 0);
+		} else {
 			sys_bt_make_visible();
-		sfx_play(SFX_OPEN, APP_SETTINGS);
+			sfx_play(SFX_OPEN, APP_SETTINGS);
+		}
 	} else if (BT.sel >= R_DEV0 && BT.sel - R_DEV0 < n) {
 		snprintf(BT.mac, sizeof BT.mac, "%s", d[BT.sel - R_DEV0].mac);
 		BT.sheet = 1, BT.act = 0, BT.hold = 0, BT.hold_done = 1;
@@ -236,6 +242,6 @@ void bt_hints(canvas *c, int *x)
 		return;
 	}
 	draw_hint(c, x, "^V", "MOVE", 0xdddddd);
-	draw_hint(c, x, "A", BT.sel == R_POWER ? "TOGGLE" : BT.sel == R_VISIBLE ? "MAKE VISIBLE" : "OPEN", PAL[3]);
+	draw_hint(c, x, "A", BT.sel == R_POWER ? "TOGGLE" : BT.sel == R_VISIBLE ? (sys_bt_visible() ? "HIDE" : "MAKE VISIBLE") : "OPEN", PAL[3]);
 	draw_hint(c, x, "B", "BACK", PAL[0]);
 }

@@ -240,6 +240,7 @@ int sys_bt_devices(btdev_t *out, int max)
 int sys_bt_busy(void) { return 0; }
 void sys_bt_power(int on) { MB.powered = on; MB.result = on ? "BLUETOOTH ON" : "BLUETOOTH OFF"; }
 void sys_bt_make_visible(void) { MB.vis_left = 180; }
+void sys_bt_hide(void) { MB.vis_left = 0; MB.result = "NOT VISIBLE ANY MORE"; }
 void sys_bt_forget(const char *mac) { (void)mac; MB.forgotten = 1; MB.result = "DEVICE FORGOTTEN"; }
 void sys_bt_internet(const char *mac, int on) { (void)mac; MB.internet = on; MB.result = on ? "USING THE PHONE'S INTERNET" : "STOPPED USING ITS INTERNET"; }
 const char *sys_bt_result(void) { const char *r = MB.result; MB.result = NULL; return r; }

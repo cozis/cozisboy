@@ -72,6 +72,7 @@ int sys_bt_devices(btdev_t *out, int max);
 int sys_bt_busy(void);			// an action is running
 void sys_bt_power(int on);
 void sys_bt_make_visible(void);
+void sys_bt_hide(void);	// stop being visible now
 void sys_bt_forget(const char *mac);
 void sys_bt_internet(const char *mac, int on);	// on: join its tethering
 const char *sys_bt_result(void);	// set once when an action finishes: toast text, else NULL

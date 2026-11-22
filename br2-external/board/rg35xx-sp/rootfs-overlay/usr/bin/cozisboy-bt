@@ -8,6 +8,7 @@
 #   power on|off    on/off, remembered across boots (/data/bluetooth/off)
 #   visible         pairable + discoverable for 180 s, pairing accepted
 #                   (the phone shows a code to confirm; the console has no keypad)
+#   hidden          stop being visible now (pairing closed)
 #   forget <mac>    unpair
 #   internet <mac>  join the phone's Bluetooth tethering (NAP) + DHCP
 #   internet-off    leave it
@@ -73,6 +74,11 @@ visible)
 	(printf 'default-agent\npairable on\ndiscoverable on\n'; sleep 180; printf 'discoverable off\nquit\n') |
 		setsid bluetoothctl --agent NoInputNoOutput > /run/bt-agent.log 2>&1 &
 	echo "$(( $(date +%s) + 180 )) $!" > $VIS
+	;;
+hidden)
+	[ -r $VIS ] && { read end pid < $VIS; kill "$pid" 2>/dev/null; }
+	rm -f $VIS
+	btc "discoverable off" "pairable off" >/dev/null
 	;;
 forget)
 	[ "$(cat /run/bt-pan.mac 2>/dev/null)" = "$2" ] && "$0" internet-off
