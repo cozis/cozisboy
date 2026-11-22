@@ -1079,7 +1079,7 @@ static void scroll_arrow(canvas *c, int x, int y, int dir, uint32_t col);
 
 static void pick_open(int g)
 {
-	G.pick_sel = 0, G.pick_hold = 0, G.pick_done = 0, G.pick_ingame = 0;
+	G.pick_sel = 0, G.pick_hold = 0, G.pick_done = 1, G.pick_ingame = 0;
 	G.pick_focus = 0, G.pick_act = 0, G.pick_scroll = 0;
 	pick_load(g);
 	G.pick = 1;
@@ -1191,7 +1191,9 @@ static void pick_update(unsigned p, int g, float dt)
 				sfx_play(SFX_BUMP, 0);
 		}
 		if (p & (BTN_A | BTN_RIGHT)) {
-			G.pick_focus = 1, G.pick_act = 0, G.pick_hold = 0;
+			// pick_done: the A that got us here must be released before
+			// it can start a hold (no accidental delete)
+			G.pick_focus = 1, G.pick_act = 0, G.pick_hold = 0, G.pick_done = 1;
 			sfx_play(SFX_TICK, 0);
 		} else if (p & BTN_B) {
 			G.pick = 0;	// from the in-game menu: back to it
@@ -1204,6 +1206,8 @@ static void pick_update(unsigned p, int g, float dt)
 		G.pick_act = na - 1;
 	if (d) {
 		G.pick_hold = 0;
+		if (ui_held() & BTN_A)
+			G.pick_done = 1;
 		if (G.pick_act + d >= 0 && G.pick_act + d < na)
 			G.pick_act += d, sfx_play(SFX_TICK, 0);
 		else
