@@ -148,6 +148,8 @@ int coz_save_slot_restore_backup(const coz_game *g, int slot);
 int coz_save_slot_remove(const coz_game *g, int slot);
 // Copy save `from` into `to` (to's current save becomes its backup).
 int coz_save_slot_copy(const coz_game *g, int from, int to);
+// Exchange two saves (each with its backup), e.g. to make save n the main one.
+int coz_save_slot_swap(const coz_game *g, int a, int b);
 // The lowest unused save number (2..), or -ENOSPC.
 int coz_save_slot_free(const coz_game *g);
 

@@ -1307,11 +1307,8 @@ static void bottom_hints(canvas *c, int *x);
 static void bottom_hints(canvas *c, int *xp)
 {
 	int x = *xp;
-	if (games_pick_active()) {
-		games_pick_hints(c, &x);
-		*xp = x;
+	if (games_pick_active())	// the SAVES page draws its own hints
 		return;
-	}
 	switch (S.screen) {
 	case SCR_HOME: {
 		hitem_t it[MAX_HOME];
@@ -1790,9 +1787,9 @@ void ui_frame(uint32_t *buf, int stride, float dt, unsigned held)
 			draw_app(c);
 		else
 			games_draw(c, S.screen);
-		games_pick_draw(c); // under the bars: its hints stay bright
 		draw_topbar(c);
 		draw_bottombar(c);
+		games_pick_draw(c); // a full page over everything
 	}
 	games_cc_draw(c);
 	draw_toast(c);

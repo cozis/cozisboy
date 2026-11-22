@@ -232,11 +232,14 @@ static struct {
 	int cc, cc_row, cc_card, cc_act, cc_item;
 	float cc_t, cc_cam;
 	int hinted;
-	// "PLAY WITH": the save picker (X in the game list)
+	// SAVES page (X on a game, or SAVES in the in-game menu)
 	int pick, pick_sel, pick_n, pick_game;
 	int pick_ingame;    // opened from the in-game menu (B goes back to it)
-	float pick_hold;    // hold X to delete
-	int pick_done;      // the hold fired: wait for X to be released
+	int pick_focus;     // 0: the list of saves, 1: the selected save's actions
+	int pick_act;       // selected action
+	float pick_hold;    // hold A on a destructive action
+	int pick_done;      // the hold fired: wait for A to be released
+	int pick_scroll;    // first list row shown
 	coz_save pick_saves[COZ_SAVE_SLOTS];
 	int pick_new; // save number of the NEW SAVE row (0: no room)
 } G;
@@ -1068,121 +1071,267 @@ static void pick_load(int g)
 	G.pick_game = g;
 }
 
+#ifndef HOLD_TIME
+#define HOLD_TIME 0.9f
+#endif
+#define RT_Y_PICK 12	// text offset inside a row (as ui_row)
+static void scroll_arrow(canvas *c, int x, int y, int dir, uint32_t col);
+
 static void pick_open(int g)
 {
 	G.pick_sel = 0, G.pick_hold = 0, G.pick_done = 0, G.pick_ingame = 0;
+	G.pick_focus = 0, G.pick_act = 0, G.pick_scroll = 0;
 	pick_load(g);
 	G.pick = 1;
-	sfx_play(SFX_OPEN, 0);
+	ui_page_anim(0);
+	sfx_play(SFX_OPEN, APP_GAMES);
+}
+
+static void ingame_header(canvas *c, const char *title, const char *status, uint32_t scol);
+
+// What can be done with the selected row. Rows that would change a save
+// that's open (being played, or paused) aren't offered: close it first.
+enum { PA_PLAY, PA_COPY, PA_MAIN, PA_PREV, PA_DELETE };
+static int pick_actions(int *a)
+{
+	int g = G.pick_game, n = 0;
+	if (G.pick_sel >= G.pick_n) { // NEW SAVE
+		a[n++] = PA_PLAY;
+		return n;
+	}
+	const coz_save *sv = &G.pick_saves[G.pick_sel];
+	int open = find_running_copy(g, sv->slot - 1) >= 0;
+	a[n++] = PA_PLAY;
+	if (sv->has_save && G.pick_new)
+		a[n++] = PA_COPY;
+	if (sv->slot > 1 && sv->has_save && !open && find_running_copy(g, 0) < 0)
+		a[n++] = PA_MAIN;
+	if (sv->has_backup && !open)
+		a[n++] = PA_PREV;
+	if (sv->has_save && !open)
+		a[n++] = PA_DELETE;
+	return n;
+}
+
+static int pick_needs_hold(int act)
+{
+	return act == PA_PREV || act == PA_DELETE;
+}
+
+static const char *pick_act_label(int act)
+{
+	int g = G.pick_game;
+	if (act == PA_PLAY) {
+		if (G.pick_sel >= G.pick_n)
+			return "START IT";
+		int ri = find_running_copy(g, G.pick_saves[G.pick_sel].slot - 1);
+		return G.pick_ingame && ri >= 0 && ri == cur ? "RESUME" : ri >= 0 ? "SWITCH TO IT" : "PLAY";
+	}
+	return act == PA_COPY ? "COPY TO A NEW SAVE" : act == PA_MAIN ? "MAKE IT THE MAIN" : act == PA_PREV ? "RESTORE OLDER"
+														: "DELETE";
+}
+
+static void pick_do(int act)
+{
+	int g = G.pick_game;
+	const coz_save *sv = G.pick_sel < G.pick_n ? &G.pick_saves[G.pick_sel] : NULL;
+	int save = sv ? sv->slot : G.pick_new, r = 0;
+	switch (act) {
+	case PA_PLAY:
+		G.pick = 0;
+		if (G.pick_ingame && cur >= 0 && run[cur].game == g && run[cur].copy == save - 1) {
+			G.cc = 0;	// the save being played: just resume
+			sfx_play(SFX_TOGGLE_OFF, 0);
+			return;
+		}
+		G.cc = 0;
+		if (find_running_copy(g, save - 1) >= 0)
+			enter_game(find_running_copy(g, save - 1), W / 2, H / 2);
+		else
+			open_game_copy(g, save - 1, -1, W / 2, H / 2);
+		return;
+	case PA_COPY:
+		r = coz_save_slot_copy(lib[g].cg, save, G.pick_new);
+		snprintf(toast_buf, sizeof toast_buf, "COPIED INTO SAVE %d", G.pick_new);
+		break;
+	case PA_MAIN:
+		r = coz_save_slot_swap(lib[g].cg, 1, save);
+		snprintf(toast_buf, sizeof toast_buf, "IT'S THE MAIN SAVE NOW (THE OLD ONE IS SAVE %d)", save);
+		break;
+	case PA_PREV:
+		r = coz_save_slot_restore_backup(lib[g].cg, save);
+		snprintf(toast_buf, sizeof toast_buf, "OLDER VERSION RESTORED");
+		break;
+	case PA_DELETE:
+		r = coz_save_slot_delete(lib[g].cg, save);
+		snprintf(toast_buf, sizeof toast_buf, save == 1 ? "MAIN SAVE DELETED" : "SAVE %d DELETED", save);
+		break;
+	}
+	if (r)
+		snprintf(toast_buf, sizeof toast_buf, "THAT DIDN'T WORK");
+	toast(toast_buf);
+	sfx_play(r ? SFX_BUMP : act == PA_DELETE ? SFX_TOGGLE_OFF : SFX_TOGGLE_ON, 0);
+	pick_load(g);
+	if (act == PA_MAIN && !r)
+		G.pick_sel = 0;	// follow it to the top
+	G.pick_focus = 0, G.pick_act = 0;
 }
 
 static void pick_update(unsigned p, int g, float dt)
 {
+	(void)g;
 	int rows = G.pick_n + (G.pick_new ? 1 : 0);
-	int on_save = G.pick_sel < G.pick_n;
-	const coz_save *sv = on_save ? &G.pick_saves[G.pick_sel] : NULL;
-	int open_i = sv ? find_running_copy(g, sv->slot - 1) : -1;
+	int acts[8], na = pick_actions(acts);
 	int d = (p & BTN_DOWN) ? 1 : (p & BTN_UP) ? -1 : 0;
+	if (G.pick_focus == 0) { // the list
+		if (d) {
+			if (G.pick_sel + d >= 0 && G.pick_sel + d < rows)
+				G.pick_sel += d, G.pick_act = 0, sfx_play(SFX_TICK, 0);
+			else
+				sfx_play(SFX_BUMP, 0);
+		}
+		if (p & (BTN_A | BTN_RIGHT)) {
+			G.pick_focus = 1, G.pick_act = 0, G.pick_hold = 0;
+			sfx_play(SFX_TICK, 0);
+		} else if (p & BTN_B) {
+			G.pick = 0;	// from the in-game menu: back to it
+			sfx_play(SFX_BACK, 0);
+		}
+		return;
+	}
+	// the actions of the selected save
+	if (G.pick_act >= na)
+		G.pick_act = na - 1;
 	if (d) {
 		G.pick_hold = 0;
-		if (G.pick_sel + d >= 0 && G.pick_sel + d < rows)
-			G.pick_sel += d, sfx_play(SFX_TICK, 0);
+		if (G.pick_act + d >= 0 && G.pick_act + d < na)
+			G.pick_act += d, sfx_play(SFX_TICK, 0);
 		else
 			sfx_play(SFX_BUMP, 0);
 		return;
 	}
-	if (p & BTN_B) {
-		G.pick = 0;	// from the in-game menu: back to it
+	if (p & (BTN_B | BTN_LEFT)) {
+		G.pick_focus = 0, G.pick_hold = 0;
 		sfx_play(SFX_BACK, 0);
 		return;
 	}
-	// hold X: delete the save (the library keeps it as a backup)
-	unsigned held = ui_held();
-	if (sv && (held & BTN_X) && !G.pick_done) {
-		if (open_i >= 0 || !sv->has_save) {
-			if (p & BTN_X) {
-				toast(open_i >= 0 ? "CLOSE IT FIRST: IT'S OPEN" : "NOTHING TO DELETE");
-				sfx_play(SFX_BUMP, 0);
+	int act = acts[G.pick_act];
+	if (pick_needs_hold(act)) {
+		if ((ui_held() & BTN_A) && !G.pick_done) {
+			if ((G.pick_hold += dt) >= HOLD_TIME) {
+				G.pick_hold = 0, G.pick_done = 1;
+				pick_do(act);
 			}
-		} else if ((G.pick_hold += dt) >= 1.0f) {
-			G.pick_done = 1, G.pick_hold = 0;
-			if (coz_save_slot_delete(lib[g].cg, sv->slot) == 0) {
-				snprintf(toast_buf, sizeof toast_buf, sv->slot == 1 ? "MAIN SAVE DELETED" : "SAVE %d DELETED", sv->slot);
-				sfx_play(SFX_TOGGLE_OFF, 0);
-			} else {
-				snprintf(toast_buf, sizeof toast_buf, "COULD NOT DELETE");
-				sfx_play(SFX_BUMP, 0);
-			}
-			toast(toast_buf);
-			pick_load(g);
+		} else if (!(ui_held() & BTN_A)) {
+			G.pick_hold = 0, G.pick_done = 0;
 		}
 		return;
 	}
-	if (!(held & BTN_X))
-		G.pick_hold = 0, G.pick_done = 0;
-	// Y: duplicate into a new save
-	if ((p & BTN_Y) && sv) {
-		if (!sv->has_save || !G.pick_new) {
-			toast(!sv->has_save ? "NOTHING TO COPY YET" : "NO ROOM: 8 SAVES AT MOST");
-			sfx_play(SFX_BUMP, 0);
-		} else if (coz_save_slot_copy(lib[g].cg, sv->slot, G.pick_new) == 0) {
-			snprintf(toast_buf, sizeof toast_buf, "COPIED INTO SAVE %d", G.pick_new);
-			toast(toast_buf);
-			sfx_play(SFX_TOGGLE_ON, 0);
-			pick_load(g);
-		}
-		return;
-	}
-	if (!(p & BTN_A))
-		return;
-	int save = sv ? sv->slot : G.pick_new;
-	G.pick = 0;
-	if (G.pick_ingame && cur >= 0 && run[cur].game == g && run[cur].copy == save - 1) {
-		G.cc = 0;	// the save being played: just resume
-		sfx_play(SFX_TOGGLE_OFF, 0);
-		return;
-	}
-	G.cc = 0;
-	int ri = find_running_copy(g, save - 1);
-	if (ri >= 0)
-		enter_game(ri, W / 2, H / 2);
-	else
-		open_game_copy(g, save - 1, -1, W / 2, H / 2);
+	if (p & BTN_A)
+		pick_do(act);
 }
 
 static void pick_draw(canvas *c)
 {
 	int g = G.pick_game, rows = G.pick_n + (G.pick_new ? 1 : 0);
-	int ph = 52 + rows * UI_ROW + 14, py = (H - 46 - ph) / 2;
-	if (py < 60)
-		py = 60;
-	int ry = ui_panel(c, UI_MX + 24, py, W - 2 * UI_MX - 48, ph, "SAVES", lib[g].col);
-	ui_column(UI_MX + 34, W - 2 * UI_MX - 68);
-	for (int i = 0; i < rows; i++) {
-		int sel = i == G.pick_sel, y = ry + i * UI_ROW;
+	uint32_t col = PAL[APP_GAMES];
+	fill(c, 0, 0, W, H, 0x0e0e0e);
+	ingame_header(c, "SAVES", lib[g].title, GREY);
+
+	// left: the saves, then NEW SAVE
+	const int lx = UI_MX, lw = 210, top = UI_TOP, view = (H - 52 - top) / UI_ROW;
+	if (G.pick_sel < G.pick_scroll)
+		G.pick_scroll = G.pick_sel;
+	if (G.pick_sel >= G.pick_scroll + view)
+		G.pick_scroll = G.pick_sel - view + 1;
+	ui_column(lx, lw);
+	for (int i = G.pick_scroll; i < rows && i < G.pick_scroll + view; i++) {
+		int y = top + (i - G.pick_scroll) * UI_ROW, sel = i == G.pick_sel;
 		char label[24];
-		const char *val;
 		if (i < G.pick_n) {
-			const coz_save *sv = &G.pick_saves[i];
-			if (sv->slot == 1)
+			int sl = G.pick_saves[i].slot;
+			if (sl == 1)
 				snprintf(label, sizeof label, "MAIN SAVE");
 			else
-				snprintf(label, sizeof label, "SAVE %d", sv->slot);
-			val = sv->has_save ? save_when(sv->time) : "EMPTY";
-			int ri = find_running_copy(g, sv->slot - 1);
-			if (ri >= 0)
-				val = G.pick_ingame && ri == cur ? "PLAYING" : "OPEN";
+				snprintf(label, sizeof label, "SAVE %d", sl);
 		} else {
-			snprintf(label, sizeof label, "NEW SAVE");
-			val = "START FRESH";
+			snprintf(label, sizeof label, "+ NEW SAVE");
 		}
-		if (sel && G.pick_hold > 0)
-			ui_row_hold(c, y, label, sel, lib[g].col, G.pick_hold);
-		else
-			ui_row(c, y, label, sel, lib[g].col);
-		ui_row_value(c, y, val, 0, sel, lib[g].col, i < G.pick_n && G.pick_saves[i].has_save ? 0xbbbbbb : GREY);
+		// the list keeps its highlight (dimmer) while the actions have focus
+		ui_row(c, y, label, sel, sel && G.pick_focus ? mix(col, BLACK, 0.5f) : col);
+		int ri = i < G.pick_n ? find_running_copy(g, G.pick_saves[i].slot - 1) : -1;
+		if (ri >= 0) // open: a small green (playing) or grey (paused) mark
+			fill(c, lx + lw - 22, y + 17, 8, 8, G.pick_ingame && ri == cur ? PAL[3] : GREY);
+	}
+	if (G.pick_scroll > 0 || G.pick_scroll + view < rows) {
+		int bob = (int)lrintf(sinf(ui_time() * 6) * 3);
+		if (G.pick_scroll > 0)
+			scroll_arrow(c, lx + lw / 2, top - 10 - bob, -1, WHITE);
+		if (G.pick_scroll + view < rows)
+			scroll_arrow(c, lx + lw / 2, top + view * UI_ROW + 2 + bob, 1, WHITE);
+	}
+
+	// right: about the selected row, then what can be done with it
+	const int rx = lx + lw + 16, rw = W - UI_MX - rx;
+	fill(c, rx - 9, top, 2, H - 52 - top, 0x2a2a2a);
+	int y = top + 4;
+	if (G.pick_sel < G.pick_n) {
+		const coz_save *sv = &G.pick_saves[G.pick_sel];
+		char t[64];
+		int ri = find_running_copy(g, sv->slot - 1);
+		if (sv->has_save) {
+			struct tm tm;
+			localtime_r(&sv->time, &tm);
+			snprintf(t, sizeof t, "SAVED %s", save_when(sv->time));
+			text(c, rx + 2, y, t, 2, WHITE);
+			snprintf(t, sizeof t, "%lld KB", (sv->size + 1023) / 1024);
+			text(c, rx + 2, y + 22, t, 2, GREY);
+		} else {
+			text(c, rx + 2, y, sv->slot == 1 ? "NOT SAVED YET" : "EMPTY", 2, WHITE);
+			text(c, rx + 2, y + 22, "THE GAME HASN'T SAVED IN IT", 2, GREY);
+		}
+		const char *st = ri < 0 ? (sv->has_backup ? "AN OLDER VERSION IS KEPT" : "")
+				 : G.pick_ingame && ri == cur ? "YOU'RE PLAYING IT" : "OPEN (PAUSED): CLOSE IT TO CHANGE IT";
+		text(c, rx + 2, y + 44, st, 2, ri >= 0 ? PAL[3] : GREY);
+	} else {
+		text(c, rx + 2, y, "A NEW PLAYTHROUGH", 2, WHITE);
+		text(c, rx + 2, y + 22, "FROM THE START.", 2, GREY);
+		text(c, rx + 2, y + 44, "OTHER SAVES STAY AS THEY ARE.", 2, GREY);
+	}
+	int acts[8], na = pick_actions(acts), ay = top + 84;
+	ui_column(rx, rw);
+	for (int k = 0; k < na; k++) {
+		int sel = G.pick_focus && k == G.pick_act;
+		uint32_t ac = acts[k] == PA_DELETE ? PAL[0] : col;
+		if (pick_needs_hold(acts[k]))
+			ui_row_hold(c, ay + k * UI_ROW, pick_act_label(acts[k]), sel, ac, sel ? G.pick_hold / HOLD_TIME : 0);
+		else {
+			ui_row(c, ay + k * UI_ROW, pick_act_label(acts[k]), sel, ac);
+			if (!G.pick_focus && k == 0)	// where A goes from the list
+				text(c, rx + rw - 16 - text_width(">", 3), ay + RT_Y_PICK, ">", 3, GREY);
+		}
 	}
 	ui_column(0, 0);
+
+	// hints
+	const char *b[4], *l[4];
+	int nh = 0;
+	if (!G.pick_focus) {
+		b[nh] = "^V", l[nh++] = "CHOOSE";
+		b[nh] = "A", l[nh++] = "OPEN";
+		b[nh] = "B", l[nh++] = G.pick_ingame ? "BACK" : "CLOSE";
+	} else {
+		b[nh] = "^V", l[nh++] = "MOVE";
+		b[nh] = "A", l[nh++] = pick_needs_hold(acts[G.pick_act < na ? G.pick_act : 0]) ? "HOLD" : "OK";
+		b[nh] = "B", l[nh++] = "BACK";
+	}
+	static const uint32_t hc[3] = {0xdddddd, 0x5ee05e, 0xff4a4a};
+	int hx = 0;
+	for (int k = 0; k < nh; k++)
+		draw_hint(NULL, &hx, b[k], l[k], 0);
+	hx = (W - (hx - 22)) / 2;
+	for (int k = 0; k < nh; k++)
+		draw_hint(c, &hx, b[k], l[k], hc[k]);
 }
 
 static void hub_update(unsigned p, float dt)
@@ -1575,19 +1724,6 @@ void games_pick_draw(canvas *c)
 {
 	if (G.pick && !G.cc)	// in a game the in-game menu draws it on top of itself
 		pick_draw(c);
-}
-void games_pick_hints(canvas *c, int *x)
-{
-	int g = G.pick_game, on_save = G.pick_sel < G.pick_n;
-	const coz_save *sv = on_save ? &G.pick_saves[G.pick_sel] : NULL;
-	int ri = sv ? find_running_copy(g, sv->slot - 1) : -1;
-	draw_hint(c, x, "A", !sv ? "START" : G.pick_ingame && ri == cur ? "RESUME" : ri >= 0 ? "SWITCH" : "PLAY", PAL[3]);
-	if (sv && sv->has_save) {
-		draw_hint(c, x, "Y", "COPY", PAL[2]);
-		if (ri < 0)
-			draw_hint(c, x, "X", G.pick_hold > 0 ? "DELETING..." : "HOLD: DELETE", PAL[4]);
-	}
-	draw_hint(c, x, "B", "BACK", PAL[0]);
 }
 // ref < 0: a game that isn't open. Has several saves to choose from (library game)?
 int games_ref_has_saves(int ref) { return ref < 0 && lib[ref_game(ref)].cg != NULL; }
@@ -2094,6 +2230,16 @@ static void states_update(unsigned p, float dt)
 
 static void ingame_header(canvas *c, const char *title, const char *status, uint32_t scol);
 
+// A pixel chevron centred on x, its tip at y; dir -1 points up, 1 down.
+static void scroll_arrow(canvas *c, int x, int y, int dir, uint32_t col)
+{
+	for (int k = 0; k < 6; k++) {	// 6 steps of 3 px: 18 px wide at the base
+		int yy = dir < 0 ? y + k * 2 : y - k * 2;
+		fill(c, x - 3 - k * 3, yy, 6, 2, col);
+		fill(c, x - 3 + k * 3, yy, 6, 2, col);
+	}
+}
+
 static void states_draw(canvas *c)
 {
 	uint32_t col = PAL[APP_GAMES];
@@ -2138,6 +2284,18 @@ static void states_draw(canvas *c)
 	}
 	if (!n)
 		text(c, x0 + 2, y0 + rowh + 10, "NO SNAPSHOTS YET: PRESS A", UI_TS, 0x666666);
+	// more above / below: arrows that bob towards the hidden rows
+	int rows_total = (cards + cols - 1) / cols, first = (int)SV.scroll, shown = 0;
+	for (int r = 0; r < 3 && y0 + r * rowh <= H - 60; r++)
+		shown++;
+	if (!SV.popup) {
+		// on the right, clear of the title and the card labels
+		int bob = (int)lrintf(sinf(ui_time() * 6) * 4), ax = W - UI_MX - 20;
+		if (first > 0)
+			scroll_arrow(c, ax, y0 - 22 - bob, -1, WHITE);
+		if (first + shown < rows_total)
+			scroll_arrow(c, ax, y0 + shown * rowh - 4 + bob, 1, WHITE);
+	}
 	if (SV.popup) { // sheet: the save's picture + what to do with it (hold A)
 		slot_t *sl = &slots[g][v[SV.sel - 1]];
 		static const char *const opts[3] = {"LOAD", "OVERWRITE", "DELETE"};
@@ -2928,13 +3086,8 @@ void games_cc_draw(canvas *c)
 	float a = clampf(G.cc_t / 0.15f, 0, 1);
 	if (cc_has_actions()) {
 		ingame_draw(c, a);
-		if (G.pick) {
-			pick_draw(c);
-			int x = 0;	// centred, like the menu's own hints
-			games_pick_hints(NULL, &x);
-			x = (W - (x - 22)) / 2;
-			games_pick_hints(c, &x);
-		}
+		if (G.pick)
+			pick_draw(c);	// a full page with its own hints
 		return;
 	}
 	if (G.cc_style == 1)

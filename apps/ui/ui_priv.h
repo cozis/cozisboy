@@ -149,7 +149,6 @@ void games_ref_close(int ref);
 int games_pick_active(void);
 void games_pick_update(unsigned pressed, float dt);
 void games_pick_draw(canvas *c);
-void games_pick_hints(canvas *c, int *x);
 int games_ref_has_saves(int ref);
 void games_ref_saves(int ref);
 void games_ref_draw_bg(canvas *c, int ref); // full-screen dimmed game frame

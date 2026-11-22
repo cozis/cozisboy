@@ -612,6 +612,38 @@ int coz_save_slot_copy(const coz_game *g, int from, int to)
 	return coz_save_slot_import_commit(g, to, &imp);
 }
 
+// rename a -> b and b -> a; either may be missing
+static int swap_files(const coz_game *g, const char *a, const char *b)
+{
+	char tmp[PATH_MAX];
+	game_file(g, "save.swap", tmp, sizeof tmp);
+	int ha = access(a, F_OK) == 0, hb = access(b, F_OK) == 0;
+	if (ha && rename(a, tmp))
+		return -errno;
+	if (hb && rename(b, a))
+		return -errno;
+	if (ha && rename(tmp, b))
+		return -errno;
+	return 0;
+}
+
+int coz_save_slot_swap(const coz_game *g, int a, int b)
+{
+	char sa[PATH_MAX], sb[PATH_MAX], ba[PATH_MAX], bb[PATH_MAX];
+	int r;
+	if (a == b)
+		return -EINVAL;
+	if ((r = coz_save_slot_path(g, a, sa, sizeof sa)) || (r = coz_save_slot_path(g, b, sb, sizeof sb)) ||
+	    (r = coz_save_slot_backup_path(g, a, ba, sizeof ba)) ||
+	    (r = coz_save_slot_backup_path(g, b, bb, sizeof bb)))
+		return r;
+	if ((r = swap_files(g, sa, sb)) || (r = swap_files(g, ba, bb)))
+		return r;
+	parent_of(sa, ba, sizeof ba);
+	fsync_dir(ba);
+	return 0;
+}
+
 int coz_saves_list(const coz_game *g, coz_save *out)
 {
 	int k = 0;
