@@ -1,6 +1,8 @@
 // Headless test driver: plays a scripted button sequence at 60 fps and saves
 // screenshots as PPM. Each argument is one step:
 //   w<sec>      wait (no buttons) for <sec> seconds, e.g. w0.5
+//   r<sec>      pause for <sec> seconds of real (wall-clock) time, frames
+//               stopped: lets something outside change files meanwhile
 //   p<keys>     tap buttons for 3 frames: U D L R A B X Y, M = menu,
 //               S = select, T = start, [ ] = L R shoulders; e.g. pR or pA
 //   h<keys>,<s> hold buttons for <s> seconds, e.g. hR,0.5
@@ -18,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static uint32_t buf[UI_W * UI_H];
 static const float DT = 1.0f / 60;
@@ -76,6 +79,8 @@ int main(int argc, char **argv)
 		const char *a = argv[i];
 		if (a[0] == 'w') {
 			run(strtof(a + 1, NULL), 0);
+		} else if (a[0] == 'r') {
+			usleep((useconds_t)(strtof(a + 1, NULL) * 1e6f));
 		} else if (a[0] == 'p' || a[0] == 'h' || a[0] == 'H') {
 			unsigned b = 0;
 			for (const char *k = a + 1; *k && *k != ','; k++)

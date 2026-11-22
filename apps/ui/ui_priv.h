@@ -116,6 +116,7 @@ void pclink_hints(canvas *c, int *x);
 void games_init(void);
 int games_running(void);
 void games_update(int screen, unsigned pressed, unsigned held, float dt);
+void games_poll(int screen, float dt); // picks up games added/changed/removed in the library
 void games_draw(canvas *c, int screen);
 void games_hints(canvas *c, int screen, int *x);
 void games_set_style(int hub, int cc); // layout variations (see games.c)

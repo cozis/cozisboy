@@ -44,10 +44,15 @@ typedef struct {
 	int has_art;      // art[] holds a picture
 	char *thumb;      // ROM base name: thumbs/{cover,screen}/<thumb>.ppm
 	long last_t;      // when last played (unix time), 0 = never (ROM games)
-	const coz_game *cg; // the game in the library (NULL: mock game)
+	const coz_game *cg; // the game in the library (NULL: mock game): points at cgv
+	int gone;         // removed from the library while the launcher runs: hidden
+	coz_game cgv;     // its own copy of the library's record (rescans don't move it)
 } game_t;
 
-// Fallback library when there is no emulator core or no ROMs.
+// Fallback library when there is no emulator core or no ROMs. (The fields
+// after cg are left zero.)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 static const game_t mock_lib[] = {
 	{"POKEMON EMERALD", "RPG", 0x5ee05e, 41, 1, 7, "TODAY", "pokemon-emerald", NULL, NULL, NULL, 0, NULL, 0, NULL},
 	{"SUPER MARIO WORLD", "PLATFORMER", 0xff4a4a, 12, 0, 5, "YESTERDAY", "super-mario-world", NULL, NULL, NULL, 0, NULL, 0, NULL},
@@ -60,6 +65,7 @@ static const game_t mock_lib[] = {
 	{"SLIME FARM", "SIMULATION", 0x5ee05e, 30, 0, 1, "LAST MONTH", NULL, NULL, NULL, NULL, 0, NULL, 0, NULL},
 	{"BOLT BOTS", "ACTION", 0x3fc8ff, 0, 0, 0, "NEVER", NULL, NULL, NULL, NULL, 0, NULL, 0, NULL},
 };
+#pragma GCC diagnostic pop
 #define MAXLIB 512
 static game_t lib[MAXLIB];
 static int nlib;
@@ -950,7 +956,8 @@ static int hub_order(int *v)
 	nopen = n;
 	int first = n;
 	for (int g = 0; g < NGAMES; g++) // all games, open ones too (A: another copy)
-		v[n++] = g;
+		if (!lib[g].gone)
+			v[n++] = g;
 	for (int i = first + 1; i < n; i++)
 		for (int j = i; j > first; j--) {
 			int a = v[j - 1], b = v[j];
@@ -3112,52 +3119,158 @@ static int by_title(const void *a, const void *b)
 }
 
 // Fill lib[] with the GBA games of the game library ($COZ_LIBRARY, else
-// /data/library). The library stays loaded: lib[].cg points into it.
-static coz_lib library;
+// /data/library). Each entry keeps its own copy of the library record (cgv),
+// so a rescan (games_poll) can add, update and hide games while indices into
+// lib[] (open games, snapshots, caches) stay valid.
+
+static void add_game(const coz_game *cg)
+{
+	char rom[1024], sav[1024];
+	if (nlib >= MAXLIB || cg->sys != COZ_SYS_GBA) // GB/GBC: not yet (the screen code assumes 240x160)
+		return;
+	if (coz_game_rom_path(cg, rom, sizeof rom) || coz_game_save_path(cg, sav, sizeof sav))
+		return;
+	game_t *gm = &lib[nlib++];
+	memset(gm, 0, sizeof *gm);
+	gm->cgv = *cg;
+	gm->cg = &gm->cgv;
+	char *title = strdup(cg->title);
+	for (char *q = title; *q; q++)
+		*q = (char)toupper((unsigned char)*q);
+	gm->title = title;
+	gm->genre = "GBA";
+	unsigned h = 0;
+	for (const char *q = title; *q; q++)
+		h = h * 31 + (unsigned char)*q;
+	gm->col = PAL[h % 8];
+	gm->last = "NEVER";
+	gm->rom = strdup(rom);
+	gm->sav_out = strdup(sav);
+	gm->thumb = strdup(cg->name); // also the play-history key
+	// copies' saves used to live in <saves>/copies/<id>-copyN.sav: move
+	// them into the library as save N (unless that save exists already)
+	const char *sd = getenv("COZ_SAVES") ? getenv("COZ_SAVES") : "saves";
+	for (int k = 2; k <= COZ_SAVE_SLOTS; k++) {
+		char old[600], to[600], bak[600];
+		snprintf(old, sizeof old, "%s/copies/%s-copy%d.sav", sd, cg->id, k);
+		if (access(old, F_OK) || coz_save_slot_path(gm->cg, k, to, sizeof to) ||
+		    coz_save_slot_backup_path(gm->cg, k, bak, sizeof bak) || !access(to, F_OK) || !access(bak, F_OK))
+			continue;
+		if (rename(old, to) == 0)
+			coz_game_refresh(&gm->cgv);
+	}
+}
 
 static int scan_roms(void)
 {
+	coz_lib library;
 	if (coz_lib_scan(&library))
 		return 0;
-	for (int k = 0; k < library.n && nlib < MAXLIB; k++) {
-		const coz_game *cg = &library.games[k];
-		if (cg->sys != COZ_SYS_GBA)
-			continue; // GB/GBC: not yet (the screen code assumes 240x160)
-		char rom[1024], sav[1024];
-		if (coz_game_rom_path(cg, rom, sizeof rom) || coz_game_save_path(cg, sav, sizeof sav))
+	for (int k = 0; k < library.n; k++)
+		add_game(&library.games[k]);
+	coz_lib_free(&library);
+	qsort(lib, (size_t)nlib, sizeof *lib, by_title);
+	for (int g = 0; g < nlib; g++) // cg points into the entry: fix after the move
+		lib[g].cg = &lib[g].cgv;
+	return nlib;
+}
+
+/* ---- live library: games added, changed or removed while running ---------- */
+
+// Something changed in the library folder: the GBA folder's entries, or any
+// game's folder (a new cover, save or snapshot). Cheap: one stat per game.
+static unsigned long long library_signature(void)
+{
+	char d[1024];
+	snprintf(d, sizeof d, "%s/%s", coz_lib_root(), coz_sys_key(COZ_SYS_GBA));
+	struct stat st;
+	if (stat(d, &st))
+		return 0;
+	unsigned long long sig = (unsigned long long)st.st_mtim.tv_sec * 1000003ULL + (unsigned long long)st.st_mtim.tv_nsec;
+	DIR *dir = opendir(d);
+	struct dirent *e;
+	while (dir && (e = readdir(dir))) {
+		if (e->d_name[0] == '.')
 			continue;
-		game_t *gm = &lib[nlib++];
-		memset(gm, 0, sizeof *gm);
-		char *title = strdup(cg->title);
-		for (char *q = title; *q; q++)
-			*q = (char)toupper((unsigned char)*q);
-		gm->title = title;
-		gm->genre = "GBA";
-		unsigned h = 0;
-		for (const char *q = title; *q; q++)
-			h = h * 31 + (unsigned char)*q;
-		gm->col = PAL[h % 8];
-		gm->last = "NEVER";
-		gm->rom = strdup(rom);
-		gm->sav_out = strdup(sav);
-		gm->thumb = strdup(cg->name); // also the play-history key
-		gm->cg = cg;
-		// copies' saves used to live in <saves>/copies/<id>-copyN.sav: move
-		// them into the library as save N (unless that save exists already)
-		const char *sd = getenv("COZ_SAVES") ? getenv("COZ_SAVES") : "saves";
-		for (int k = 2; k <= COZ_SAVE_SLOTS; k++) {
-			char old[600], to[600], bak[600];
-			snprintf(old, sizeof old, "%s/copies/%s-copy%d.sav", sd, cg->id, k);
-			if (access(old, F_OK) || coz_save_slot_path(cg, k, to, sizeof to) ||
-			    coz_save_slot_backup_path(cg, k, bak, sizeof bak) ||
-			    !access(to, F_OK) || !access(bak, F_OK))
-				continue;
-			if (rename(old, to) == 0)
-				coz_game_refresh((coz_game *)cg);
+		char p[1300];
+		snprintf(p, sizeof p, "%s/%s", d, e->d_name);
+		if (stat(p, &st) == 0)
+			sig = sig * 31 + (unsigned long long)st.st_mtim.tv_sec * 1000003ULL + (unsigned long long)st.st_mtim.tv_nsec;
+	}
+	if (dir)
+		closedir(dir);
+	return sig;
+}
+
+static void library_sync(void)
+{
+	coz_lib fresh;
+	if (coz_lib_scan(&fresh))
+		return;
+	int mock = nlib && !lib[0].rom;
+	if (mock) {
+		if (nrun || !fresh.n) { // keep the demo games until real ones can replace them
+			coz_lib_free(&fresh);
+			return;
+		}
+		nlib = 0;
+		memset(cover_tried, 0, sizeof cover_tried), memset(screen_tried, 0, sizeof screen_tried);
+		memset(has_cover, 0, sizeof has_cover);
+	}
+	// update or hide what we know
+	for (int g = 0; g < nlib; g++) {
+		if (!lib[g].cg)
+			continue;
+		const coz_game *f = coz_lib_find(&fresh, lib[g].cgv.id);
+		if (!f) {
+			if (find_running(g) < 0)	// an open game stays until closed
+				lib[g].gone = 1;
+			continue;
+		}
+		if (f->cover_time != lib[g].cgv.cover_time || f->has_cover != lib[g].cgv.has_cover)
+			cover_tried[g] = 0, has_cover[g] = 0;	// reload the new box art when drawn
+		lib[g].cgv = *f;
+		lib[g].gone = 0;
+	}
+	// add the new ones
+	int added = 0;
+	for (int k = 0; k < fresh.n; k++) {
+		int known = 0;
+		for (int g = 0; g < nlib && !known; g++)
+			known = lib[g].cg && !strcmp(lib[g].cgv.id, fresh.games[k].id);
+		if (!known) {
+			int before = nlib;
+			add_game(&fresh.games[k]);
+			added += nlib - before;
 		}
 	}
-	qsort(lib, (size_t)nlib, sizeof *lib, by_title);
-	return nlib;
+	coz_lib_free(&fresh);
+	if (mock)
+		history_load();
+	if (added) {
+		snprintf(toast_buf, sizeof toast_buf, added == 1 ? "1 NEW GAME" : "%d NEW GAMES", added);
+		toast(toast_buf);
+	}
+}
+
+// Called every frame: looks at the library every 2 s (not while a game runs on
+// screen: a rescan reads every game's folder).
+void games_poll(int screen, float dt)
+{
+	static float t;
+	static unsigned long long sig;
+	if (!emu_available() || screen == SCR_GAME || (t += dt) < 2.0f)
+		return;
+	t = 0;
+	unsigned long long s2 = library_signature();
+	if (!sig) {
+		sig = s2;	// the first look: what games_init loaded
+		return;
+	}
+	if (s2 != sig) {
+		sig = s2;
+		library_sync();
+	}
 }
 
 void games_init(void)
@@ -3260,7 +3373,7 @@ static int last_played(void)
 {
 	int best = -1;
 	for (int g = 0; g < NGAMES; g++)
-		if (lib[g].recent && (best < 0 || lib[g].recent > lib[best].recent))
+		if (!lib[g].gone && lib[g].recent && (best < 0 || lib[g].recent > lib[best].recent))
 			best = g;
 	return best;
 }

@@ -982,6 +982,7 @@ static void update(unsigned p, unsigned held, float dt)
 	if (S.screen != SCR_LIBRARY && S.screen != SCR_HOME) // no Menu in the main menu and game list
 		menu_gesture(held, dt);
 	p &= ~BTN_MENU;
+	games_poll(S.screen, dt);
 	if (games_pick_active()) {	// over the in-game menu too
 		games_pick_update(p, dt);
 		return;
