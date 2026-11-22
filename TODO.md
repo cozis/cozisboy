@@ -98,12 +98,9 @@ Measure with `/run/splash.log`, `/proc/device-tree/bootstage`, and a wall clock.
 - [ ] TF2 slot (`mmc2`?) not described in the mainline device tree.
 - [x] Rumble motor: gpio-vibrator on PH2, force feedback via evdev (FF_RUMBLE).
 - [ ] HDMI out.
-- [ ] **CPU frequency scaling: deploy the kernel** (`tools/deploy.sh kernel`,
-      one reboot). Already configured (linux.fragment:
-      CONFIG_ARM_ALLWINNER_SUN50I_CPUFREQ_NVMEM=y, was a module nothing
-      loaded); until then the CPU runs at the bootloader's 1008 MHz after every
-      boot (`modprobe sun50i-cpufreq-nvmem` turns 480 MHz - 1.5 GHz schedutil
-      on by hand). Postponed by the user 2026-11-22.
+- [x] CPU frequency scaling: sun50i cpufreq-nvmem built in (was a module
+      nothing loaded, CPU stuck at the bootloader's 1008 MHz); schedutil,
+      480 MHz - 1.5 GHz from boot (kernel deployed 2026-11-22).
 - [ ] Display: FBIO_WAITFORVSYNC returns ~44.5 times a second although the
       LCD's vblank IRQ runs at 59.5 Hz (misses ~1 in 4): games are paced by
       real time now (emu_frames_due) but the picture skips frames.
