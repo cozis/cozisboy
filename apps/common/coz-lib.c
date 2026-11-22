@@ -36,7 +36,7 @@ static const coz_game *find(coz_lib *lib, const char *id)
 int main(int argc, char **argv)
 {
 	if (argc < 2) {
-		fprintf(stderr, "usage: coz-lib list|add|delete|rename|identify|states|state-test ...\n");
+		fprintf(stderr, "usage: coz-lib list|add|delete|rename|identify|cover|ids|states|state-test ...\n");
 		return 2;
 	}
 	const char *cmd = argv[1];
@@ -97,6 +97,28 @@ int main(int argc, char **argv)
 			return 1;
 		}
 		printf("%s  %s\n", c.id, c.name);
+	} else if (!strcmp(cmd, "ids")) {
+		// machine-readable: id <TAB> has cover (0/1) <TAB> full name
+		for (int i = 0; i < lib.n; i++)
+			printf("%s\t%d\t%s\n", lib.games[i].id, lib.games[i].has_cover, lib.games[i].name);
+	} else if (!strcmp(cmd, "cover") && argc == 4) {
+		// coz-lib cover <id> <file.png>: set the game's box art
+		const coz_game *g = find(&lib, argv[2]);
+		int in = open(argv[3], O_RDONLY);
+		if (!g || in < 0) {
+			if (in < 0)
+				fprintf(stderr, "%s: %s\n", argv[3], strerror(errno));
+			return 1;
+		}
+		coz_import imp;
+		if ((r = coz_cover_import_begin(g, &imp)) || (r = copy_into(in, imp.fd)) ||
+		    (r = coz_cover_import_commit(g, &imp))) {
+			fprintf(stderr, "%s\n", strerror(r < 0 ? -r : r));
+			close(in);
+			return 1;
+		}
+		close(in);
+		printf("%s  cover set\n", g->id);
 	} else if (!strcmp(cmd, "identify")) {
 		// every game (or the ids given): its No-Intro name, from the ROM's CRC
 		for (int i = 0; i < lib.n; i++) {
