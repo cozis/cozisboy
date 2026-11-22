@@ -1190,7 +1190,7 @@ static void pick_update(unsigned p, int g, float dt)
 			else
 				sfx_play(SFX_BUMP, 0);
 		}
-		if (p & (BTN_A | BTN_RIGHT)) {
+		if (p & BTN_A) {
 			// pick_done: the A that got us here must be released before
 			// it can start a hold (no accidental delete)
 			G.pick_focus = 1, G.pick_act = 0, G.pick_hold = 0, G.pick_done = 1;
@@ -1214,7 +1214,7 @@ static void pick_update(unsigned p, int g, float dt)
 			sfx_play(SFX_BUMP, 0);
 		return;
 	}
-	if (p & (BTN_B | BTN_LEFT)) {
+	if (p & BTN_B) {	// close the sheet
 		G.pick_focus = 0, G.pick_hold = 0;
 		sfx_play(SFX_BACK, 0);
 		return;
@@ -1235,6 +1235,18 @@ static void pick_update(unsigned p, int g, float dt)
 		pick_do(act);
 }
 
+// Label of list row i ("MAIN SAVE", "SAVE 3", "+ NEW SAVE").
+static void pick_label(int i, char *out, size_t n)
+{
+	if (i >= G.pick_n)
+		snprintf(out, n, "+ NEW SAVE");
+	else if (G.pick_saves[i].slot == 1)
+		snprintf(out, n, "MAIN SAVE");
+	else
+		snprintf(out, n, "SAVE %d", G.pick_saves[i].slot);
+}
+
+// The list of saves full width; A opens a sheet with the selected one's actions.
 static void pick_draw(canvas *c)
 {
 	int g = G.pick_game, rows = G.pick_n + (G.pick_new ? 1 : 0);
@@ -1242,99 +1254,81 @@ static void pick_draw(canvas *c)
 	fill(c, 0, 0, W, H, 0x0e0e0e);
 	ingame_header(c, "SAVES", lib[g].title, GREY);
 
-	// left: the saves, then NEW SAVE
-	const int lx = UI_MX, lw = 210, top = UI_TOP, view = (H - 52 - top) / UI_ROW;
+	const int top = UI_TOP, view = (H - 52 - top) / UI_ROW;
 	if (G.pick_sel < G.pick_scroll)
 		G.pick_scroll = G.pick_sel;
 	if (G.pick_sel >= G.pick_scroll + view)
 		G.pick_scroll = G.pick_sel - view + 1;
-	ui_column(lx, lw);
+	ui_column(UI_MX, W - 2 * UI_MX);
 	for (int i = G.pick_scroll; i < rows && i < G.pick_scroll + view; i++) {
 		int y = top + (i - G.pick_scroll) * UI_ROW, sel = i == G.pick_sel;
 		char label[24];
+		pick_label(i, label, sizeof label);
+		ui_row(c, y, label, sel, col);
+		const char *val = NULL;
+		uint32_t vc = 0xbbbbbb;
 		if (i < G.pick_n) {
-			int sl = G.pick_saves[i].slot;
-			if (sl == 1)
-				snprintf(label, sizeof label, "MAIN SAVE");
-			else
-				snprintf(label, sizeof label, "SAVE %d", sl);
+			const coz_save *sv = &G.pick_saves[i];
+			int ri = find_running_copy(g, sv->slot - 1);
+			val = sv->has_save ? save_when(sv->time) : sv->slot == 1 ? "NOT SAVED YET" : "EMPTY";
+			if (ri >= 0)
+				val = G.pick_ingame && ri == cur ? "PLAYING" : "OPEN", vc = PAL[3];
 		} else {
-			snprintf(label, sizeof label, "+ NEW SAVE");
+			val = "START FRESH", vc = GREY;
 		}
-		// the list keeps its highlight (dimmer) while the actions have focus
-		ui_row(c, y, label, sel, sel && G.pick_focus ? mix(col, BLACK, 0.5f) : col);
-		int ri = i < G.pick_n ? find_running_copy(g, G.pick_saves[i].slot - 1) : -1;
-		if (ri >= 0) // open: a small green (playing) or grey (paused) mark
-			fill(c, lx + lw - 22, y + 17, 8, 8, G.pick_ingame && ri == cur ? PAL[3] : GREY);
+		ui_row_value(c, y, val, 0, sel, col, vc);
 	}
+	ui_column(0, 0);
 	if (G.pick_scroll > 0 || G.pick_scroll + view < rows) {
 		int bob = (int)lrintf(sinf(ui_time() * 6) * 3);
 		if (G.pick_scroll > 0)
-			scroll_arrow(c, lx + lw / 2, top - 10 - bob, -1, WHITE);
+			scroll_arrow(c, W - UI_MX - 20, top - 10 - bob, -1, WHITE);
 		if (G.pick_scroll + view < rows)
-			scroll_arrow(c, lx + lw / 2, top + view * UI_ROW + 2 + bob, 1, WHITE);
+			scroll_arrow(c, W - UI_MX - 20, top + view * UI_ROW + 2 + bob, 1, WHITE);
 	}
 
-	// right: about the selected row, then what can be done with it
-	const int rx = lx + lw + 16, rw = W - UI_MX - rx;
-	fill(c, rx - 9, top, 2, H - 52 - top, 0x2a2a2a);
-	int y = top + 4;
-	if (G.pick_sel < G.pick_n) {
-		const coz_save *sv = &G.pick_saves[G.pick_sel];
-		char t[64];
-		int ri = find_running_copy(g, sv->slot - 1);
-		if (sv->has_save) {
-			struct tm tm;
-			localtime_r(&sv->time, &tm);
-			snprintf(t, sizeof t, "SAVED %s", save_when(sv->time));
-			text(c, rx + 2, y, t, 2, WHITE);
-			snprintf(t, sizeof t, "%lld KB", (sv->size + 1023) / 1024);
-			text(c, rx + 2, y + 22, t, 2, GREY);
+	int acts[8], na = pick_actions(acts);
+	if (G.pick_focus) { // the sheet: what to do with the selected save
+		char title[24], info[64] = "";
+		pick_label(G.pick_sel, title, sizeof title);
+		if (G.pick_sel < G.pick_n) {
+			const coz_save *sv = &G.pick_saves[G.pick_sel];
+			int ri = find_running_copy(g, sv->slot - 1);
+			if (ri >= 0)
+				snprintf(info, sizeof info, G.pick_ingame && ri == cur ? "YOU'RE PLAYING IT" : "OPEN: CLOSE IT TO CHANGE IT");
+			else if (sv->has_save)
+				snprintf(info, sizeof info, "SAVED %s%s", save_when(sv->time), sv->has_backup ? " - OLDER KEPT" : "");
+			else
+				snprintf(info, sizeof info, "THE GAME HASN'T SAVED IN IT YET");
 		} else {
-			text(c, rx + 2, y, sv->slot == 1 ? "NOT SAVED YET" : "EMPTY", 2, WHITE);
-			text(c, rx + 2, y + 22, "THE GAME HASN'T SAVED IN IT", 2, GREY);
+			snprintf(info, sizeof info, "A NEW PLAYTHROUGH FROM THE START");
 		}
-		const char *st = ri < 0 ? (sv->has_backup ? "AN OLDER VERSION IS KEPT" : "")
-				 : G.pick_ingame && ri == cur ? "YOU'RE PLAYING IT" : "OPEN (PAUSED): CLOSE IT TO CHANGE IT";
-		text(c, rx + 2, y + 44, st, 2, ri >= 0 ? PAL[3] : GREY);
-	} else {
-		text(c, rx + 2, y, "A NEW PLAYTHROUGH", 2, WHITE);
-		text(c, rx + 2, y + 22, "FROM THE START.", 2, GREY);
-		text(c, rx + 2, y + 44, "OTHER SAVES STAY AS THEY ARE.", 2, GREY);
-	}
-	int acts[8], na = pick_actions(acts), ay = top + 84;
-	ui_column(rx, rw);
-	for (int k = 0; k < na; k++) {
-		int sel = G.pick_focus && k == G.pick_act;
-		uint32_t ac = acts[k] == PA_DELETE ? PAL[0] : col;
-		if (pick_needs_hold(acts[k]))
-			ui_row_hold(c, ay + k * UI_ROW, pick_act_label(acts[k]), sel, ac, sel ? G.pick_hold / HOLD_TIME : 0);
-		else {
-			ui_row(c, ay + k * UI_ROW, pick_act_label(acts[k]), sel, ac);
-			if (!G.pick_focus && k == 0)	// where A goes from the list
-				text(c, rx + rw - 16 - text_width(">", 3), ay + RT_Y_PICK, ">", 3, GREY);
+		const int ph = 52 + na * UI_ROW + 8, py = H - 46 - ph;
+		int ry = ui_panel(c, UI_MX - 8, py, W - 2 * UI_MX + 16, ph, title, col);
+		text(c, W - UI_MX - 8 - text_width(info, 2), py + 20, info, 2, GREY);
+		ui_column(UI_MX, W - 2 * UI_MX);
+		for (int k = 0; k < na; k++) {
+			int sel = k == G.pick_act, y = ry + k * UI_ROW;
+			uint32_t ac = acts[k] == PA_DELETE ? PAL[0] : col;
+			if (pick_needs_hold(acts[k]))
+				ui_row_hold(c, y, pick_act_label(acts[k]), sel, ac, sel ? G.pick_hold / HOLD_TIME : 0);
+			else
+				ui_row(c, y, pick_act_label(acts[k]), sel, ac);
 		}
+		ui_column(0, 0);
 	}
-	ui_column(0, 0);
 
 	// hints
-	const char *b[4], *l[4];
-	int nh = 0;
-	if (!G.pick_focus) {
-		b[nh] = "^V", l[nh++] = "CHOOSE";
-		b[nh] = "A", l[nh++] = "OPEN";
-		b[nh] = "B", l[nh++] = G.pick_ingame ? "BACK" : "CLOSE";
-	} else {
-		b[nh] = "^V", l[nh++] = "MOVE";
-		b[nh] = "A", l[nh++] = pick_needs_hold(acts[G.pick_act < na ? G.pick_act : 0]) ? "HOLD" : "OK";
-		b[nh] = "B", l[nh++] = "BACK";
-	}
+	const char *b[3], *l[3];
+	b[0] = "^V", l[0] = G.pick_focus ? "MOVE" : "CHOOSE";
+	b[1] = "A", l[1] = !G.pick_focus ? "OPEN" : pick_needs_hold(acts[G.pick_act < na ? G.pick_act : 0]) ? "HOLD" : "OK";
+	b[2] = "B", l[2] = G.pick_focus || G.pick_ingame ? "BACK" : "CLOSE";
 	static const uint32_t hc[3] = {0xdddddd, 0x5ee05e, 0xff4a4a};
 	int hx = 0;
-	for (int k = 0; k < nh; k++)
+	for (int k = 0; k < 3; k++)
 		draw_hint(NULL, &hx, b[k], l[k], 0);
 	hx = (W - (hx - 22)) / 2;
-	for (int k = 0; k < nh; k++)
+	for (int k = 0; k < 3; k++)
 		draw_hint(c, &hx, b[k], l[k], hc[k]);
 }
 
@@ -2234,13 +2228,13 @@ static void states_update(unsigned p, float dt)
 
 static void ingame_header(canvas *c, const char *title, const char *status, uint32_t scol);
 
-// A pixel chevron centred on x, its tip at y; dir -1 points up, 1 down.
+// A solid pixel triangle centred on x, its tip at y; dir -1 points up, 1 down.
+// 2 px rows growing 4 px a row: 4 px wide at the tip, 24 at the base, 12 tall.
 static void scroll_arrow(canvas *c, int x, int y, int dir, uint32_t col)
 {
-	for (int k = 0; k < 6; k++) {	// 6 steps of 3 px: 18 px wide at the base
-		int yy = dir < 0 ? y + k * 2 : y - k * 2;
-		fill(c, x - 3 - k * 3, yy, 6, 2, col);
-		fill(c, x - 3 + k * 3, yy, 6, 2, col);
+	for (int k = 0; k < 6; k++) {
+		int yy = dir < 0 ? y + k * 2 : y - k * 2 - 1;
+		fill(c, x - 2 - k * 2, yy, 4 + k * 4, 2, col);
 	}
 }
 
@@ -2293,12 +2287,12 @@ static void states_draw(canvas *c)
 	for (int r = 0; r < 3 && y0 + r * rowh <= H - 60; r++)
 		shown++;
 	if (!SV.popup) {
-		// on the right, clear of the title and the card labels
-		int bob = (int)lrintf(sinf(ui_time() * 6) * 4), ax = W - UI_MX - 20;
-		if (first > 0)
-			scroll_arrow(c, ax, y0 - 22 - bob, -1, WHITE);
+		// centred, in the gaps above the first row and below the last
+		int bob = (int)lrintf(sinf(ui_time() * 6) * 2), ax = W / 2;
+		if (first > 0)	// between the title line (ends ~70) and the cards' frame (84)
+			scroll_arrow(c, ax, y0 - 17 - bob, -1, WHITE);
 		if (first + shown < rows_total)
-			scroll_arrow(c, ax, y0 + shown * rowh - 4 + bob, 1, WHITE);
+			scroll_arrow(c, ax, y0 + shown * rowh + 14 + bob, 1, WHITE);
 	}
 	if (SV.popup) { // sheet: the save's picture + what to do with it (hold A)
 		slot_t *sl = &slots[g][v[SV.sel - 1]];
