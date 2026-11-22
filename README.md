@@ -30,6 +30,10 @@ Games are not included: bring your own (or free homebrew, e.g. from
   <img src="docs/media/transfer-bluetooth.png" width="270" alt="TRANSFER over Bluetooth">
   <img src="docs/media/settings-bluetooth.png" width="270" alt="Bluetooth settings">
 </p>
+<p align="center">
+  <img src="docs/media/settings.png" width="270" alt="settings">
+  <img src="docs/media/game-skyland.png" width="270" alt="Skyland">
+</p>
 
 Shown with free homebrew from Homebrew Hub (Skyland, Apotris, Varooom 3D,
 Butano Fighter and others), captured with the launcher's headless screenshot
