@@ -7,6 +7,7 @@
 float ui_time(void); // ui.c (not ui_priv.h: its W/H macros)
 
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -761,4 +762,175 @@ int sys_clock_set(long t)
 			      (char *)"[ -r /run/rtc-device ] && hwclock -w -u -f \"$(cat /run/rtc-device)\"", NULL};
 	run(save, NULL, NULL, 0);
 	return 0;
+}
+
+/* ---- Bluetooth: cozisboy-bt, run in the background ------------------------------ */
+
+#define BT_TOOL "/usr/bin/cozisboy-bt"
+
+static struct {
+	pid_t status_pid, act_pid;
+	int status_fd;
+	char buf[4096];
+	size_t len;
+	float t;
+	int known, powered, visible;
+	char ip[INET_ADDRSTRLEN];
+	btdev_t devs[16];
+	int ndev;
+	const char *act_ok, *act_fail;	// toast for when the action ends
+	const char *result;
+	int want_refresh;
+} B;
+
+static pid_t bt_spawn(char *const argv[], int *out_fd)
+{
+	int pfd[2] = {-1, -1};
+	if (out_fd && pipe(pfd))
+		return -1;
+	pid_t p = fork();
+	if (p == 0) {
+		int nul = open("/dev/null", O_RDWR);
+		dup2(nul, 0);
+		dup2(out_fd ? pfd[1] : nul, 1);
+		dup2(nul, 2);
+		for (int fd = 3; fd < 256; fd++)
+			close(fd);
+		execv(argv[0], argv);
+		_exit(127);
+	}
+	if (out_fd) {
+		close(pfd[1]);
+		if (p < 0) {
+			close(pfd[0]);
+			return -1;
+		}
+		fcntl(pfd[0], F_SETFL, O_NONBLOCK);
+		*out_fd = pfd[0];
+	}
+	return p;
+}
+
+static void bt_parse(void)
+{
+	B.buf[B.len] = 0;
+	B.ndev = 0;
+	B.ip[0] = 0;
+	for (char *l = strtok(B.buf, "\n"); l; l = strtok(NULL, "\n")) {
+		if (!strncmp(l, "powered ", 8))
+			B.powered = !strcmp(l + 8, "yes");
+		else if (!strncmp(l, "visible ", 8))
+			B.visible = atoi(l + 8);
+		else if (!strncmp(l, "ip ", 3))
+			snprintf(B.ip, sizeof B.ip, "%s", l + 3);
+		else if (!strncmp(l, "dev\t", 4) && B.ndev < 16) {
+			btdev_t *d = &B.devs[B.ndev];
+			char *f[6] = {0};
+			int n = 0;
+			for (char *q = l; q && n < 6; n++) {
+				f[n] = q;
+				q = strchr(q, '\t');
+				if (q)
+					*q++ = 0;
+			}
+			if (n < 6)
+				continue;
+			snprintf(d->mac, sizeof d->mac, "%s", f[1]);
+			d->connected = atoi(f[2]), d->nap = atoi(f[3]), d->internet = atoi(f[4]);
+			snprintf(d->name, sizeof d->name, "%s", f[5]);
+			for (char *q = d->name; *q; q++)
+				*q = (char)toupper((unsigned char)*q);
+			B.ndev++;
+		}
+	}
+	B.known = 1;
+}
+
+void sys_bt_tick(float dt, int watching)
+{
+	if (access(BT_TOOL, X_OK))
+		return;
+	B.t += dt;
+	// a finished action: its toast, and fresh status
+	if (B.act_pid > 0) {
+		int st;
+		if (waitpid(B.act_pid, &st, WNOHANG) == B.act_pid) {
+			B.result = WIFEXITED(st) && WEXITSTATUS(st) == 0 ? B.act_ok : B.act_fail;
+			B.act_pid = 0;
+			B.want_refresh = 1;
+		}
+	}
+	// status being read
+	if (B.status_pid > 0) {
+		ssize_t n;
+		while (B.len < sizeof B.buf - 1 && (n = read(B.status_fd, B.buf + B.len, sizeof B.buf - 1 - B.len)) > 0)
+			B.len += (size_t)n;
+		int st;
+		if (waitpid(B.status_pid, &st, WNOHANG) == B.status_pid) {
+			while (B.len < sizeof B.buf - 1 && (n = read(B.status_fd, B.buf + B.len, sizeof B.buf - 1 - B.len)) > 0)
+				B.len += (size_t)n;
+			close(B.status_fd);
+			B.status_pid = 0;
+			bt_parse();
+		}
+		return;
+	}
+	float every = watching ? (B.visible ? 1.0f : 2.0f) : 15.0f;
+	if (B.act_pid == 0 && (B.want_refresh || !B.known || B.t >= every)) {
+		char *const argv[] = {(char *)BT_TOOL, (char *)"status", NULL};
+		B.len = 0, B.t = 0, B.want_refresh = 0;
+		B.status_pid = bt_spawn(argv, &B.status_fd);
+	}
+}
+
+static void bt_action(const char *a, const char *b, const char *ok, const char *fail)
+{
+	if (B.act_pid > 0)
+		return;
+	char *const argv[] = {(char *)BT_TOOL, (char *)a, (char *)b, NULL};
+	B.act_ok = ok, B.act_fail = fail;
+	B.act_pid = bt_spawn(argv, NULL);
+}
+
+int sys_bt_known(void) { return B.known; }
+int sys_bt_powered(void) { return B.powered; }
+int sys_bt_visible(void) { return B.visible; }
+const char *sys_bt_ip(void) { return B.ip; }
+int sys_bt_busy(void) { return B.act_pid > 0; }
+int sys_bt_devices(btdev_t *out, int max)
+{
+	int n = B.ndev < max ? B.ndev : max;
+	memcpy(out, B.devs, (size_t)n * sizeof *out);
+	return n;
+}
+const char *sys_bt_result(void)
+{
+	const char *r = B.result;
+	B.result = NULL;
+	return r;
+}
+void sys_bt_power(int on)
+{
+	B.powered = on;	// show it at once; the next status confirms
+	bt_action("power", on ? "on" : "off", on ? "BLUETOOTH ON" : "BLUETOOTH OFF", "COULDN'T CHANGE BLUETOOTH");
+}
+void sys_bt_make_visible(void)
+{
+	B.visible = 180;
+	bt_action("visible", NULL, NULL, "COULDN'T MAKE IT VISIBLE");
+}
+void sys_bt_forget(const char *mac)
+{
+	static char m[18];
+	snprintf(m, sizeof m, "%s", mac);
+	bt_action("forget", m, "DEVICE FORGOTTEN", "COULDN'T FORGET IT");
+}
+void sys_bt_internet(const char *mac, int on)
+{
+	static char m[18];
+	snprintf(m, sizeof m, "%s", mac);
+	if (on)
+		bt_action("internet", m, "USING THE PHONE'S INTERNET", "NO INTERNET: TURN ON BLUETOOTH TETHERING ON THE PHONE");
+	else
+		bt_action("internet-off", NULL, "STOPPED USING ITS INTERNET", NULL);
 }

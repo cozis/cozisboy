@@ -1,0 +1,104 @@
+#!/bin/sh
+# cozisboy-bt: Bluetooth for the launcher (Settings > BLUETOOTH), on BlueZ.
+# Machine-readable output, one fact per line.
+#
+#   status          powered yes|no / visible <seconds left> / ip <bnep address>
+#                   then per paired device: dev <mac> <connected 0|1> <nap 0|1>
+#                   <internet 0|1> <name>  (tab separated)
+#   power on|off    on/off, remembered across boots (/data/bluetooth/off)
+#   visible         pairable + discoverable for 180 s, pairing accepted
+#                   (the phone shows a code to confirm; the console has no keypad)
+#   forget <mac>    unpair
+#   internet <mac>  join the phone's Bluetooth tethering (NAP) + DHCP
+#   internet-off    leave it
+OFF=/data/bluetooth/off
+VIS=/run/bt-visible	# "<end time> <pid>" while visible
+
+btc() {	# run bluetoothctl commands, plain text out
+	{ for c in "$@"; do echo "$c"; done; echo quit; } | bluetoothctl 2>/dev/null |
+		sed 's/\x1b\[[0-9;]*[a-zA-Z]//g; s/\r//g'
+}
+
+rfkill_hci() {	# 0 = radio allowed, 1 = blocked
+	for r in /sys/class/rfkill/rfkill*; do
+		[ "$(cat $r/type 2>/dev/null)" = bluetooth ] && echo "$1" > $r/soft
+	done
+}
+
+pan_iface() { [ -s /run/bt-pan.out ] && head -1 /run/bt-pan.out; }
+
+case "$1" in
+status)
+	out=$(btc show "devices Paired")
+	echo "$out" | grep -q "Powered: yes" && echo "powered yes" || echo "powered no"
+	left=0
+	if [ -r $VIS ]; then
+		read end pid < $VIS
+		now=$(date +%s)
+		[ "$end" -gt "$now" ] && kill -0 "$pid" 2>/dev/null && left=$((end - now))
+	fi
+	echo "visible $left"
+	i=$(pan_iface)
+	ip=""
+	[ -n "$i" ] && pidof bt-pan >/dev/null && ip=$(ip -4 addr show "$i" 2>/dev/null | sed -n 's/.*inet \([0-9.]*\).*/\1/p' | head -1)
+	echo "ip $ip"
+	panmac=$(cat /run/bt-pan.mac 2>/dev/null)
+	echo "$out" | sed -n 's/^Device \([0-9A-F:]\{17\}\) \(.*\)$/\1 \2/p' | sort -u | while read mac name; do
+		info=$(btc "info $mac")
+		con=0; nap=0; net=0
+		echo "$info" | grep -q "Connected: yes" && con=1
+		echo "$info" | grep -q "UUID: NAP" && nap=1
+		[ "$mac" = "$panmac" ] && [ -n "$ip" ] && net=1
+		# paired while visible: trust it so it can reconnect without asking
+		echo "$info" | grep -q "Trusted: no" && btc "trust $mac" >/dev/null
+		printf 'dev\t%s\t%s\t%s\t%s\t%s\n' "$mac" "$con" "$nap" "$net" "$name"
+	done
+	;;
+power)
+	if [ "$2" = off ]; then
+		mkdir -p /data/bluetooth && touch $OFF
+		"$0" internet-off
+		btc "power off" >/dev/null
+		rfkill_hci 1
+	else
+		rm -f $OFF
+		rfkill_hci 0
+		sleep 0.5
+		btc "power on" >/dev/null
+	fi
+	sync
+	;;
+visible)
+	[ -r $VIS ] && { read end pid < $VIS; kill "$pid" 2>/dev/null; }
+	(printf 'default-agent\npairable on\ndiscoverable on\n'; sleep 180; printf 'discoverable off\nquit\n') |
+		setsid bluetoothctl --agent NoInputNoOutput > /run/bt-agent.log 2>&1 &
+	echo "$(( $(date +%s) + 180 )) $!" > $VIS
+	;;
+forget)
+	[ "$(cat /run/bt-pan.mac 2>/dev/null)" = "$2" ] && "$0" internet-off
+	btc "remove $2" >/dev/null
+	;;
+internet)
+	"$0" internet-off
+	echo "$2" > /run/bt-pan.mac
+	setsid bt-pan "$2" > /run/bt-pan.out 2>&1 < /dev/null &
+	for t in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+		[ -n "$(pan_iface)" ] && break
+		sleep 0.5
+	done
+	i=$(pan_iface)
+	case "$i" in bnep*) ;; *) echo "no link: $(cat /run/bt-pan.out)" >&2; exit 1 ;; esac
+	udhcpc -i "$i" -n -q -t 5 >/dev/null 2>&1 || exit 1
+	# Wi-Fi keeps the default route when it's up; the phone's only otherwise
+	ip route | grep -q "^default .* dev wlan0" && ip route del default dev "$i" 2>/dev/null
+	exit 0
+	;;
+internet-off)
+	killall bt-pan 2>/dev/null
+	rm -f /run/bt-pan.out /run/bt-pan.mac
+	;;
+*)
+	sed -n '2,15p' "$0" >&2
+	exit 2
+	;;
+esac

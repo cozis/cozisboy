@@ -11,7 +11,14 @@ start)
 		dev=$(basename "$(readlink "$h/device")")
 		drv=$(readlink -f "$h/device/driver")
 		[ -n "$drv" ] || continue
-		( echo "$dev" > "$drv/unbind"; sleep 0.2; echo "$dev" > "$drv/bind" ) &
+		( echo "$dev" > "$drv/unbind"; sleep 0.2; echo "$dev" > "$drv/bind"
+		  # switched off in Settings: keep the radio blocked
+		  if [ -e /data/bluetooth/off ]; then
+			sleep 1
+			for r in /sys/class/rfkill/rfkill*; do
+				[ "$(cat $r/type)" = bluetooth ] && echo 1 > $r/soft
+			done
+		  fi ) &
 	done
 	;;
 esac

@@ -54,6 +54,28 @@ int sys_web_pairs(void);            // pairings so far: goes up when a browser p
 void sys_web_forget_browsers(void); // every browser has to pair again
 int sys_usb_connected(void);        // the USB cable is plugged into a computer
 
+// Bluetooth (cozisboy-bt on the console). Status is refreshed in the
+// background by sys_bt_tick; actions run in the background too.
+typedef struct {
+	char mac[18];
+	char name[48];
+	int connected;	// linked right now
+	int nap;	// offers its internet (phone tethering)
+	int internet;	// we're using its internet
+} btdev_t;
+void sys_bt_tick(float dt, int watching);	// watching: the page is open (refresh often)
+int sys_bt_known(void);			// a status has been read at least once
+int sys_bt_powered(void);
+int sys_bt_visible(void);			// seconds left visible (pairing open), 0: not
+const char *sys_bt_ip(void);		// address on the phone's network, "" if none
+int sys_bt_devices(btdev_t *out, int max);
+int sys_bt_busy(void);			// an action is running
+void sys_bt_power(int on);
+void sys_bt_make_visible(void);
+void sys_bt_forget(const char *mac);
+void sys_bt_internet(const char *mac, int on);	// on: join its tethering
+const char *sys_bt_result(void);	// set once when an action finishes: toast text, else NULL
+
 // Clock. Automatic: network time (ntpd) whenever Wi-Fi is up; off, the time
 // is whatever was set by hand. Setting it also saves it to the battery-backed RTC.
 int sys_clock_auto(void);

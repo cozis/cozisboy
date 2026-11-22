@@ -463,9 +463,10 @@ enum { TR_SQUARES, TR_SQUARES_LIGHT, TR_FADE, TR_CROSSFADE, TR_SLIDE, TR_DISSOLV
 // (0 to cover: the new screen is drawn at once, the old one is a snapshot)
 static const float TR_TIME[NTR][2] = {{0.32f, 0.32f}, {0.16f, 0.18f}, {0.12f, 0.16f},
 				      {0, 0.22f},       {0, 0.24f},       {0, 0.28f}};
-enum { SET_WIFI, SET_SSH, SET_BRIGHTNESS, SET_VOLUME, SET_SLEEP, SET_CLOCK, SET_LOOK, SET_ABOUT };
+enum { SET_WIFI, SET_BT, SET_SSH, SET_BRIGHTNESS, SET_VOLUME, SET_SLEEP, SET_CLOCK, SET_LOOK, SET_ABOUT };
 static item_t settings_items[] = {
 	{"WI-FI", IT_ACTION, 0, 0, NULL, NULL, NULL},
+	{"BLUETOOTH", IT_ACTION, 0, 0, NULL, NULL, NULL},
 	{"SSH", IT_ACTION, 0, 0, NULL, NULL, NULL},
 	{"BRIGHTNESS", IT_SLIDER, 7, 10, NULL, NULL, NULL},
 	{"VOLUME", IT_SLIDER, 5, 10, NULL, NULL, NULL},
@@ -1046,6 +1047,13 @@ static void update(unsigned p, unsigned held, float dt)
 				S.page = PAGE_MAIN, ui_page_anim(1);
 			break;
 		}
+		if (S.app == APP_SETTINGS && S.page == PAGE_BT) {
+			if (bt_update(p, dt))
+				S.page = PAGE_MAIN, ui_page_anim(1);
+			break;
+		}
+		if (S.app == APP_SETTINGS)
+			sys_bt_tick(dt, 0);	// for the BLUETOOTH row's status
 		if (S.app == APP_SETTINGS && S.page == PAGE_CLOCK) {
 			if (clock_update(p, dt))
 				S.page = PAGE_MAIN, ui_page_anim(1);
@@ -1068,8 +1076,16 @@ static void update(unsigned p, unsigned held, float dt)
 			settings_items[SET_WIFI].note = net_wifi_note();
 			settings_items[SET_SSH].note = net_ssh_note();
 			settings_items[SET_CLOCK].note = clock_note();
+			settings_items[SET_BT].note = bt_note();
 		}
 		int a = list_update(l, p, dt);
+		if (l == &settings_list && a == SET_BT) {
+			l->flash = 0;
+			sfx_play(SFX_OPEN, APP_SETTINGS);
+			S.page = PAGE_BT;
+			ui_page_anim(0);
+			bt_open();
+		}
 		if (l == &settings_list && (a == SET_CLOCK || a == SET_WIFI || a == SET_SSH || a == SET_LOOK || a == SET_ABOUT))
 			l->flash = 0;	// a sub-page opens: no white flash left for when we come back
 		if (l == &settings_list && a == SET_CLOCK) {
@@ -1369,6 +1385,10 @@ static void bottom_hints(canvas *c, int *xp)
 		}
 		if (S.app == APP_SETTINGS && (S.page == PAGE_WIFI || S.page == PAGE_SSH)) {
 			net_hints(c, S.page, &x);
+			break;
+		}
+		if (S.app == APP_SETTINGS && S.page == PAGE_BT) {
+			bt_hints(c, &x);
 			break;
 		}
 		if (S.app == APP_SETTINGS && S.page == PAGE_CLOCK) {
@@ -1681,6 +1701,10 @@ static void draw_app(canvas *c)
 	}
 	if (S.app == APP_SETTINGS && (S.page == PAGE_WIFI || S.page == PAGE_SSH)) {
 		net_draw(c, S.page);
+		return;
+	}
+	if (S.app == APP_SETTINGS && S.page == PAGE_BT) {
+		bt_draw(c);
 		return;
 	}
 	if (S.app == APP_SETTINGS && S.page == PAGE_CLOCK) {

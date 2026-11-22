@@ -21,7 +21,7 @@ extern const uint32_t PAL[8];
 
 enum { SCR_HOME, SCR_APP, SCR_LIBRARY, SCR_GAME };
 // pages inside Settings
-enum { PAGE_MAIN, PAGE_WIFI, PAGE_SSH, PAGE_LOOK, PAGE_ABOUT, PAGE_CLOCK };
+enum { PAGE_MAIN, PAGE_WIFI, PAGE_SSH, PAGE_LOOK, PAGE_ABOUT, PAGE_CLOCK, PAGE_BT };
 enum { APP_BROWSER, APP_PCLINK, APP_TERM, APP_MUSIC, APP_GAMES, APP_WIFI,
        APP_SETTINGS, APP_POWER, NAPPS };
 
@@ -128,6 +128,13 @@ void net_open(int page);
 int net_update(int page, unsigned pressed, float dt); // returns 1 to go back
 void net_draw(canvas *c, int page);
 void net_hints(canvas *c, int page, int *x);
+/* ---- bt.c: Settings > BLUETOOTH ---- */
+const char *bt_note(void); // "ON", "OFF", "INTERNET" (NULL until known)
+void bt_open(void);
+int bt_update(unsigned pressed, float dt); // 1: leave the page
+void bt_draw(canvas *c);
+void bt_hints(canvas *c, int *x);
+
 /* ---- clock.c: Settings > CLOCK (automatic / date / time / time zone) ---- */
 const char *clock_note(void); // "19:48"
 void clock_open(void);

@@ -208,3 +208,38 @@ static int mock_auto = 1;
 int sys_clock_auto(void) { return mock_auto; }
 int sys_clock_set_auto(int on) { mock_auto = on; return 0; }
 int sys_clock_set(long t) { (void)t; return 0; }
+
+/* ---- Bluetooth (desktop: a pretend phone) -------------------------------------- */
+
+static struct {
+	int powered, visible_until_t, internet, forgotten, paired;
+	float t, vis_left;
+	const char *result;
+} MB = {1, 0, 0, 0, 1, 0, 0, NULL};
+void sys_bt_tick(float dt, int watching)
+{
+	(void)watching;
+	MB.t += dt;
+	if (MB.vis_left > 0)
+		MB.vis_left -= dt;
+}
+int sys_bt_known(void) { return 1; }
+int sys_bt_powered(void) { return MB.powered; }
+int sys_bt_visible(void) { return MB.vis_left > 0 ? (int)MB.vis_left + 1 : 0; }
+const char *sys_bt_ip(void) { return MB.internet ? "10.108.205.119" : ""; }
+int sys_bt_devices(btdev_t *out, int max)
+{
+	if (!MB.powered || MB.forgotten || max < 1)
+		return 0;
+	memset(out, 0, sizeof *out);
+	snprintf(out->mac, sizeof out->mac, "E0:CC:F8:79:D8:39");
+	snprintf(out->name, sizeof out->name, "MI 10");
+	out->connected = 1, out->nap = 1, out->internet = MB.internet;
+	return 1;
+}
+int sys_bt_busy(void) { return 0; }
+void sys_bt_power(int on) { MB.powered = on; MB.result = on ? "BLUETOOTH ON" : "BLUETOOTH OFF"; }
+void sys_bt_make_visible(void) { MB.vis_left = 180; }
+void sys_bt_forget(const char *mac) { (void)mac; MB.forgotten = 1; MB.result = "DEVICE FORGOTTEN"; }
+void sys_bt_internet(const char *mac, int on) { (void)mac; MB.internet = on; MB.result = on ? "USING THE PHONE'S INTERNET" : "STOPPED USING ITS INTERNET"; }
+const char *sys_bt_result(void) { const char *r = MB.result; MB.result = NULL; return r; }

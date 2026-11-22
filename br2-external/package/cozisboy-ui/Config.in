@@ -3,6 +3,7 @@ config BR2_PACKAGE_COZISBOY_UI
 	select BR2_PACKAGE_ALSA_LIB
 	select BR2_PACKAGE_MGBA
 	select BR2_PACKAGE_LIBPNG
+	select BR2_PACKAGE_DBUS
 	depends on BR2_INSTALL_LIBSTDCPP # mgba
 	help
 	  cozisboy launcher (apps/ui) with its device front end: framebuffer,

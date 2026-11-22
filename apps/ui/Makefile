@@ -8,7 +8,7 @@
 #   make deploy  device build -> copied to the console over SSH and restarted
 CFLAGS ?= -O2 -g
 CFLAGS += -Wall -Wextra -Wno-format-truncation -std=c11 -D_DEFAULT_SOURCE -I../common
-CORE = ui.c games.c net.c pclink.c clock.c sys_mock.c emu.c gfx.c ../common/sfx.c ../common/library.c
+CORE = ui.c games.c net.c pclink.c clock.c bt.c sys_mock.c emu.c gfx.c ../common/sfx.c ../common/library.c
 HDRS = ui.h ui_priv.h gfx.h emu.h sys.h ../common/sfx.h ../common/library.h
 
 all: cozisboy-preview cozisboy-shot sfx-demo
@@ -62,7 +62,12 @@ DEV_SRCS = host_dev.c sys_dev.c $(filter-out sys_mock.c,$(CORE))
 DEVICE ?= root@10.55.0.2
 SSH_OPTS ?= -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
 
-device: cozisboy-ui
+device: cozisboy-ui bt-pan
+
+# holds a Bluetooth tethering link open (cozisboy-bt internet <mac>)
+bt-pan: bt-pan.c
+	$(DEV_CC) $(DEV_CFLAGS) $(DBUS_CFLAGS) -o $@ bt-pan.c $(DEV_LDFLAGS) -ldbus-1
+DBUS_CFLAGS ?= -I$(BR_OUT)/staging/usr/include/dbus-1.0 -I$(BR_OUT)/staging/usr/lib/dbus-1.0/include
 
 cozisboy-ui: $(DEV_SRCS) $(HDRS)
 	$(DEV_CC) $(DEV_CFLAGS) -o $@ $(DEV_SRCS) $(DEV_LDFLAGS) -lmgba -lasound -lpng -lz -lpthread -lm

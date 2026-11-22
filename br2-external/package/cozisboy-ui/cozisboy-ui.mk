@@ -7,17 +7,19 @@
 COZISBOY_UI_VERSION = local
 COZISBOY_UI_SITE = $(BR2_EXTERNAL_AMBERNIC_PATH)/../apps
 COZISBOY_UI_SITE_METHOD = local
-COZISBOY_UI_DEPENDENCIES = alsa-lib mgba libpng
+COZISBOY_UI_DEPENDENCIES = alsa-lib mgba libpng dbus
 
 # apps/ui/Makefile's "device" target knows the sources; build it with
 # Buildroot's compiler and flags.
 define COZISBOY_UI_BUILD_CMDS
-	$(MAKE) -B -C $(@D)/ui cozisboy-ui DEV_CC="$(TARGET_CC)" \
-		DEV_EXTRA_CFLAGS="$(TARGET_CFLAGS)" DEV_LDFLAGS="$(TARGET_LDFLAGS)"
+	$(MAKE) -B -C $(@D)/ui cozisboy-ui bt-pan DEV_CC="$(TARGET_CC)" \
+		DEV_EXTRA_CFLAGS="$(TARGET_CFLAGS)" DEV_LDFLAGS="$(TARGET_LDFLAGS)" \
+		DBUS_CFLAGS="-I$(STAGING_DIR)/usr/include/dbus-1.0 -I$(STAGING_DIR)/usr/lib/dbus-1.0/include"
 endef
 
 define COZISBOY_UI_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 $(@D)/ui/cozisboy-ui $(TARGET_DIR)/usr/bin/cozisboy-ui
+	$(INSTALL) -D -m 0755 $(@D)/ui/bt-pan $(TARGET_DIR)/usr/bin/bt-pan
 endef
 
 $(eval $(generic-package))
