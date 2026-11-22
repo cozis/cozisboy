@@ -54,8 +54,8 @@ typedef struct {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 static const game_t mock_lib[] = {
-	{"POKEMON EMERALD", "RPG", 0x5ee05e, 41, 1, 7, "TODAY", "pokemon-emerald", NULL, NULL, NULL, 0, NULL, 0, NULL},
-	{"SUPER MARIO WORLD", "PLATFORMER", 0xff4a4a, 12, 0, 5, "YESTERDAY", "super-mario-world", NULL, NULL, NULL, 0, NULL, 0, NULL},
+	{"STAR TRAIL", "RPG", 0x5ee05e, 41, 1, 7, "TODAY", "star-trail", NULL, NULL, NULL, 0, NULL, 0, NULL},
+	{"PIXEL KNIGHT", "PLATFORMER", 0xff4a4a, 12, 0, 5, "YESTERDAY", "pixel-knight", NULL, NULL, NULL, 0, NULL, 0, NULL},
 	{"DUNGEON DASH", "ACTION", 0xffd93d, 23, 0, 6, "TODAY", NULL, NULL, NULL, NULL, 0, NULL, 0, NULL},
 	{"MOON MINER", "PUZZLE", 0x5ee05e, 5, 1, 3, "3 DAYS AGO", NULL, NULL, NULL, NULL, 0, NULL, 0, NULL},
 	{"TINY TANKS", "STRATEGY", 0x3fc8ff, 17, 0, 4, "2 DAYS AGO", NULL, NULL, NULL, NULL, 0, NULL, 0, NULL},

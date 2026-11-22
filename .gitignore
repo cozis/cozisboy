@@ -2,3 +2,19 @@
 /output/
 /backup-stock/
 /images/
+# third-party data, made locally (see README): tools/get-bt-config.sh,
+# tools/gen-nointro.py
+/br2-external/board/rg35xx-sp/rootfs-overlay/lib/firmware/rtl_bt/
+/br2-external/board/rg35xx-sp/rootfs-overlay/usr/share/cozisboy/nointro/
+# never commit games, saves or stray downloads
+*.gba
+*.gb
+*.gbc
+*.sav
+*.srm
+*.state
+/*.jpg
+/*.png
+/bootlog-*/
+/ref/
+/scan/

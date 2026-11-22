@@ -1,4 +1,0 @@
-rtl8821cs_config.bin: the RTL8821CS Bluetooth config (UART settings) from the
-stock Anbernic firmware (/lib/firmware/rtlbt/rtl8821c_config). linux-firmware
-ships rtl8821cs_fw.bin but no config, and mainline btrtl needs one
-(config_needed). The firmware itself comes from linux-firmware (RTL_88XX_BT).

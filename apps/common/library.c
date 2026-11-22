@@ -87,7 +87,7 @@ static void make_id(coz_system s, const char *name, char *id)
 	snprintf(id, COZ_ID_LEN, "%016llx", (unsigned long long)h);
 }
 
-// "Pokemon - Emerald Version (USA, Europe) (Rev 1)" -> title + first tag
+// "Example Quest (USA, Europe) (Rev 1)" -> title + first tag
 static void split_name(const char *name, char *title, char *region)
 {
 	const char *cut = NULL;

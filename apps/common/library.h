@@ -39,8 +39,8 @@ typedef enum {
 typedef struct {
 	char id[COZ_ID_LEN];
 	coz_system sys;
-	char name[COZ_NAME_MAX + 1];	// unique per system, e.g. "Pokemon - Emerald Version (USA, Europe)"
-	char title[COZ_NAME_MAX + 1];	// for display, tags removed: "Pokemon - Emerald Version"
+	char name[COZ_NAME_MAX + 1];	// unique per system, e.g. "Example Quest (USA, Europe)"
+	char title[COZ_NAME_MAX + 1];	// for display, tags removed: "Example Quest"
 	char region[64];		// from the name's first tag: "USA, Europe" (may be empty)
 	long long rom_size;
 	time_t added;
@@ -114,7 +114,7 @@ void coz_import_abort(coz_import *imp);
 
 // Recognise the game by its ROM's CRC32 in the No-Intro lists
 // ($COZ_NOINTRO, else /usr/share/cozisboy/nointro/<sys>.txt) and rename it to
-// its canonical name ("Pokemon - Emerald Version (USA, Europe)"). Imports do
+// its canonical name ("Example Quest (USA, Europe)"). Imports do
 // this by themselves. Returns 1 renamed (g updated), 0 already right, -ENOENT
 // not in the lists, -EEXIST another game has that name.
 int coz_game_identify(coz_game *g);

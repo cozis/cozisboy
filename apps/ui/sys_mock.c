@@ -232,8 +232,8 @@ int sys_bt_devices(btdev_t *out, int max)
 	if (!MB.powered || MB.forgotten || max < 1)
 		return 0;
 	memset(out, 0, sizeof *out);
-	snprintf(out->mac, sizeof out->mac, "E0:CC:F8:79:D8:39");
-	snprintf(out->name, sizeof out->name, "MI 10");
+	snprintf(out->mac, sizeof out->mac, "02:00:00:00:00:01");
+	snprintf(out->name, sizeof out->name, "MY PHONE");
 	out->connected = 1, out->nap = 1, out->internet = MB.internet;
 	return 1;
 }

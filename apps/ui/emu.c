@@ -35,7 +35,7 @@ struct emu_game {
 	int awake;
 	int32_t cycles_posted;
 	unsigned wait_mask;
-	// rumble carts (Drill Dozer, WarioWare: Twisted!...): the game toggles the
+	// rumble carts: the game toggles the
 	// motor pin; strength = how often it's on, measured over each emu_run
 	struct mRumble rumble;	// first: the callback gets this pointer
 	int rum_on, rum_writes, rum_last, rum_level;

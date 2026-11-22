@@ -6,7 +6,7 @@
 # Home carousel order: open games (or the last played game), then
 # GAMES SETTINGS.
 
-# shortcut used below: two games open (Pokemon Emerald, then Super Mario World), in game
+# shortcut used below: two games open (the first two demo games), in game
 @TWO = pR w0.4 pA w0.9 pA w0.9 hR,0.5 hM,0.6 w0.9 pR pA w0.9 pR pR pA w0.9 hR,0.3
 
 01-home-last-played  | w1

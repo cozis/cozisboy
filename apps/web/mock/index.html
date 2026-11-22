@@ -1193,7 +1193,7 @@ function pageAdd() {
 		<p class="note">Drop files anywhere on this page, or pick where to get games from.</p>
 		<div class="dropzone notch" id="dz">${PX("Drop files here", 4, "arcade", "#ffffff")}
 			<p>.gba  .gbc  .gb  ·  .sav saves  ·  .zip (unpacked for you)</p>
-			<button class="pb go notch" onclick="fakeUpload(['Alien Hominid (USA).gba','Tetris DX (World).gbc'])">${PX("Choose files", 2)}</button></div>
+			<button class="pb go notch" onclick="fakeUpload(['Skyland (World).gba','Petris (World).gbc'])">${PX("Choose files", 2)}</button></div>
 		<div class="srcs">${["hh", "itch", "link"].map(k => { const x = SRC[k]; return `<div class="src notch" style="--c:var(${x.col})" onclick="go('src:${k}')">
 			<div class="ico notch">${PX(x.name[0], 5, "arcade", "#ffffff")}</div>${PX(x.name, 3, "shadow")}<p>${esc(x.line)}</p><div class="meta">${esc(x.meta)}</div></div>`; }).join("")}</div>
 	</main>${trayHTML()}</div>`;
@@ -1242,7 +1242,7 @@ function popupBody() {
 	if (addSrc === "pc")
 		return `<div class="dropzone">${PX("Drop files here", 4, "plain", "#ffffff")}
 			<p>.gba  .gbc  .gb  ·  .sav saves go to the matching game  ·  .zip is unpacked for you</p>
-			<button class="pb go" onclick="fakeUpload(['Alien Hominid (USA).gba','Tetris DX (World).gbc'])">${PX("Choose files", 2)}</button></div>
+			<button class="pb go" onclick="fakeUpload(['Skyland (World).gba','Petris (World).gbc'])">${PX("Choose files", 2)}</button></div>
 			<p class="note">Tip: you can drop files anywhere on the page, even with this window closed.</p>`;
 	if (addSrc === "hh" && hhPick != null) {
 		const e = MOCK_HH[hhPick], have = installedNames().has(e.title);
