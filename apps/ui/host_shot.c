@@ -67,6 +67,8 @@ static unsigned keybit(char k)
 	case 'T': return BTN_START;
 	case '[': return BTN_L;
 	case ']': return BTN_R;
+	case '{': return BTN_L2;
+	case '}': return BTN_R2;
 	}
 	return 0;
 }

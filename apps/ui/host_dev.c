@@ -24,6 +24,7 @@ enum {
 	UI_UP = BTN_UP, UI_DOWN = BTN_DOWN, UI_LEFT = BTN_LEFT, UI_RIGHT = BTN_RIGHT,
 	UI_A = BTN_A, UI_B = BTN_B, UI_X = BTN_X, UI_Y = BTN_Y, UI_L = BTN_L, UI_R = BTN_R,
 	UI_START = BTN_START, UI_SELECT = BTN_SELECT, UI_MENU = BTN_MENU,
+	UI_L2 = BTN_L2, UI_R2 = BTN_R2,
 };
 
 #include <alsa/asoundlib.h>
@@ -483,7 +484,7 @@ static unsigned read_buttons(void)
 		{BTN_DPAD_RIGHT, UI_RIGHT}, {BTN_EAST, UI_A},           {BTN_SOUTH, UI_B},
 		{BTN_WEST, UI_X},           {BTN_NORTH, UI_Y},          {BTN_TL, UI_L},
 		{BTN_TR, UI_R},             {BTN_START, UI_START},      {BTN_SELECT, UI_SELECT},
-		{BTN_MODE, UI_MENU},
+		{BTN_MODE, UI_MENU},        {BTN_TL2, UI_L2},           {BTN_TR2, UI_R2},
 	};
 	unsigned char bits[KEY_MAX / 8 + 1] = {0};
 	unsigned b = 0;

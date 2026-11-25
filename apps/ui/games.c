@@ -88,6 +88,8 @@ typedef struct {
 	emu_game *eg;          // its emulator while loaded (NULL: unloaded or mock scene)
 	uint8_t *state;        // snapshot while unloaded (paused, not linked)
 	size_t state_n;
+	int ql_btn;            // quick load: index into QL_BTNS (0 off), for as long as it's open
+	char ql_sid[24];       // its snapshot ("" the newest)
 	int boot;              // frames left of "starting up": blank frames show as black
 	float fade;            // 0..1: the picture fades in when a start-up ends
 	uint32_t frame[GW * GH];
@@ -204,6 +206,10 @@ static item_t input_items[] = {
 	{"TURBO A ON X", IT_TOGGLE, 0, 1, NULL, NULL, NULL},
 	{"TURBO B ON Y", IT_TOGGLE, 0, 1, NULL, NULL, NULL},
 };
+// Quick load: a button that loads a chosen snapshot at once (per open game).
+static const char *const QL_NAMES[] = {"OFF", "L2", "R2", "X", "Y"};
+static const unsigned QL_BTNS[] = {0, BTN_L2, BTN_R2, BTN_X, BTN_Y};
+#define NQL 5
 static list_t av_list = {av_items, 4, 0, 0, 0};
 static list_t input_list = {input_items, 3, 0, 0, 0};
 
@@ -1789,6 +1795,9 @@ static unsigned map_buttons(unsigned held)
 	return b | a | bb;
 }
 
+static unsigned ql_tick(unsigned p, unsigned held);
+static void ql_draw_tag(canvas *c);
+
 static void game_update(unsigned p, unsigned held, float dt)
 {
 	G.frame_no++;
@@ -1801,6 +1810,7 @@ static void game_update(unsigned p, unsigned held, float dt)
 	p &= ~G.swallow;
 	if (cur < 0)
 		return;
+	held = ql_tick(p, held);	// quick load: its button loads at once, the game never sees it
 	inst_t *in = &run[cur];
 	// paced by real time (and the sound buffer), not by screen refreshes
 	int steps = emu_frames_due(dt) * (G.ff ? 3 : 1);
@@ -2030,9 +2040,9 @@ static void activate_card(int sel, int x, int y)
 
 enum { E_HEADER, E_ACTION, E_OPTION, E_CARD };
 // (no RESUME row: B resumes)
-enum { ACT_SAVES, ACT_STATES, ACT_SETTINGS, ACT_COPY, ACT_LINK, ACT_RESET, ACT_CLOSE, NACT };
-static const char *const ACT_NAMES[NACT] = {"SAVES", "SNAPSHOTS", "SETTINGS", "ANOTHER COPY", "LINK CABLE",
-					    "RESET", "CLOSE GAME"};
+enum { ACT_SAVES, ACT_STATES, ACT_QUICK, ACT_SETTINGS, ACT_COPY, ACT_LINK, ACT_RESET, ACT_CLOSE, NACT };
+static const char *const ACT_NAMES[NACT] = {"SAVES", "SNAPSHOTS", "QUICK LOAD", "SETTINGS", "ANOTHER COPY",
+					    "LINK CABLE", "RESET", "CLOSE GAME"};
 
 typedef struct {
 	int kind, id;     // id: ACT_* for actions, card id for cards (-1 home, -2 all)
@@ -2154,6 +2164,186 @@ static const char *when_text(long t)
 	else
 		snprintf(buf, sizeof buf, "%ld DAYS AGO", ago / 86400);
 	return buf;
+}
+
+/* ---- quick load: a button that loads a chosen snapshot ---------------------
+ * Set per open game in its menu (QUICK LOAD): the button and the snapshot
+ * (newest, or a chosen one). It lasts while the game is open: closing it
+ * clears it. While it's on, a red QUICK LOAD tag shows in the border. */
+
+static struct {
+	int on, sel;
+	int armed;	// the button went up since the game took over
+} QL;
+
+static int states_order(int *v);
+
+// The snapshot quick load would use for the game on screen: its slot, or -1.
+static int ql_slot(void)
+{
+	int v[NSLOTS], n = states_order(v), g = run[cur].game;
+	const char *sid = run[cur].ql_sid;
+	if (!n)
+		return -1;
+	if (sid[0])
+		for (int i = 0; i < n; i++)
+			if (!strcmp(slots[g][v[i]].sid, sid))
+				return v[i];
+	return v[0];	// newest (also when the chosen one was deleted)
+}
+
+static const char *when_text(long t);
+
+static void quick_load(void)
+{
+	inst_t *in = &run[cur];
+	int k = ql_slot();
+	if (k < 0) {
+		toast("NO SNAPSHOT TO LOAD: TAKE ONE IN THE MENU");
+		sfx_play(SFX_BUMP, 0);
+		return;
+	}
+	slot_t *sl = &slots[in->game][k];
+	if (is_emu(in->game)) {
+		if (slot_data(in->game, sl) || emu_load_state(in->eg, sl->blob, sl->n)) {
+			toast("COULD NOT LOAD THIS SNAPSHOT");
+			sfx_play(SFX_BUMP, 0);
+			return;
+		}
+	} else {
+		in->st = sl->st;
+	}
+	snprintf(toast_buf, sizeof toast_buf, "QUICK LOADED: %s", when_text(sl->t));
+	toast(toast_buf);
+	sfx_play(SFX_CONFIRM, 0);
+}
+
+// In game, every frame: a press of the button loads at once. Returns the
+// buttons the game should still see (never the quick-load one).
+static unsigned ql_tick(unsigned p, unsigned held)
+{
+	unsigned b = QL_BTNS[run[cur].ql_btn];
+	if (!b)
+		return held;
+	if (p & b)
+		quick_load();
+	return held & ~b;
+}
+
+// the red tag in the black border while quick load is on (never over the game)
+static void ql_draw_tag(canvas *c)
+{
+	if (cur < 0 || !run[cur].ql_btn || G.cc)
+		return;
+	char t[32];
+	snprintf(t, sizeof t, "QUICK LOAD %s", QL_NAMES[run[cur].ql_btn]);
+	chip(c, 8, 6, 2, t, PAL[0]);
+}
+
+// the QUICK LOAD page: the button, then which snapshot (newest or a chosen one)
+static void ql_open(void)
+{
+	QL.on = 1, QL.sel = 0;
+	ui_page_anim(0);
+	sfx_play(SFX_OPEN, APP_GAMES);
+}
+
+static int ql_conflict(int k)	// X / Y are turbo buttons when turbo is on
+{
+	return (QL_BTNS[k] == BTN_X && input_items[IN_TURBO_A].val) ||
+	       (QL_BTNS[k] == BTN_Y && input_items[IN_TURBO_B].val);
+}
+
+static void ql_update(unsigned p, float dt)
+{
+	(void)dt;
+	int v[NSLOTS], n = states_order(v), g = run[cur].game, rows = 2 + n;
+	int d = (p & BTN_DOWN) ? 1 : (p & BTN_UP) ? -1 : 0;
+	if (d) {
+		if (QL.sel + d >= 0 && QL.sel + d < rows)
+			QL.sel += d, sfx_play(SFX_TICK, 0);
+		else
+			sfx_play(SFX_BUMP, 0);
+	}
+	if (p & BTN_B) {
+		QL.on = 0;
+		ui_page_anim(1);
+		sfx_play(SFX_BACK, 0);
+		return;
+	}
+	if (QL.sel == 0) { // the button: <> or A to change it
+		int dd = (p & BTN_RIGHT) ? 1 : (p & BTN_LEFT) ? -1 : (p & BTN_A) ? 1 : 0;
+		if (dd) {
+			int k = run[cur].ql_btn;
+			do
+				k = (k + dd + NQL) % NQL;
+			while (ql_conflict(k));
+			run[cur].ql_btn = k;
+			sfx_play(SFX_CHANGE, k * 2);
+		}
+		return;
+	}
+	if (!(p & BTN_A))
+		return;
+	if (QL.sel == 1)
+		run[cur].ql_sid[0] = 0; // the newest one
+	else if (QL.sel - 2 < n)
+		snprintf(run[cur].ql_sid, sizeof run[cur].ql_sid, "%s", slots[g][v[QL.sel - 2]].sid);
+	if (!run[cur].ql_btn) // choosing a snapshot turns it on (R2 unless taken)
+		run[cur].ql_btn = 2;
+	sfx_play(SFX_CONFIRM, 0);
+	snprintf(toast_buf, sizeof toast_buf, "QUICK LOAD ON %s", QL_NAMES[run[cur].ql_btn]);
+	toast(toast_buf);
+}
+
+static void ingame_header(canvas *c, const char *title, const char *status, uint32_t scol);
+
+static void ql_draw(canvas *c)
+{
+	uint32_t col = PAL[APP_GAMES];
+	fill(c, 0, 0, W, H, 0x0e0e0e);
+	ingame_header(c, "QUICK LOAD", inst_title(cur), GREY);
+	int v[NSLOTS], n = states_order(v), g = run[cur].game, rows = 2 + n;
+	int top = UI_TOP, view = (H - 52 - top) / UI_ROW, first = 0;
+	if (QL.sel >= view)
+		first = QL.sel - view + 1;
+	int chosen = ql_slot();
+	ui_column(UI_MX, W - 2 * UI_MX);
+	for (int i = first; i < rows && i < first + view; i++) {
+		int y = top + (i - first) * UI_ROW, sel = i == QL.sel;
+		if (i == 0) {
+			ui_row(c, y, "BUTTON", sel, col);
+			ui_row_choice(c, y, QL_NAMES[run[cur].ql_btn], sel, col);
+		} else if (i == 1) {
+			ui_row(c, y, "NEWEST SNAPSHOT", sel, col);
+			ui_row_value(c, y, run[cur].ql_btn && !run[cur].ql_sid[0] ? "CHOSEN" : NULL, 0, sel, col, PAL[3]);
+		} else {
+			slot_t *sl = &slots[g][v[i - 2]];
+			char label[40];
+			snprintf(label, sizeof label, "%s", when_text(sl->t));
+			ui_row(c, y, label, sel, col);
+			if (run[cur].ql_btn && run[cur].ql_sid[0] && v[i - 2] == chosen)
+				ui_row_value(c, y, "CHOSEN", 0, sel, col, PAL[3]);
+			else // a small picture of it on the right
+				blit_game(c, sl->thumb, TW, TH, W - UI_MX - 16 - 54, y + 4, 54, 36, 0);
+		}
+	}
+	ui_column(0, 0);
+	int bob = (int)lrintf(sinf(ui_time() * 6) * 2);
+	if (first > 0)
+		ui_scroll_arrow(c, W / 2, top - 12 - bob, -1, WHITE);
+	if (first + view < rows)
+		ui_scroll_arrow(c, W / 2, top + view * UI_ROW + 10 + bob, 1, WHITE);
+	if (!n)
+		text(c, UI_MX + 16, top + 2 * UI_ROW + 10, "NO SNAPSHOTS YET: TAKE ONE IN SNAPSHOTS", 2, 0x666666);
+	const char *b[3] = {"^V", "A", "B"}, *l[3] = {"MOVE", QL.sel == 0 ? "CHANGE" : "CHOOSE", "BACK"};
+	static const uint32_t hc[3] = {0xdddddd, 0x5ee05e, 0xff4a4a};
+	int hx = 0;
+	for (int k = 0; k < 3; k++)
+		draw_hint(NULL, &hx, b[k], l[k], 0);
+	hx = (W - (hx - 22)) / 2;
+	for (int k = 0; k < 3; k++)
+		draw_hint(c, &hx, b[k], l[k], hc[k]);
 }
 
 static void states_open(void)
@@ -2576,6 +2766,10 @@ static void ingame_update(unsigned p, float dt)
 		states_update(p, dt);
 		return;
 	}
+	if (QL.on) {
+		ql_update(p, dt);
+		return;
+	}
 	if (M2.page >= 2) {
 		link_update(p, dt);
 		return;
@@ -2616,6 +2810,7 @@ static void ingame_update(unsigned p, float dt)
 	}
 	switch (*sel) {
 	case ACT_STATES: states_open(); break;
+	case ACT_QUICK: ql_open(); break;
 	case ACT_SAVES:
 		if (!lib[run[cur].game].cg) {
 			toast("NOT AVAILABLE FOR THIS GAME");
@@ -2735,6 +2930,10 @@ static void ingame_draw(canvas *c, float a)
 		states_draw(c);
 		return;
 	}
+	if (QL.on) {
+		ql_draw(c);
+		return;
+	}
 	darken(c, 0, 0, W, H, 0.85f * a); // the game stays visible: the menu belongs to it
 	if (M2.page >= 2) {
 		link_draw(c);
@@ -2754,8 +2953,12 @@ static void ingame_draw(canvas *c, float a)
 	// left: what to do with this game
 	const int lx = UI_MX + slide, lw = 300, top = UI_TOP;
 	ui_column(lx, lw);
-	for (int i = 0; i < NACT; i++) {
-		int y = top + i * UI_ROW, sel = M2.col == 0 && i == M2.sel[0];
+	// 8 rows: more than fit, so the column scrolls with the selection
+	int aview = (H - 52 - top) / UI_ROW, afirst = 0;
+	if (M2.sel[0] >= aview)
+		afirst = M2.sel[0] - aview + 1;
+	for (int i = afirst; i < NACT && i < afirst + aview; i++) {
+		int y = top + (i - afirst) * UI_ROW, sel = M2.col == 0 && i == M2.sel[0];
 		ui_row(c, y, ACT_NAMES[i], sel, col);
 		if (i == ACT_STATES) {
 			int sv2[NSLOTS];
@@ -2769,11 +2972,21 @@ static void ingame_draw(canvas *c, float a)
 			else
 				snprintf(nb, sizeof nb, "MAIN");
 			ui_row_value(c, y, lib[in->game].cg ? nb : NULL, 1, sel, col, GREY);
+		} else if (i == ACT_QUICK) {
+			ui_row_value(c, y, run[cur].ql_btn ? QL_NAMES[run[cur].ql_btn] : NULL, 1, sel, col, PAL[0]);
 		} else if (i == ACT_SETTINGS || i == ACT_COPY) {
 			ui_row_value(c, y, NULL, 1, sel, col, GREY);
 		} else if (i == ACT_LINK) {
 			ui_row_value(c, y, emu_linked(in->eg) > 1 ? "ON" : NULL, 1, sel, col, PAL[4]);
 		}
+	}
+
+	{ // more actions above / below
+		int bob = (int)lrintf(sinf(ui_time() * 6) * 2);
+		if (afirst > 0)
+			ui_scroll_arrow(c, lx + lw / 2, top - 12 - bob, -1, WHITE);
+		if (afirst + aview < NACT)
+			ui_scroll_arrow(c, lx + lw / 2, top + aview * UI_ROW + 10 + bob, 1, WHITE);
 	}
 
 	// right: other open games, then home / all games
@@ -3352,6 +3565,7 @@ void games_draw(canvas *c, int screen)
 		draw_game_view(c, &run[cur]);
 		if (run[cur].fade < 1) // a game that just started fades in
 			darken(c, 0, 0, W, H, 1 - clampf(run[cur].fade, 0, 1));
+		ql_draw_tag(c);
 		if (is_linked(cur) && !G.cc) // in the black border, never over the game
 		{
 			// LINKED, plus which copy this is (#1 = the original) in yellow

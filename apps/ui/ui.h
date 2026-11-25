@@ -20,6 +20,8 @@ enum {
 	BTN_START = 1 << 10,
 	BTN_SELECT = 1 << 11,
 	BTN_MENU = 1 << 12,
+	BTN_L2 = 1 << 13, // the SP's second shoulder buttons (no GBA use)
+	BTN_R2 = 1 << 14,
 };
 
 #define UI_W 640

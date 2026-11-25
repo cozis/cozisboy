@@ -28,6 +28,8 @@ static unsigned read_buttons(void)
 	if (k[SDL_SCANCODE_S]) b |= BTN_Y;
 	if (k[SDL_SCANCODE_Q]) b |= BTN_L;
 	if (k[SDL_SCANCODE_W]) b |= BTN_R;
+	if (k[SDL_SCANCODE_1]) b |= BTN_L2;
+	if (k[SDL_SCANCODE_2]) b |= BTN_R2;
 	if (k[SDL_SCANCODE_SPACE]) b |= BTN_START;
 	if (k[SDL_SCANCODE_TAB]) b |= BTN_SELECT;
 	if (k[SDL_SCANCODE_M]) b |= BTN_MENU;
