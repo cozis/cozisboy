@@ -204,7 +204,8 @@ static struct {
 	int state;
 	char ssid[33], ip[INET_ADDRSTRLEN];
 	char want[33];		// network being joined
-	float connect_t, poll_t, scan_t;
+	float connect_t, poll_t, scan_t;	// scan_t: time left in the scan window
+	float scan_read_t, scan_req_t, scan_age;
 	int saw_handshake;
 	const char *err;
 	net_t nets[32];
@@ -319,10 +320,24 @@ void sys_tick(float dt)
 {
 	if (W.want[0])
 		W.connect_t += dt;
+	// Scan window: wpa_supplicant may still be starting, busy with its own
+	// first scan (~5 s) or have nothing yet, so read the results every 1.5 s,
+	// ask again every 5 s while nothing has turned up, and stop once networks
+	// are listed (or after 20 s).
 	if (W.scan_t > 0) {
-		W.scan_t -= dt;
-		if (W.scan_t <= 0 && wifi_running())
-			read_scan();
+		W.scan_t -= dt, W.scan_read_t += dt, W.scan_req_t += dt, W.scan_age += dt;
+		if (wifi_running()) {
+			if (W.scan_read_t >= 1.5f) {
+				W.scan_read_t = 0;
+				read_scan();
+				if (W.nnets && W.scan_age >= 3.0f)
+					W.scan_t = 0;	// found them
+			}
+			if (!W.nnets && W.scan_req_t >= 5.0f) {
+				W.scan_req_t = 0;
+				wpa("scan", NULL, NULL, 0);
+			}
+		}
 	}
 	W.poll_t -= dt;
 	if (W.poll_t <= 0) {
@@ -368,8 +383,9 @@ void sys_wifi_rescan(void)
 		conf_ensure();
 		sh(WIFI_INIT, "start");
 	}
-	wpa("scan", NULL, NULL, 0);
-	W.scan_t = 3.0f;
+	if (wifi_running())
+		wpa("scan", NULL, NULL, 0);	// FAIL-BUSY right after a start: the window retries
+	W.scan_t = 20.0f, W.scan_read_t = 0, W.scan_req_t = 0, W.scan_age = 0;
 }
 
 int sys_wifi_scanning(void)

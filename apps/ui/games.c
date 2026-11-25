@@ -238,6 +238,11 @@ static struct {
 	int cc, cc_row, cc_card, cc_act, cc_item;
 	float cc_t, cc_cam;
 	int hinted;
+	// Buttons still held when the game takes over (the A that loaded a
+	// snapshot or started the game, the B that closed a menu) don't reach it
+	// until they're released.
+	int from_menu;      // the game wasn't running last frame (menu, sheet, start)
+	unsigned swallow;   // those held buttons
 	// SAVES page (X on a game, or SAVES in the in-game menu)
 	int pick, pick_sel, pick_n, pick_game;
 	int pick_ingame;    // opened from the in-game menu (B goes back to it)
@@ -588,6 +593,7 @@ static int running_order(int *v)
 
 static void enter_game(int i, int x, int y)
 {
+	G.from_menu = 1;
 	if (wake(i)) {
 		snprintf(toast_buf, sizeof toast_buf, "COULD NOT START %s", inst_title(i));
 		sfx_play(SFX_BUMP, 0);
@@ -1724,7 +1730,7 @@ static int ref_game(int ref);
 
 // The picker is an overlay over the game list or the home screen.
 int games_pick_active(void) { return G.pick; }
-void games_pick_update(unsigned p, float dt) { pick_update(p, G.pick_game, dt); }
+void games_pick_update(unsigned p, float dt) { G.from_menu = 1; pick_update(p, G.pick_game, dt); }
 void games_pick_draw(canvas *c)
 {
 	if (G.pick && !G.cc)	// in a game the in-game menu draws it on top of itself
@@ -1786,6 +1792,13 @@ static unsigned map_buttons(unsigned held)
 static void game_update(unsigned p, unsigned held, float dt)
 {
 	G.frame_no++;
+	if (G.from_menu) { // back in the game: what's held now is the menu's
+		G.swallow = held;
+		G.from_menu = 0;
+	}
+	G.swallow &= held;	// released: the game gets the button again
+	held &= ~G.swallow;
+	p &= ~G.swallow;
 	if (cur < 0)
 		return;
 	inst_t *in = &run[cur];
@@ -2823,6 +2836,7 @@ static void ingame_reset(void)
 
 void games_cc_update(unsigned p, float dt)
 {
+	G.from_menu = 1;
 	if (cc_has_actions()) { // opened from a game: the vertical in-game menu
 		G.cc_t += dt;
 		ingame_update(p, dt);
