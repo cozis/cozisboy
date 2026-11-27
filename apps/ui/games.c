@@ -90,6 +90,11 @@ typedef struct {
 	size_t state_n;
 	int ql_btn;            // quick load: index into QL_BTNS (0 off), for as long as it's open
 	char ql_sid[24];       // its snapshot ("" the newest)
+	// input macro, for as long as it's open: recorded buttons, one per frame
+	int mc_btn;            // index into QL_BTNS (never 0): stops recording, starts the loop
+	int mc_mode;           // MC_*
+	uint16_t *mc;          // the recording
+	int mc_n, mc_cap, mc_pos;
 	int boot;              // frames left of "starting up": blank frames show as black
 	float fade;            // 0..1: the picture fades in when a start-up ends
 	uint32_t frame[GW * GH];
@@ -249,6 +254,7 @@ static struct {
 	// until they're released.
 	int from_menu;      // the game wasn't running last frame (menu, sheet, start)
 	unsigned swallow;   // those held buttons
+	unsigned mc_prev;   // mock games: last frame's buttons (for presses)
 	// SAVES page (X on a game, or SAVES in the in-game menu)
 	int pick, pick_sel, pick_n, pick_game;
 	int pick_ingame;    // opened from the in-game menu (B goes back to it)
@@ -571,6 +577,8 @@ static void close_running(int i)
 	run[i].eg = NULL;
 	free(run[i].state);
 	run[i].state = NULL, run[i].state_n = 0;
+	free(run[i].mc);
+	run[i].mc = NULL;
 	memcpy(lastshot[run[i].game], run[i].frame, sizeof run[i].frame);
 	has_lastshot[run[i].game] = 1;
 	lib[run[i].game].last = "JUST NOW";
@@ -1797,6 +1805,8 @@ static unsigned map_buttons(unsigned held)
 
 static unsigned ql_tick(unsigned p, unsigned held);
 static void ql_draw_tag(canvas *c);
+static unsigned mc_tick(unsigned p, unsigned held);
+static unsigned mc_frame(unsigned held);
 
 static void game_update(unsigned p, unsigned held, float dt)
 {
@@ -1811,15 +1821,25 @@ static void game_update(unsigned p, unsigned held, float dt)
 	if (cur < 0)
 		return;
 	held = ql_tick(p, held);	// quick load: its button loads at once, the game never sees it
+	held = mc_tick(p, held);	// macro: its button, and any press while it loops
 	inst_t *in = &run[cur];
 	// paced by real time (and the sound buffer), not by screen refreshes
 	int steps = emu_frames_due(dt) * (G.ff ? 3 : 1);
+	unsigned in_k[8];	// each frame's buttons (recorded, or played from the macro)
+	if (steps > 8)
+		steps = 8;
+	for (int k = 0; k < steps; k++)
+		in_k[k] = mc_frame(held);
 	if (is_emu(in->game)) {
-		if (G.ff)	// fast-forward: only the first frame's sound
-			emu_run(in->eg, map_buttons(held), steps);
+		if (G.ff)	// fast-forward: only the first frame's sound (per run of same buttons)
+			for (int k = 0, e; k < steps; k = e) {
+				for (e = k + 1; e < steps && in_k[e] == in_k[k]; e++)
+					;
+				emu_run(in->eg, map_buttons(in_k[k]), e - k);
+			}
 		else	// every frame's sound
 			for (int k = 0; k < steps; k++)
-				emu_run(in->eg, map_buttons(held), 1);
+				emu_run(in->eg, map_buttons(in_k[k]), 1);
 		memcpy(in->frame, emu_frame(in->eg), sizeof in->frame);
 		if (in->boot > 0) {
 			// A starting game blanks its screen (white on a GBA), or shows flat
@@ -1851,7 +1871,8 @@ static void game_update(unsigned p, unsigned held, float dt)
 		return;
 	}
 	for (int k = 0; k < steps; k++)
-		game_step(&in->st, held, k ? 0 : p, dt);
+		game_step(&in->st, in_k[k], k ? 0 : in_k[k] & ~G.mc_prev, dt);
+	G.mc_prev = steps ? in_k[steps - 1] : G.mc_prev;
 	game_render(&in->st, in->game, in->frame, 1);
 }
 
@@ -2040,8 +2061,8 @@ static void activate_card(int sel, int x, int y)
 
 enum { E_HEADER, E_ACTION, E_OPTION, E_CARD };
 // (no RESUME row: B resumes)
-enum { ACT_SAVES, ACT_STATES, ACT_QUICK, ACT_SETTINGS, ACT_COPY, ACT_LINK, ACT_RESET, ACT_CLOSE, NACT };
-static const char *const ACT_NAMES[NACT] = {"SAVES", "SNAPSHOTS", "QUICK LOAD", "SETTINGS", "ANOTHER COPY",
+enum { ACT_SAVES, ACT_STATES, ACT_QUICK, ACT_MACRO, ACT_SETTINGS, ACT_COPY, ACT_LINK, ACT_RESET, ACT_CLOSE, NACT };
+static const char *const ACT_NAMES[NACT] = {"SAVES", "SNAPSHOTS", "QUICK LOAD", "MACRO", "SETTINGS", "ANOTHER COPY",
 					    "LINK CABLE", "RESET", "CLOSE GAME"};
 
 typedef struct {
@@ -2248,8 +2269,10 @@ static void ql_open(void)
 	sfx_play(SFX_OPEN, APP_GAMES);
 }
 
-static int ql_conflict(int k)	// X / Y are turbo buttons when turbo is on
+static int ql_conflict(int k)	// X / Y are turbo buttons when turbo is on; the macro's
 {
+	if (k && run[cur].mc_btn == k)
+		return 1;
 	return (QL_BTNS[k] == BTN_X && input_items[IN_TURBO_A].val) ||
 	       (QL_BTNS[k] == BTN_Y && input_items[IN_TURBO_B].val);
 }
@@ -2289,8 +2312,11 @@ static void ql_update(unsigned p, float dt)
 		run[cur].ql_sid[0] = 0; // the newest one
 	else if (QL.sel - 2 < n)
 		snprintf(run[cur].ql_sid, sizeof run[cur].ql_sid, "%s", slots[g][v[QL.sel - 2]].sid);
-	if (!run[cur].ql_btn) // choosing a snapshot turns it on (R2 unless taken)
+	if (!run[cur].ql_btn) { // choosing a snapshot turns it on (R2 unless taken)
 		run[cur].ql_btn = 2;
+		while (ql_conflict(run[cur].ql_btn))
+			run[cur].ql_btn = run[cur].ql_btn % (NQL - 1) + 1;
+	}
 	sfx_play(SFX_CONFIRM, 0);
 	snprintf(toast_buf, sizeof toast_buf, "QUICK LOAD ON %s", QL_NAMES[run[cur].ql_btn]);
 	toast(toast_buf);
@@ -2344,6 +2370,261 @@ static void ql_draw(canvas *c)
 	hx = (W - (hx - 22)) / 2;
 	for (int k = 0; k < 3; k++)
 		draw_hint(c, &hx, b[k], l[k], hc[k]);
+}
+
+/* ---- input macro ------------------------------------------------------------- */
+// MACRO in the in-game menu: RECORD goes back to the game and records every
+// button from the first press on; the macro button ends it and plays it in a
+// loop, until any button is pressed. Kept while the game is open.
+
+static void ingame_hints(canvas *c, const char *const *b, const char *const *l, int n);
+
+enum { MC_OFF, MC_WAIT, MC_REC, MC_LOOP };
+#define MC_MAX (60 * 60 * 10) // frames: 10 minutes
+
+static struct {
+	int on, sel;
+} MC;
+
+static int mc_conflict(int k)	// turbo's X / Y, quick load's button
+{
+	return k == run[cur].ql_btn ||
+	       (QL_BTNS[k] == BTN_X && input_items[IN_TURBO_A].val) ||
+	       (QL_BTNS[k] == BTN_Y && input_items[IN_TURBO_B].val);
+}
+
+static void mc_loop(inst_t *in)
+{
+	in->mc_mode = MC_LOOP, in->mc_pos = 0;
+	snprintf(toast_buf, sizeof toast_buf, "MACRO LOOPING: ANY BUTTON STOPS IT");
+	toast(toast_buf);
+	sfx_play(SFX_CONFIRM, 0);
+}
+
+// In game, every screen frame: the macro button, and the press that stops a
+// loop (it doesn't reach the game). Returns the buttons the game should see.
+static unsigned mc_tick(unsigned p, unsigned held)
+{
+	inst_t *in = &run[cur];
+	if (!in->mc_btn)
+		return held;
+	unsigned b = QL_BTNS[in->mc_btn];
+	switch (in->mc_mode) {
+	case MC_WAIT:
+	case MC_REC:
+		if (p & b) {
+			if (in->mc_n) {
+				mc_loop(in);
+			} else {
+				in->mc_mode = MC_OFF;
+				toast("NOTHING RECORDED");
+				sfx_play(SFX_BUMP, 0);
+			}
+		}
+		break;
+	case MC_LOOP:
+		if (p & ~BTN_MENU) { // you take over: this press is only the stop
+			in->mc_mode = MC_OFF;
+			G.swallow |= held;
+			held = 0;
+			toast("MACRO STOPPED");
+			sfx_play(SFX_TOGGLE_OFF, 0);
+		}
+		break;
+	default:
+		if (p & b) {
+			if (in->mc_n) {
+				mc_loop(in);
+			} else {
+				toast("NO MACRO YET: RECORD ONE IN THE MENU");
+				sfx_play(SFX_BUMP, 0);
+			}
+		}
+	}
+	return held & ~b;
+}
+
+// Each emulated frame: records the buttons, or replaces them with the macro's.
+static unsigned mc_frame(unsigned held)
+{
+	inst_t *in = &run[cur];
+	held &= ~BTN_MENU;
+	switch (in->mc_mode) {
+	case MC_WAIT: // recording starts with the first button
+		if (!held)
+			return held;
+		in->mc_mode = MC_REC, in->mc_n = 0;
+		/* fall through */
+	case MC_REC:
+		if (in->mc_n == in->mc_cap) {
+			if (in->mc_cap >= MC_MAX) {
+				toast("MACRO FULL (10 MINUTES)");
+				mc_loop(in);
+				return mc_frame(held);
+			}
+			int cap = in->mc_cap ? in->mc_cap * 2 : 1024;
+			uint16_t *m = realloc(in->mc, (size_t)(cap > MC_MAX ? MC_MAX : cap) * sizeof *m);
+			if (!m) {
+				mc_loop(in);
+				return mc_frame(held);
+			}
+			in->mc = m, in->mc_cap = cap > MC_MAX ? MC_MAX : cap;
+		}
+		in->mc[in->mc_n++] = (uint16_t)held;
+		return held;
+	case MC_LOOP: {
+		unsigned v = in->mc[in->mc_pos];
+		in->mc_pos = (in->mc_pos + 1) % in->mc_n;
+		return v;
+	}
+	}
+	return held;
+}
+
+static const char *mc_status(void)
+{
+	static char s[16];
+	inst_t *in = &run[cur];
+	switch (in->mc_mode) {
+	case MC_WAIT:
+	case MC_REC: return "REC";
+	case MC_LOOP: return "LOOP";
+	}
+	if (!in->mc_n)
+		return NULL;
+	snprintf(s, sizeof s, "%.1f S", in->mc_n / 59.7275);
+	return s;
+}
+
+// next to the quick-load tag, in the black border
+static void mc_draw_tag(canvas *c)
+{
+	if (cur < 0 || G.cc || !run[cur].mc_btn)
+		return;
+	inst_t *in = &run[cur];
+	int x = 8;
+	if (in->ql_btn) {
+		char t[32];
+		snprintf(t, sizeof t, "QUICK LOAD %s", QL_NAMES[in->ql_btn]);
+		x += text_width(t, 2) + 12 + 6;
+	}
+	const char *bn = QL_NAMES[in->mc_btn];
+	char t[48];
+	switch (in->mc_mode) {
+	case MC_WAIT:
+	case MC_REC:
+		if (in->mc_mode == MC_WAIT) {
+			chip(c, x, 6, 2, "REC FROM YOUR FIRST PRESS", PAL[0]);
+			break;
+		}
+		snprintf(t, sizeof t, "   REC  %s TO LOOP", bn);
+		chip(c, x, 6, 2, t, PAL[0]);
+		if (fmodf(ui_time(), 1.0f) < 0.6f) // the recording dot blinks
+			fill(c, x + 8, 6 + 7, 8, 8, BLACK);
+		break;
+	case MC_LOOP:
+		chip(c, x, 6, 2, "LOOP", PAL[3]);
+		break;
+	default:
+		if (in->mc_n) {
+			snprintf(t, sizeof t, "MACRO %s", bn);
+			chip(c, x, 6, 2, t, GREY);
+		}
+	}
+}
+
+enum { MC_R_BUTTON, MC_R_RECORD, MC_R_PLAY, MC_NROWS };
+
+static void mc_open(void)
+{
+	inst_t *in = &run[cur];
+	MC.on = 1, MC.sel = in->mc_n ? MC_R_PLAY : MC_R_RECORD;
+	if (!in->mc_btn || mc_conflict(in->mc_btn)) { // L2 unless taken
+		in->mc_btn = 1;
+		while (mc_conflict(in->mc_btn))
+			in->mc_btn = in->mc_btn % (NQL - 1) + 1;
+	}
+	ui_page_anim(0);
+	sfx_play(SFX_OPEN, APP_GAMES);
+}
+
+static void mc_update(unsigned p, float dt)
+{
+	(void)dt;
+	inst_t *in = &run[cur];
+	int d = (p & BTN_DOWN) ? 1 : (p & BTN_UP) ? -1 : 0;
+	if (d) {
+		if (MC.sel + d >= 0 && MC.sel + d < MC_NROWS)
+			MC.sel += d, sfx_play(SFX_TICK, 0);
+		else
+			sfx_play(SFX_BUMP, 0);
+	}
+	if (p & BTN_B) {
+		MC.on = 0;
+		ui_page_anim(1);
+		sfx_play(SFX_BACK, 0);
+		return;
+	}
+	if (MC.sel == MC_R_BUTTON) { // <> or A to change it (L2, R2, X, Y)
+		int dd = (p & BTN_RIGHT) ? 1 : (p & BTN_LEFT) ? -1 : (p & BTN_A) ? 1 : 0;
+		if (dd) {
+			int k = in->mc_btn;
+			do
+				k = (k - 1 + dd + (NQL - 1)) % (NQL - 1) + 1;
+			while (mc_conflict(k) && k != in->mc_btn);
+			in->mc_btn = k;
+			sfx_play(SFX_CHANGE, k * 2);
+		}
+		return;
+	}
+	if (!(p & BTN_A))
+		return;
+	if (MC.sel == MC_R_PLAY && !in->mc_n) {
+		toast("NOTHING RECORDED YET");
+		sfx_play(SFX_BUMP, 0);
+		return;
+	}
+	if (MC.sel == MC_R_RECORD) {
+		in->mc_mode = MC_WAIT, in->mc_n = 0;
+		snprintf(toast_buf, sizeof toast_buf, "RECORDING FROM YOUR FIRST PRESS: %s TO LOOP", QL_NAMES[in->mc_btn]);
+		toast(toast_buf);
+		sfx_play(SFX_CONFIRM, 0);
+	} else {
+		mc_loop(in);
+	}
+	MC.on = 0; // back to the game
+	G.cc = 0;
+}
+
+static void mc_draw(canvas *c)
+{
+	uint32_t col = PAL[APP_GAMES];
+	inst_t *in = &run[cur];
+	fill(c, 0, 0, W, H, 0x0e0e0e);
+	ingame_header(c, "MACRO", inst_title(cur), GREY);
+	int top = UI_TOP;
+	ui_column(UI_MX, W - 2 * UI_MX);
+	ui_row(c, top, "BUTTON", MC.sel == MC_R_BUTTON, col);
+	ui_row_choice(c, top, QL_NAMES[in->mc_btn], MC.sel == MC_R_BUTTON, col);
+	ui_row(c, top + UI_ROW, in->mc_n ? "RECORD A NEW ONE" : "RECORD", MC.sel == MC_R_RECORD, col);
+	ui_row_value(c, top + UI_ROW, NULL, 1, MC.sel == MC_R_RECORD, col, GREY);
+	char len[16] = "";
+	if (in->mc_n)
+		snprintf(len, sizeof len, "%.1f S", in->mc_n / 59.7275);
+	ui_row(c, top + 2 * UI_ROW, "PLAY IN A LOOP", MC.sel == MC_R_PLAY, in->mc_n ? col : 0x666666);
+	ui_row_value(c, top + 2 * UI_ROW, in->mc_n ? len : "NONE YET", 0, MC.sel == MC_R_PLAY, col,
+		     in->mc_n ? PAL[3] : 0x666666);
+	ui_column(0, 0);
+	// how it works
+	char l1[64], l2[64];
+	snprintf(l1, sizeof l1, "RECORD STARTS WITH YOUR FIRST PRESS.");
+	snprintf(l2, sizeof l2, "%s ENDS IT AND LOOPS IT; ANY BUTTON STOPS.", QL_NAMES[in->mc_btn]);
+	int ty = top + 3 * UI_ROW + 16;
+	text(c, UI_MX + 16, ty, l1, 2, GREY);
+	text(c, UI_MX + 16, ty + 22, l2, 2, GREY);
+	const char *b[3] = {"^V", "A", "B"},
+		   *l[3] = {"MOVE", MC.sel == MC_R_BUTTON ? "CHANGE" : MC.sel == MC_R_RECORD ? "RECORD" : "PLAY", "BACK"};
+	ingame_hints(c, b, l, 3);
 }
 
 static void states_open(void)
@@ -2770,6 +3051,10 @@ static void ingame_update(unsigned p, float dt)
 		ql_update(p, dt);
 		return;
 	}
+	if (MC.on) {
+		mc_update(p, dt);
+		return;
+	}
 	if (M2.page >= 2) {
 		link_update(p, dt);
 		return;
@@ -2811,6 +3096,7 @@ static void ingame_update(unsigned p, float dt)
 	switch (*sel) {
 	case ACT_STATES: states_open(); break;
 	case ACT_QUICK: ql_open(); break;
+	case ACT_MACRO: mc_open(); break;
 	case ACT_SAVES:
 		if (!lib[run[cur].game].cg) {
 			toast("NOT AVAILABLE FOR THIS GAME");
@@ -2934,6 +3220,10 @@ static void ingame_draw(canvas *c, float a)
 		ql_draw(c);
 		return;
 	}
+	if (MC.on) {
+		mc_draw(c);
+		return;
+	}
 	darken(c, 0, 0, W, H, 0.85f * a); // the game stays visible: the menu belongs to it
 	if (M2.page >= 2) {
 		link_draw(c);
@@ -2974,6 +3264,8 @@ static void ingame_draw(canvas *c, float a)
 			ui_row_value(c, y, lib[in->game].cg ? nb : NULL, 1, sel, col, GREY);
 		} else if (i == ACT_QUICK) {
 			ui_row_value(c, y, run[cur].ql_btn ? QL_NAMES[run[cur].ql_btn] : NULL, 1, sel, col, PAL[0]);
+		} else if (i == ACT_MACRO) {
+			ui_row_value(c, y, mc_status(), 1, sel, col, PAL[0]);
 		} else if (i == ACT_SETTINGS || i == ACT_COPY) {
 			ui_row_value(c, y, NULL, 1, sel, col, GREY);
 		} else if (i == ACT_LINK) {
@@ -3044,7 +3336,7 @@ static void ingame_draw(canvas *c, float a)
 static void ingame_reset(void)
 {
 	memset(&M2, 0, sizeof M2);
-	SV.on = 0;
+	SV.on = 0, QL.on = 0, MC.on = 0;
 }
 
 void games_cc_update(unsigned p, float dt)
@@ -3566,6 +3858,7 @@ void games_draw(canvas *c, int screen)
 		if (run[cur].fade < 1) // a game that just started fades in
 			darken(c, 0, 0, W, H, 1 - clampf(run[cur].fade, 0, 1));
 		ql_draw_tag(c);
+		mc_draw_tag(c);
 		if (is_linked(cur) && !G.cc) // in the black border, never over the game
 		{
 			// LINKED, plus which copy this is (#1 = the original) in yellow
