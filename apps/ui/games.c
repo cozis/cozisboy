@@ -2384,6 +2384,8 @@ enum { MC_OFF, MC_WAIT, MC_REC, MC_LOOP };
 
 static struct {
 	int on, sel;
+	float hold;	// DELETE: hold A
+	int done;	// A must be released first (it opened the page, or the hold fired)
 } MC;
 
 static int mc_conflict(int k)	// turbo's X / Y, quick load's button
@@ -2533,12 +2535,12 @@ static void mc_draw_tag(canvas *c)
 	}
 }
 
-enum { MC_R_BUTTON, MC_R_RECORD, MC_R_PLAY, MC_NROWS };
+enum { MC_R_BUTTON, MC_R_RECORD, MC_R_PLAY, MC_R_DELETE, MC_NROWS };
 
 static void mc_open(void)
 {
 	inst_t *in = &run[cur];
-	MC.on = 1, MC.sel = in->mc_n ? MC_R_PLAY : MC_R_RECORD;
+	MC.on = 1, MC.sel = in->mc_n ? MC_R_PLAY : MC_R_RECORD, MC.hold = 0, MC.done = 1;
 	if (!in->mc_btn || mc_conflict(in->mc_btn)) { // L2 unless taken
 		in->mc_btn = 1;
 		while (mc_conflict(in->mc_btn))
@@ -2550,15 +2552,19 @@ static void mc_open(void)
 
 static void mc_update(unsigned p, float dt)
 {
-	(void)dt;
 	inst_t *in = &run[cur];
 	int d = (p & BTN_DOWN) ? 1 : (p & BTN_UP) ? -1 : 0;
 	if (d) {
+		MC.hold = 0;
+		if (ui_held() & BTN_A)
+			MC.done = 1;
 		if (MC.sel + d >= 0 && MC.sel + d < MC_NROWS)
 			MC.sel += d, sfx_play(SFX_TICK, 0);
 		else
 			sfx_play(SFX_BUMP, 0);
 	}
+	if (!(ui_held() & BTN_A))
+		MC.hold = 0, MC.done = 0;
 	if (p & BTN_B) {
 		MC.on = 0;
 		ui_page_anim(1);
@@ -2574,6 +2580,24 @@ static void mc_update(unsigned p, float dt)
 			while (mc_conflict(k) && k != in->mc_btn);
 			in->mc_btn = k;
 			sfx_play(SFX_CHANGE, k * 2);
+		}
+		return;
+	}
+	if (MC.sel == MC_R_DELETE) { // hold A: the recording is gone
+		if (!in->mc_n) {
+			if (p & BTN_A) {
+				toast("NOTHING RECORDED YET");
+				sfx_play(SFX_BUMP, 0);
+			}
+			return;
+		}
+		if ((ui_held() & BTN_A) && !MC.done && (MC.hold += dt) >= HOLD_TIME) {
+			free(in->mc);
+			in->mc = NULL, in->mc_n = in->mc_cap = in->mc_pos = 0;
+			in->mc_mode = MC_OFF;
+			MC.hold = 0, MC.done = 1, MC.sel = MC_R_RECORD;
+			toast("MACRO DELETED");
+			sfx_play(SFX_TOGGLE_OFF, 0);
 		}
 		return;
 	}
@@ -2614,16 +2638,18 @@ static void mc_draw(canvas *c)
 	ui_row(c, top + 2 * UI_ROW, "PLAY IN A LOOP", MC.sel == MC_R_PLAY, in->mc_n ? col : 0x666666);
 	ui_row_value(c, top + 2 * UI_ROW, in->mc_n ? len : "NONE YET", 0, MC.sel == MC_R_PLAY, col,
 		     in->mc_n ? PAL[3] : 0x666666);
+	ui_row_hold(c, top + 3 * UI_ROW, "DELETE", MC.sel == MC_R_DELETE, in->mc_n ? PAL[0] : 0x666666,
+		    MC.sel == MC_R_DELETE ? MC.hold / HOLD_TIME : 0);
 	ui_column(0, 0);
 	// how it works
 	char l1[64], l2[64];
 	snprintf(l1, sizeof l1, "RECORD STARTS WITH YOUR FIRST PRESS.");
 	snprintf(l2, sizeof l2, "%s ENDS IT AND LOOPS IT; ANY BUTTON STOPS.", QL_NAMES[in->mc_btn]);
-	int ty = top + 3 * UI_ROW + 16;
+	int ty = top + 4 * UI_ROW + 16;
 	text(c, UI_MX + 16, ty, l1, 2, GREY);
 	text(c, UI_MX + 16, ty + 22, l2, 2, GREY);
 	const char *b[3] = {"^V", "A", "B"},
-		   *l[3] = {"MOVE", MC.sel == MC_R_BUTTON ? "CHANGE" : MC.sel == MC_R_RECORD ? "RECORD" : "PLAY", "BACK"};
+		   *l[3] = {"MOVE", MC.sel == MC_R_BUTTON ? "CHANGE" : MC.sel == MC_R_RECORD ? "RECORD" : MC.sel == MC_R_PLAY ? "PLAY" : "HOLD: DELETE", "BACK"};
 	ingame_hints(c, b, l, 3);
 }
 
